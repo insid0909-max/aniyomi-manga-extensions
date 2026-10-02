@@ -70,9 +70,10 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 목록 ----------
-    private fun listReq(path: String, page: Int, q: String? = null): Request {
+    private fun listReq(path: String, page: Int, q: String? = null, extra: Map<String, String> = emptyMap()): Request {
         val b = (baseUrl + path).toHttpUrl().newBuilder()
         if (!q.isNullOrBlank()) b.addQueryParameter("q", q)
+        extra.forEach { (k, v) -> if (v.isNotEmpty()) b.addQueryParameter(k, v) }
         if (page > 1) b.addQueryParameter("pg", page.toString())
         return GET(b.build(), headers)
     }
@@ -82,8 +83,15 @@ class Goodtoon : HttpSource(), ConfigurableSource {
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (query.isNotBlank()) return listReq("/", page, query.trim())
-        val sel = filters.filterIsInstance<ListFilter>().firstOrNull()?.state ?: 0
-        return listReq(LISTS[sel].second, page)
+        var path = "/"
+        val extra = LinkedHashMap<String, String>()
+        filters.forEach { f ->
+            if (f is Pick) {
+                val v = f.pairs[f.state].second
+                if (f.param == "list") path = v else extra[f.param] = v
+            }
+        }
+        return listReq(path, page, null, extra)
     }
 
     override fun popularMangaParse(response: Response) = parseList(response)
@@ -186,10 +194,15 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     // ---------- 필터 ----------
     override fun getFilterList() = FilterList(
         Filter.Header("검색어가 없을 때만 적용"),
-        ListFilter(),
+        Pick("목록", "list", LISTS),
+        Pick("분류", "mcat", CATS),
+        Pick("요일", "mday", DAYS),
+        Pick("장르", "genre", GENRES),
+        Pick("플랫폼", "plat", PLATS),
     )
 
-    class ListFilter : Filter.Select<String>("목록", LISTS.map { it.first }.toTypedArray())
+    class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
+        Filter.Select<String>(name, pairs.map { it.first }.toTypedArray())
 
     private fun pathOf(href: String): String =
         Regex("^https?://[^/]+(/.*)$").find(href)?.groupValues?.get(1) ?: href
@@ -204,6 +217,29 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             "인기순" to "/recommend/",
             "연재중" to "/ongoing/",
             "완결" to "/end/",
+        )
+        private val CATS = listOf("전체" to "", "일반웹툰" to "webtoon", "BL/GL" to "bl-gl", "성인웹툰" to "adult")
+        private val DAYS = listOf(
+            "전체" to "", "월" to "mon", "화" to "tue", "수" to "wed", "목" to "thu",
+            "금" to "fri", "토" to "sat", "일" to "sun", "기타" to "etc",
+        )
+        private val GENRES = listOf(
+            "전체" to "", "학원" to "school", "액션" to "action", "SF" to "sci-fi", "스토리" to "story",
+            "판타지" to "fantasy", "BL" to "bl", "개그" to "gag", "연애" to "romance-drama",
+            "드라마" to "drama", "로맨스" to "romance", "시대극" to "period", "스포츠" to "sports",
+            "일상" to "slice-of-life", "추리" to "mystery", "공포" to "horror", "성인" to "adult",
+            "옴니버스" to "omnibus", "에피소드" to "episode", "무협" to "martial-arts", "소년" to "shounen",
+            "기타" to "etc", "노벨피아" to "novelpia", "유부녀" to "married", "하드코어" to "hardcore",
+            "조교" to "training", "고수위" to "high-level", "능욕" to "abuse", "하렘" to "harem",
+            "강제" to "forced", "여성인기" to "female-popular", "남성인기" to "male-popular",
+            "3P" to "threesome", "후방주의" to "adult-warning", "백합" to "yuri",
+        )
+        private val PLATS = listOf(
+            "전체" to "", "네이버" to "naver", "다음" to "daum", "카카오" to "kakao", "레진" to "rejin",
+            "투믹스" to "tomics", "탑툰" to "toptoon", "리디" to "ridi", "코미카" to "comica",
+            "배틀코믹스" to "battlecomics", "코믹GT" to "comicgt", "케이툰" to "ktoon", "애니툰" to "anitoon",
+            "폭스툰" to "foxtoon", "피너툰" to "peanutoon", "봄툰" to "bom", "코미코" to "comico",
+            "무툰" to "mootoon", "기타" to "etc",
         )
     }
 }
