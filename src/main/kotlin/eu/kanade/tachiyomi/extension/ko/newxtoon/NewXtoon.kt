@@ -148,7 +148,24 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
+
+        // 인증 통과 기록(쿠키)을 바로 저장해서 앱을 껐다 켜도 유지되게 함
+        if (response.isSuccessful) flushCookies()
         return response
+    }
+
+    @Volatile
+    private var lastFlush = 0L
+
+    private fun flushCookies() {
+        val now = System.currentTimeMillis()
+        if (now - lastFlush < 10_000) return
+        lastFlush = now
+        try {
+            android.webkit.CookieManager.getInstance().flush()
+        } catch (e: Throwable) {
+            // 저장 실패는 무시
+        }
     }
 
     private val discoverLock = Any()
