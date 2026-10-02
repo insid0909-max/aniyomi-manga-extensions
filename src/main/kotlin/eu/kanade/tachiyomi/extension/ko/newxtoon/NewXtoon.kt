@@ -574,11 +574,37 @@ class NewXtoon(
  * 소스를 늘리려면 아래 목록에 한 줄 추가하면 됩니다. 앱의 확장 정보 화면에서 소스별로 켜고 끌 수 있습니다.
  */
 class NewXtoonFactory : SourceFactory {
-    override fun createSources(): List<Source> = listOf(
-        NewXtoon(), // 전체 (기존 "manga" 소스, 즐겨찾기/기록 유지)
-        Goodtoon(),
-        // NewXtoon("뉴엑스툰 일반만화", "일반만화"),
-        // NewXtoon("뉴엑스툰 BL·GL", "BL·GL"),
-        // NewXtoon("뉴엑스툰 성인만화", "성인"),
-    )
+    override fun createSources(): List<Source> {
+        val list = mutableListOf<Source>()
+        try {
+            list.add(NewXtoon()) // 전체 (기존 "manga" 소스, 즐겨찾기/기록 유지)
+        } catch (e: Throwable) {
+            list.add(ErrorSource("manga 오류", e))
+        }
+        try {
+            list.add(Goodtoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("Goodtoon 오류", e))
+        }
+        return list
+    }
+}
+
+/** 소스 생성이 실패해도 확장 전체가 사라지지 않고, 오류 내용을 소스 이름에 보여줌 */
+class ErrorSource(label: String, err: Throwable) : HttpSource() {
+    override val name = "$label: ${err.javaClass.simpleName} ${err.message ?: ""}".take(120)
+    override val lang = "ko"
+    override val baseUrl = "https://example.invalid"
+    override val supportsLatest = false
+    private fun fail(): Nothing = throw UnsupportedOperationException(name)
+    override fun popularMangaRequest(page: Int): Request = fail()
+    override fun popularMangaParse(response: Response): MangasPage = fail()
+    override fun latestUpdatesRequest(page: Int): Request = fail()
+    override fun latestUpdatesParse(response: Response): MangasPage = fail()
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = fail()
+    override fun searchMangaParse(response: Response): MangasPage = fail()
+    override fun mangaDetailsParse(response: Response): SManga = fail()
+    override fun chapterListParse(response: Response): List<SChapter> = fail()
+    override fun pageListParse(response: Response): List<Page> = fail()
+    override fun imageUrlParse(response: Response): String = fail()
 }
