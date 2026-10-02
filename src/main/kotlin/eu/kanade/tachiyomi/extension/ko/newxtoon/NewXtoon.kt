@@ -32,11 +32,35 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     override val supportsLatest = true
 
     // ---------- 설정 (도메인) ----------
-    private val sp: SharedPreferences by lazy {
-        val app = Class.forName("android.app.ActivityThread")
+    private val app: Application by lazy {
+        Class.forName("android.app.ActivityThread")
             .getMethod("currentApplication").invoke(null) as Application
+    }
+
+    private val sp: SharedPreferences by lazy {
         app.getSharedPreferences("source_$id", 0)
     }
+
+    // 폰 WebView와 같은 모바일 Chrome UA (비우면 자동). Cloudflare 확인 통과용
+    private val userAgent: String
+        get() {
+            val custom = try {
+                sp.getString(KEY_UA, "")?.trim().orEmpty()
+            } catch (e: Throwable) {
+                ""
+            }
+            if (custom.isNotEmpty()) return custom
+            return try {
+                android.webkit.WebSettings.getDefaultUserAgent(app)
+                    .replace("; wv", "")
+                    .replace("Version/4.0 ", "")
+            } catch (e: Throwable) {
+                FALLBACK_UA
+            }
+        }
+
+    @Suppress("DEPRECATION")
+    override val client: okhttp3.OkHttpClient = network.cloudflareClient
 
     override val baseUrl: String
         get() {
@@ -59,10 +83,18 @@ class NewXtoon : HttpSource(), ConfigurableSource {
                 DOMAIN_REGEX.matches((newValue as String).trim().trimEnd('/'))
             }
         }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = KEY_UA
+            title = "User-Agent (고급)"
+            summary = "비워두면 폰 WebView 기준으로 자동 설정. 변경 후 앱 재시작 필요"
+            dialogTitle = "User-Agent"
+            setDefaultValue("")
+        }.also(screen::addPreference)
     }
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
+        .set("User-Agent", userAgent)
 
     // ---------- 목록 ----------
     private fun listRequest(page: Int, sort: String, category: String = "", status: String = ""): Request {
@@ -287,6 +319,10 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     companion object {
         private const val DEFAULT_BASE_URL = "https://newxtoon1.com"
         private const val KEY_DOMAIN = "pref_domain_key"
+        private const val KEY_UA = "pref_user_agent"
+        private const val FALLBACK_UA =
+            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/124.0.0.0 Mobile Safari/537.36"
         private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
         private val COMIC_PATH = Regex("^/comics/\\d+$")
         private val DATE_REGEX = Regex("\\d{4}\\.\\d{2}\\.\\d{2}")
