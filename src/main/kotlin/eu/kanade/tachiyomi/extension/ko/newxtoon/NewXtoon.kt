@@ -27,7 +27,7 @@ import java.util.TimeZone
 
 class NewXtoon : HttpSource(), ConfigurableSource {
 
-    override val name = "뉴엑스툰"
+    override val name = "manga"
     override val lang = "ko"
     override val supportsLatest = true
 
@@ -58,9 +58,6 @@ class NewXtoon : HttpSource(), ConfigurableSource {
                 FALLBACK_UA
             }
         }
-
-    @Suppress("DEPRECATION")
-    override val client: okhttp3.OkHttpClient = network.cloudflareClient
 
     override val baseUrl: String
         get() {
