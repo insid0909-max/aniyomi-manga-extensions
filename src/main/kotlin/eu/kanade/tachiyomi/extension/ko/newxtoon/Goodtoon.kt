@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -13,6 +14,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -143,14 +145,40 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 회차 (상세 페이지에 전체 목록이 들어 있음) ----------
-    override fun chapterListRequest(manga: SManga) = GET(baseUrl + manga.url, headers)
+    // 회차 목록은 페이지 로드 후 admin-ajax(Madara)로 채워짐 -> 같은 요청을 직접 보냄
+    override fun chapterListRequest(manga: SManga): Request {
+        val id = Regex("gt-(\\d+)").find(manga.url)?.groupValues?.get(1).orEmpty()
+        val body = FormBody.Builder()
+            .add("action", "manga_get_chapters")
+            .add("manga", id)
+            .build()
+        return POST(
+            "$baseUrl/wp-admin/admin-ajax.php",
+            headersBuilder()
+                .set("Referer", baseUrl + manga.url)
+                .set("X-Requested-With", "XMLHttpRequest")
+                .build(),
+            body,
+        )
+    }
 
     private val dateFmt = SimpleDateFormat("yy.MM.dd", Locale.KOREA).apply {
         timeZone = TimeZone.getTimeZone("Asia/Seoul")
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val d = response.asDoc()
+        val list = parseChapters(response.asDoc())
+        if (list.isNotEmpty()) return list
+        // 예비: 상세 페이지 HTML에 목록이 직접 들어 있는 경우
+        val refer = response.request.header("Referer") ?: return list
+        return try {
+            client.newCall(GET(refer, headers)).execute().use { parseChapters(it.asDoc()) }
+        } catch (e: Exception) {
+            list
+        }
+    }
+
+    private fun parseChapters(d: Document): List<SChapter> {
         val seen = HashSet<String>()
         return d.select("li.wp-manga-chapter").mapNotNull { li ->
             val a = li.selectFirst("a") ?: return@mapNotNull null
