@@ -94,18 +94,16 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         .set("User-Agent", userAgent)
 
     // ---------- 목록 ----------
-    private fun listRequest(page: Int, sort: String, category: String = "", status: String = ""): Request {
+    private fun listRequest(page: Int, params: Map<String, String>): Request {
         val b = "$baseUrl/comics".toHttpUrl().newBuilder()
-        if (sort.isNotEmpty()) b.addQueryParameter("sort", sort)
-        if (category.isNotEmpty()) b.addQueryParameter("category", category)
-        if (status.isNotEmpty()) b.addQueryParameter("status", status)
+        params.forEach { (k, v) -> if (v.isNotEmpty()) b.addQueryParameter(k, v) }
         if (page > 1) b.addQueryParameter("page", page.toString())
         return GET(b.build(), headers)
     }
 
-    override fun popularMangaRequest(page: Int): Request = listRequest(page, "popular")
+    override fun popularMangaRequest(page: Int): Request = listRequest(page, mapOf("sort" to "popular"))
 
-    override fun latestUpdatesRequest(page: Int): Request = listRequest(page, "latest")
+    override fun latestUpdatesRequest(page: Int): Request = listRequest(page, mapOf("sort" to "latest"))
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (query.isNotBlank()) {
@@ -114,18 +112,11 @@ class NewXtoon : HttpSource(), ConfigurableSource {
             if (page > 1) b.addQueryParameter("page", page.toString())
             return GET(b.build(), headers)
         }
-        var sort = "popular"
-        var category = ""
-        var status = ""
+        val params = LinkedHashMap<String, String>()
         filters.forEach { f ->
-            when (f) {
-                is SortFilter -> sort = f.value()
-                is CategoryFilter -> category = f.value()
-                is StatusFilter -> status = f.value()
-                else -> {}
-            }
+            if (f is PairSelect) params[f.param] = f.value()
         }
-        return listRequest(page, sort, category, status)
+        return listRequest(page, params)
     }
 
     override fun popularMangaParse(response: Response): MangasPage = parseList(response)
@@ -314,28 +305,58 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     // ---------- 필터 (검색어 없을 때 사용) ----------
     override fun getFilterList() = FilterList(
         Filter.Header("검색어를 입력하면 필터는 무시됩니다"),
-        SortFilter(),
-        CategoryFilter(),
-        StatusFilter(),
+        PairSelect(
+            "분류", "category",
+            arrayOf("전체" to "", "일반만화" to "일반만화", "BL·GL" to "BL·GL", "성인만화" to "성인"),
+        ),
+        PairSelect(
+            "요일", "weekday",
+            arrayOf(
+                "전체" to "", "월" to "월", "화" to "화", "수" to "수", "목" to "목",
+                "금" to "금", "토" to "토", "일" to "일",
+            ),
+        ),
+        PairSelect(
+            "장르", "genre",
+            arrayOf(
+                "전체" to "", "로맨스" to "1", "드라마" to "4", "판타지" to "2",
+                "로맨스판타지" to "2739", "성장물" to "2753", "액션" to "3", "능력녀" to "2902",
+                "소설원작" to "2774", "왕족/귀족" to "2777", "다정남" to "2904", "먼치킨" to "2772",
+                "로맨틱코미디" to "2903", "능력남" to "2905", "완결로맨스" to "3266", "달달물" to "2771",
+                "개그/코미디" to "6", "성장" to "2874", "복수" to "2754", "무협/사극" to "2743",
+                "빙의" to "2757", "성인" to "2782", "현대물" to "2751", "고수위" to "2783",
+                "첫사랑" to "2763", "짝사랑" to "2764", "학원/캠퍼스" to "2745", "오피스" to "2752",
+                "하렘/역하렘" to "2786", "하렘" to "2813", "은밀한 관계" to "2832", "회사원" to "2849",
+                "일탈" to "2880", "BL" to "2788", "한국BL" to "3201", "현대극" to "3202",
+                "다정공" to "2791", "집착공" to "2792", "미남공" to "3067", "미인수" to "2797",
+                "미인공" to "2796", "능글공" to "2802", "상처수" to "2799", "순정공" to "2803",
+                "다정수" to "2800", "대형견공" to "2804", "재회" to "2765", "강공" to "2793",
+                "삼각관계" to "2768",
+            ),
+        ),
+        PairSelect(
+            "연재 상태", "status",
+            arrayOf("전체" to "", "연재중" to "연재중", "완결" to "완결"),
+        ),
+        PairSelect(
+            "플랫폼", "platform",
+            arrayOf(
+                "전체" to "", "카카오페이지" to "kakao-page", "네이버" to "naver", "레진코믹스" to "lezhin",
+                "리디" to "ridi", "탑툰" to "toptoon", "봄툰" to "bomtoon", "미스터블루" to "mrblue",
+                "투믹스" to "toomics", "피너툰" to "peanutoon", "코미코" to "comico",
+            ),
+        ),
+        PairSelect(
+            "정렬", "sort",
+            arrayOf("최신순" to "latest", "인기순" to "popular"),
+        ),
     )
 
-    private class SortFilter : PairSelect(
-        "정렬",
-        arrayOf("인기순" to "popular", "최신순" to "latest"),
-    )
-
-    private class CategoryFilter : PairSelect(
-        "카테고리",
-        arrayOf("전체" to "", "일반만화" to "일반만화", "BL·GL" to "BL·GL", "성인" to "성인"),
-    )
-
-    private class StatusFilter : PairSelect(
-        "상태",
-        arrayOf("전체" to "", "완결" to "완결"),
-    )
-
-    private open class PairSelect(name: String, private val pairs: Array<Pair<String, String>>) :
-        Filter.Select<String>(name, pairs.map { it.first }.toTypedArray()) {
+    private class PairSelect(
+        name: String,
+        val param: String,
+        private val pairs: Array<Pair<String, String>>,
+    ) : Filter.Select<String>(name, pairs.map { it.first }.toTypedArray()) {
         fun value(): String = pairs[state].second
     }
 
