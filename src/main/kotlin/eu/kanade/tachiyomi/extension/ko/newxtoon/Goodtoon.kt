@@ -168,7 +168,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     // Madara 테마 표준: 작품 주소 뒤 /ajax/chapters/ 로 POST 하면 회차 목록 HTML이 옴
     // (admin-ajax.php 는 서버가 403으로 막고 있음)
     override fun chapterListRequest(manga: SManga): Request {
-        val base = (baseUrl + manga.url).trimEnd('/') + "/ajax/chapters/"
+        val base = (baseUrl + manga.url).trimEnd('/') + "/ajax/chapters/?t=1"
         return POST(
             base,
             headersBuilder()
