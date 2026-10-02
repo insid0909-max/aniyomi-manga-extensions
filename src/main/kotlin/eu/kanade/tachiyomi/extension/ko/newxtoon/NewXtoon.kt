@@ -576,6 +576,7 @@ class NewXtoon(
 class NewXtoonFactory : SourceFactory {
     override fun createSources(): List<Source> = listOf(
         NewXtoon(), // 전체 (기존 "manga" 소스, 즐겨찾기/기록 유지)
+        Goodtoon(),
         // NewXtoon("뉴엑스툰 일반만화", "일반만화"),
         // NewXtoon("뉴엑스툰 BL·GL", "BL·GL"),
         // NewXtoon("뉴엑스툰 성인만화", "성인"),
