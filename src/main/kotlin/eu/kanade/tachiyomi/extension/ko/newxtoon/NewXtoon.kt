@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -21,6 +22,9 @@ import okhttp3.Response
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -81,6 +85,13 @@ class NewXtoon : HttpSource(), ConfigurableSource {
             }
         }.also(screen::addPreference)
 
+        SwitchPreferenceCompat(screen.context).apply {
+            key = KEY_AUTO
+            title = "도메인 자동 찾기"
+            summary = "주소 번호가 바뀌어 접속이 안 되면 newxtoon1~40.com 중 열리는 주소로 자동 변경"
+            setDefaultValue(true)
+        }.also(screen::addPreference)
+
         EditTextPreference(screen.context).apply {
             key = KEY_UA
             title = "User-Agent (고급)"
@@ -89,6 +100,107 @@ class NewXtoon : HttpSource(), ConfigurableSource {
             setDefaultValue("")
         }.also(screen::addPreference)
     }
+
+    // 접속 차단(451) 안내 + 주소 번호 변경 시 자동 연결
+    override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor { chain -> smartIntercept(chain) }
+        .build()
+
+    private fun autoDomain(): Boolean = try {
+        sp.getBoolean(KEY_AUTO, true)
+    } catch (e: Throwable) {
+        true
+    }
+
+    private fun saveDomain(url: String) {
+        try {
+            sp.edit().putString(KEY_DOMAIN, url).apply()
+        } catch (e: Throwable) {
+            // 저장 실패는 무시
+        }
+    }
+
+    private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
+        val req = chain.request()
+        val baseHost = baseUrl.toHttpUrlOrNull()?.host
+        val ours = autoDomain() && baseHost != null && req.url.host == baseHost && HOST_REGEX.matches(baseHost)
+
+        val response = try {
+            chain.proceed(req)
+        } catch (e: IOException) {
+            // 현재 주소에 접속 불가 -> 살아있는 주소 찾아서 재시도
+            val found = if (ours) discoverDomain(baseHost!!) else null
+            if (found == null) throw e
+            saveDomain("https://$found")
+            return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+        }
+
+        if (response.code == 451) {
+            response.close()
+            throw IOException(
+                "접근 차단됨 (HTTP 451: 법적 사유로 이용 불가). " +
+                    "확장 설정에서 도메인 주소를 확인하세요.",
+            )
+        }
+
+        // 옛 주소 -> 새 주소로 넘어간 경우 새 주소를 저장
+        val finalHost = response.request.url.host
+        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+            saveDomain("https://$finalHost")
+        }
+        return response
+    }
+
+    private val discoverLock = Any()
+
+    @Volatile
+    private var lastDiscover = 0L
+
+    /** newxtoon{1..40}.com 중 응답하는 주소를 찾는다. 확인된 주소 > 인증창이 뜨는 주소, 번호가 큰 쪽 우선 */
+    private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
+        val now = System.currentTimeMillis()
+        if (now - lastDiscover < 60_000) return null
+        lastDiscover = now
+
+        val plain = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(6, TimeUnit.SECONDS)
+            .callTimeout(8, TimeUnit.SECONDS)
+            .build()
+        val ua = userAgent
+        val pool = Executors.newFixedThreadPool(10)
+        try {
+            val futures = (1..40).map { "newxtoon$it.com" }.filter { it != currentHost }.map { host ->
+                pool.submit<Pair<String, Boolean>?> {
+                    try {
+                        val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
+                        plain.newCall(r).execute().use { res ->
+                            val fh = res.request.url.host
+                            if (!HOST_REGEX.matches(fh)) return@use null
+                            when {
+                                res.code == 200 &&
+                                    (res.body?.string() ?: "").contains("뉴엑스툰") -> fh to true
+                                (res.code == 403 || res.code == 503) &&
+                                    res.header("cf-mitigated") != null -> fh to false
+                                else -> null
+                            }
+                        }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
+            val hits = futures.mapNotNull { it.get() }
+            val pick = hits.filter { it.second }.maxByOrNull { hostNumber(it.first) }
+                ?: hits.maxByOrNull { hostNumber(it.first) }
+            pick?.first
+        } finally {
+            pool.shutdown()
+        }
+    }
+
+    private fun hostNumber(host: String): Int =
+        Regex("\\d+").find(host)?.value?.toIntOrNull() ?: 0
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .set("User-Agent", userAgent)
@@ -364,6 +476,8 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         private const val DEFAULT_BASE_URL = "https://newxtoon1.com"
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_UA = "pref_user_agent"
+        private const val KEY_AUTO = "pref_auto_domain"
+        private val HOST_REGEX = Regex("^(www\\.)?newxtoon\\d*\\.com$")
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
