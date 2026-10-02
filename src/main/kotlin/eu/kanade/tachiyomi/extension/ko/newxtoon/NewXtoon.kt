@@ -7,6 +7,8 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.SourceFactory
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -32,9 +34,13 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-class NewXtoon : HttpSource(), ConfigurableSource {
+class NewXtoon(
+    sourceName: String = "manga",
+    /** 비우면 전체, 값이 있으면 해당 분류(예: "성인", "BL·GL", "일반만화")만 기본으로 보여줌 */
+    private val fixedCategory: String = "",
+) : HttpSource(), ConfigurableSource {
 
-    override val name = "manga"
+    override val name = sourceName
     override val lang = "ko"
     override val supportsLatest = true
 
@@ -269,7 +275,9 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     // ---------- 목록 ----------
     private fun listRequest(page: Int, params: Map<String, String>): Request {
         val b = "$baseUrl/comics".toHttpUrl().newBuilder()
-        params.forEach { (k, v) -> if (v.isNotEmpty()) b.addQueryParameter(k, v) }
+        val all = LinkedHashMap(params)
+        if (fixedCategory.isNotEmpty() && all["category"].isNullOrEmpty()) all["category"] = fixedCategory
+        all.forEach { (k, v) -> if (v.isNotEmpty()) b.addQueryParameter(k, v) }
         if (page > 1) b.addQueryParameter("page", page.toString())
         return GET(b.build(), headers)
     }
@@ -481,10 +489,18 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     // ---------- 필터 (검색어 없을 때 사용) ----------
     override fun getFilterList() = FilterList(
         Filter.Header("검색어를 입력하면 필터는 무시됩니다"),
-        PairSelect(
-            "분류", "category",
-            arrayOf("전체" to "", "일반만화" to "일반만화", "BL·GL" to "BL·GL", "성인만화" to "성인"),
-        ),
+        *(
+            if (fixedCategory.isEmpty()) {
+                arrayOf<Filter<*>>(
+                    PairSelect(
+                        "분류", "category",
+                        arrayOf("전체" to "", "일반만화" to "일반만화", "BL·GL" to "BL·GL", "성인만화" to "성인"),
+                    ),
+                )
+            } else {
+                emptyArray<Filter<*>>()
+            }
+            ),
         PairSelect(
             "요일", "weekday",
             arrayOf(
@@ -551,4 +567,17 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         private val TOTAL_REGEX = Regex("총\\s*([\\d,]+)\\s*화")
         private val NUMBER_REGEX = Regex("\\d+(?:\\.\\d+)?")
     }
+}
+
+/**
+ * 확장앱 하나에 여러 소스를 담는 구조 (DC Manga 방식).
+ * 소스를 늘리려면 아래 목록에 한 줄 추가하면 됩니다. 앱의 확장 정보 화면에서 소스별로 켜고 끌 수 있습니다.
+ */
+class NewXtoonFactory : SourceFactory {
+    override fun createSources(): List<Source> = listOf(
+        NewXtoon(), // 전체 (기존 "manga" 소스, 즐겨찾기/기록 유지)
+        // NewXtoon("뉴엑스툰 일반만화", "일반만화"),
+        // NewXtoon("뉴엑스툰 BL·GL", "BL·GL"),
+        // NewXtoon("뉴엑스툰 성인만화", "성인"),
+    )
 }
