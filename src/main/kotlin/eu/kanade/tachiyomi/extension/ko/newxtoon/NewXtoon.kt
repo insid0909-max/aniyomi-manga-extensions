@@ -586,6 +586,11 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("Goodtoon 오류", e))
         }
+        try {
+            list.add(Jjaptoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("짭툰 오류", e))
+        }
         return list
     }
 }
