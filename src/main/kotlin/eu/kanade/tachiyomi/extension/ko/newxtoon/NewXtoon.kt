@@ -17,8 +17,11 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -120,8 +123,49 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         }
     }
 
+    // ---------- 다음 쪽 미리 받기 (목록 넘길 때 속도 개선) ----------
+    private val pageCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, ByteArray>>()
+    private val prefetching = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private fun cachedResponse(req: Request): Response? {
+        if (req.method != "GET") return null
+        val key = req.url.toString()
+        val hit = pageCache.remove(key) ?: return null
+        if (System.currentTimeMillis() - hit.first > 120_000) return null
+        return Response.Builder()
+            .request(req)
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(hit.second.toResponseBody("text/html; charset=utf-8".toMediaType()))
+            .build()
+    }
+
+    private fun prefetch(url: okhttp3.HttpUrl) {
+        val key = url.toString()
+        if (pageCache.containsKey(key) || !prefetching.add(key)) return
+        Thread {
+            try {
+                client.newCall(GET(url, headers)).execute().use { res ->
+                    if (res.isSuccessful) {
+                        val bytes = res.body?.bytes()
+                        if (bytes != null) {
+                            if (pageCache.size > 6) pageCache.clear()
+                            pageCache[key] = System.currentTimeMillis() to bytes
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // 미리 받기 실패는 무시 (실제 요청 때 다시 시도)
+            } finally {
+                prefetching.remove(key)
+            }
+        }.start()
+    }
+
     private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
         val req = chain.request()
+        cachedResponse(req)?.let { return it }
         val baseHost = baseUrl.toHttpUrlOrNull()?.host
         val ours = autoDomain() && baseHost != null && req.url.host == baseHost && HOST_REGEX.matches(baseHost)
 
@@ -290,6 +334,9 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         }.maxOrNull() ?: 0
         val hasNext = document.selectFirst("a[rel=next]") != null || maxPage > cur
 
+        if (hasNext && mangas.isNotEmpty()) {
+            prefetch(response.request.url.newBuilder().setQueryParameter("page", (cur + 1).toString()).build())
+        }
         return MangasPage(mangas, hasNext && mangas.isNotEmpty())
     }
 
