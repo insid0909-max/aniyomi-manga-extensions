@@ -163,8 +163,11 @@ jobs:
               out.append({
                   "name": display, "pkg": pkg, "apk": apk_name, "lang": "ko",
                   "code": vcode, "version": vname, "nsfw": 1,
-                  "sources": [{"name": "newxtoon 웹툰", "lang": "ko", "id": source_id("newxtoon 웹툰", "ko"),
-                               "baseUrl": "https://newxtoon1.com"}],
+                  "sources": [{"name": n, "lang": "ko", "id": source_id(n, "ko"), "baseUrl": u} for n, u in [
+                      ("newxtoon 웹툰", "https://newxtoon1.com"),
+                      ("Goodtoon 웹툰", "https://www.goodtoon006.com"),
+                      ("짭툰", "https://www.jjaptoon008.com"),
+                  ]],
               })
           json.dump(out, open(f"{repo}/index.min.json", "w", encoding="utf-8"),
                     ensure_ascii=False, separators=(",", ":"))
