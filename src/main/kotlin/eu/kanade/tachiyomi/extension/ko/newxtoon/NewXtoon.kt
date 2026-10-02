@@ -35,7 +35,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 class NewXtoon(
-    sourceName: String = "manga",
+    sourceName: String = "newxtoon 웹툰",
     /** 비우면 전체, 값이 있으면 해당 분류(예: "성인", "BL·GL", "일반만화")만 기본으로 보여줌 */
     private val fixedCategory: String = "",
 ) : HttpSource(), ConfigurableSource {
@@ -577,9 +577,9 @@ class NewXtoonFactory : SourceFactory {
     override fun createSources(): List<Source> {
         val list = mutableListOf<Source>()
         try {
-            list.add(NewXtoon()) // 전체 (기존 "manga" 소스, 즐겨찾기/기록 유지)
+            list.add(NewXtoon()) // 전체 (newxtoon 웹툰)
         } catch (e: Throwable) {
-            list.add(ErrorSource("manga 오류", e))
+            list.add(ErrorSource("newxtoon 오류", e))
         }
         try {
             list.add(Goodtoon())
