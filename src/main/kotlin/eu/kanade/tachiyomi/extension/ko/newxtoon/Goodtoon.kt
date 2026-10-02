@@ -55,6 +55,25 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
         }
 
+    // 회차 요청이 실패하면 실제 응답 코드/내용을 오류 메시지로 보여줌 (Cloudflare 오해 방지)
+    override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor { chain ->
+            val req = chain.request()
+            val res = chain.proceed(req)
+            if (req.url.encodedPath.endsWith("admin-ajax.php") && !res.isSuccessful) {
+                val snippet = try {
+                    res.peekBody(300).string().replace(Regex("\\s+"), " ").take(120)
+                } catch (e: Exception) {
+                    ""
+                }
+                val code = res.code
+                res.close()
+                throw java.io.IOException("굿툰 회차 요청 실패 HTTP $code $snippet")
+            }
+            res
+        }
+        .build()
+
     override fun headersBuilder(): Headers.Builder =
         super.headersBuilder().set("User-Agent", userAgent)
 
@@ -157,6 +176,8 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             headersBuilder()
                 .set("Referer", baseUrl + manga.url)
                 .set("X-Requested-With", "XMLHttpRequest")
+                .set("Origin", baseUrl)
+                .set("Accept", "text/html, */*; q=0.01")
                 .build(),
             body,
         )
