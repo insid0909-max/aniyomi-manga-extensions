@@ -60,7 +60,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         .addInterceptor { chain ->
             val req = chain.request()
             val res = chain.proceed(req)
-            if (req.url.encodedPath.endsWith("admin-ajax.php") && !res.isSuccessful) {
+            if ((req.method == "POST") && !res.isSuccessful) {
                 val snippet = try {
                     res.peekBody(300).string().replace(Regex("\\s+"), " ").take(120)
                 } catch (e: Exception) {
@@ -165,21 +165,19 @@ class Goodtoon : HttpSource(), ConfigurableSource {
 
     // ---------- 회차 (상세 페이지에 전체 목록이 들어 있음) ----------
     // 회차 목록은 페이지 로드 후 admin-ajax(Madara)로 채워짐 -> 같은 요청을 직접 보냄
+    // Madara 테마 표준: 작품 주소 뒤 /ajax/chapters/ 로 POST 하면 회차 목록 HTML이 옴
+    // (admin-ajax.php 는 서버가 403으로 막고 있음)
     override fun chapterListRequest(manga: SManga): Request {
-        val id = Regex("gt-(\\d+)").find(manga.url)?.groupValues?.get(1).orEmpty()
-        val body = FormBody.Builder()
-            .add("action", "manga_get_chapters")
-            .add("manga", id)
-            .build()
+        val base = (baseUrl + manga.url).trimEnd('/') + "/ajax/chapters/"
         return POST(
-            "$baseUrl/wp-admin/admin-ajax.php",
+            base,
             headersBuilder()
                 .set("Referer", baseUrl + manga.url)
                 .set("X-Requested-With", "XMLHttpRequest")
                 .set("Origin", baseUrl)
                 .set("Accept", "text/html, */*; q=0.01")
                 .build(),
-            body,
+            FormBody.Builder().build(),
         )
     }
 
