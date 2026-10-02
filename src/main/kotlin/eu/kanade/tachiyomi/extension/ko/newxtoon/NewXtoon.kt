@@ -104,7 +104,7 @@ class NewXtoon : HttpSource(), ConfigurableSource {
     override fun searchMangaParse(response: Response): MangasPage = parseList(response)
 
     private fun doc(response: Response): Document =
-        Jsoup.parse(response.body.string(), response.request.url.toString())
+        Jsoup.parse((response.body?.string() ?: ""), response.request.url.toString())
 
     private fun parseList(response: Response): MangasPage {
         val document = doc(response)
@@ -230,7 +230,7 @@ class NewXtoon : HttpSource(), ConfigurableSource {
             .build()
         return try {
             client.newCall(GET(url, h)).execute().use {
-                if (!it.isSuccessful) null else JSONObject(it.body.string())
+                if (!it.isSuccessful) null else JSONObject(it.body?.string() ?: "{}")
             }
         } catch (e: Exception) {
             null
