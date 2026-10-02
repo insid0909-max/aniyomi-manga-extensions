@@ -225,25 +225,51 @@ class NewXtoon : HttpSource(), ConfigurableSource {
             result[id] = chapter(comicId, id, title, date)
         }
 
-        // 2) 나머지는 JSON 더보기 API (/comics/{id}/chapters?page=N)
+        // 2) 나머지는 JSON 더보기 API (/comics/{id}/chapters?page=N) - 가능하면 동시에 요청
+        fun addJson(json: JSONObject) {
+            val arr = json.optJSONArray("chapters") ?: return
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val id = o.optString("id")
+                if (id.isBlank() || result.containsKey(id)) continue
+                result[id] = chapter(comicId, id, o.optString("title"), o.optString("date"))
+            }
+        }
+
         var page = document.selectFirst("[data-chapter-next-page]")
             ?.attr("data-chapter-next-page")?.toIntOrNull()
             ?: if (result.isEmpty()) 1 else 2
-        var guard = 0
-        while (guard++ < 300) {
-            val json = fetchChapterPage(comicId, page) ?: break
-            val arr = json.optJSONArray("chapters")
-            if (arr != null) {
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val id = o.optString("id")
-                    if (id.isBlank() || result.containsKey(id)) continue
-                    result[id] = chapter(comicId, id, o.optString("title"), o.optString("date"))
+        val size = document.selectFirst("[data-chapter-page-size]")
+            ?.attr("data-chapter-page-size")?.toIntOrNull()?.takeIf { it > 0 } ?: 20
+        val total = TOTAL_REGEX.find(document.text())
+            ?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
+
+        if (total != null && total > result.size) {
+            val last = (total + size - 1) / size
+            if (last >= page) {
+                val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
+                try {
+                    val futures = (page..last).map { p ->
+                        pool.submit<JSONObject?> { fetchChapterPage(comicId, p) }
+                    }
+                    futures.forEach { f -> f.get()?.let { addJson(it) } }
+                } finally {
+                    pool.shutdown()
                 }
+                page = last + 1
             }
-            if (!json.optBoolean("has_more", false)) break
-            val next = json.optInt("next_page", -1)
-            page = if (next > page) next else page + 1
+        }
+
+        // 총 개수를 못 읽었거나 덜 가져온 경우: 순서대로 이어서 요청
+        if (total == null || result.size < total) {
+            var guard = 0
+            while (guard++ < 300) {
+                val json = fetchChapterPage(comicId, page) ?: break
+                addJson(json)
+                if (!json.optBoolean("has_more", false)) break
+                val next = json.optInt("next_page", -1)
+                page = if (next > page) next else page + 1
+            }
         }
 
         return result.values.toList() // 사이트 순서(최신 → 과거) 그대로
@@ -323,6 +349,7 @@ class NewXtoon : HttpSource(), ConfigurableSource {
         private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
         private val COMIC_PATH = Regex("^/comics/\\d+$")
         private val DATE_REGEX = Regex("\\d{4}\\.\\d{2}\\.\\d{2}")
+        private val TOTAL_REGEX = Regex("총\\s*([\\d,]+)\\s*화")
         private val NUMBER_REGEX = Regex("\\d+(?:\\.\\d+)?")
     }
 }
