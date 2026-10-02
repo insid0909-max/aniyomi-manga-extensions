@@ -9,7 +9,7 @@
         android:label="Aniyomi: manga">
         <meta-data
             android:name="tachiyomi.extension.class"
-            android:value=".NewXtoon" />
+            android:value=".NewXtoonFactory" />
         <meta-data
             android:name="tachiyomi.extension.nsfw"
             android:value="1" />
