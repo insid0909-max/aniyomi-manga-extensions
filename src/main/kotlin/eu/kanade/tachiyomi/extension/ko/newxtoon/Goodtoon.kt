@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.FormBody
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -38,11 +39,19 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     private val sp: SharedPreferences by lazy { app.getSharedPreferences("source_$id", 0) }
 
     private val userAgent: String
-        get() = try {
-            android.webkit.WebSettings.getDefaultUserAgent(app)
-                .replace("; wv", "").replace("Version/4.0 ", "")
-        } catch (e: Throwable) {
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        get() {
+            val custom = try {
+                sp.getString(KEY_UA, "")?.trim().orEmpty()
+            } catch (e: Throwable) {
+                ""
+            }
+            if (custom.isNotEmpty()) return custom
+            return try {
+                android.webkit.WebSettings.getDefaultUserAgent(app)
+                    .replace("; wv", "").replace("Version/4.0 ", "")
+            } catch (e: Throwable) {
+                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            }
         }
 
     override val baseUrl: String
@@ -55,24 +64,106 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
         }
 
-    // 회차 요청이 실패하면 실제 응답 코드/내용을 오류 메시지로 보여줌 (Cloudflare 오해 방지)
-    override val client: okhttp3.OkHttpClient = network.client.newBuilder()
-        .addInterceptor { chain ->
-            val req = chain.request()
-            val res = chain.proceed(req)
-            if ((req.method == "POST") && !res.isSuccessful) {
-                val snippet = try {
-                    res.peekBody(300).string().replace(Regex("\\s+"), " ").take(120)
-                } catch (e: Exception) {
-                    ""
-                }
-                val code = res.code
-                res.close()
-                throw java.io.IOException("굿툰 회차 요청 실패 HTTP $code $snippet")
-            }
-            res
+    private fun autoDomain(): Boolean = try {
+        sp.getBoolean(KEY_AUTO, true)
+    } catch (e: Throwable) {
+        true
+    }
+
+    private fun saveDomain(url: String) {
+        try {
+            sp.edit().putString(KEY_DOMAIN, url).apply()
+        } catch (e: Throwable) {
+            // 저장 실패는 무시
         }
+    }
+
+    // 주소 번호가 바뀌면 자동으로 찾아 연결 + 회차 요청 실패 시 실제 응답을 오류로 표시
+    override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor { chain -> smartIntercept(chain) }
         .build()
+
+    private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
+        val req = chain.request()
+        val baseHost = baseUrl.toHttpUrlOrNull()?.host
+        val ours = autoDomain() && baseHost != null && req.url.host == baseHost && HOST_REGEX.matches(baseHost)
+
+        val res = try {
+            chain.proceed(req)
+        } catch (e: java.io.IOException) {
+            val found = if (ours) discoverDomain(baseHost!!) else null
+            if (found == null) throw e
+            saveDomain("https://$found")
+            return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+        }
+
+        if (res.code == 451) {
+            res.close()
+            throw java.io.IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
+        }
+        if (req.method == "POST" && !res.isSuccessful) {
+            val snippet = try {
+                res.peekBody(300).string().replace(Regex("\\s+"), " ").take(120)
+            } catch (e: Exception) {
+                ""
+            }
+            val code = res.code
+            res.close()
+            throw java.io.IOException("굿툰 회차 요청 실패 HTTP $code $snippet")
+        }
+        val finalHost = res.request.url.host
+        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+            saveDomain("https://$finalHost")
+        }
+        return res
+    }
+
+    private val discoverLock = Any()
+
+    @Volatile
+    private var lastDiscover = 0L
+
+    private fun hostNumber(host: String): Int =
+        Regex("goodtoon(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+    /** goodtoon001~060.com 중 실제 굿툰 사이트가 열리는 주소를 찾음 (가장 큰 번호 우선) */
+    private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
+        val now = System.currentTimeMillis()
+        if (now - lastDiscover < 60_000) return null
+        lastDiscover = now
+
+        val prefix = if (currentHost.startsWith("www.")) "www." else ""
+        val plain = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        val ua = userAgent
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(10)
+        try {
+            val futures = (1..60).map { String.format("%sgoodtoon%03d.com", prefix, it) }
+                .filter { it != currentHost }
+                .map { host ->
+                    pool.submit<String?> {
+                        try {
+                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
+                            plain.newCall(r).execute().use { res ->
+                                val fh = res.request.url.host
+                                if (!HOST_REGEX.matches(fh)) return@use null
+                                val ok = res.code == 200 &&
+                                    (res.body?.string() ?: "").contains("GoodToon", ignoreCase = true)
+                                if (ok) fh else null
+                            }
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                }
+            futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
+        } finally {
+            pool.shutdown()
+        }
+    }
 
     override fun headersBuilder(): Headers.Builder =
         super.headersBuilder().set("User-Agent", userAgent)
@@ -87,6 +178,21 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             setOnPreferenceChangeListener { _, v ->
                 Regex("^https?://[^\\s/]+$").matches((v as String).trim().trimEnd('/'))
             }
+        }.also(screen::addPreference)
+
+        androidx.preference.SwitchPreferenceCompat(screen.context).apply {
+            key = KEY_AUTO
+            title = "도메인 자동 찾기"
+            summary = "주소 번호가 바뀌어 접속이 안 되면 goodtoon001~060.com 중 열리는 주소로 자동 변경"
+            setDefaultValue(true)
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = KEY_UA
+            title = "User-Agent (고급)"
+            summary = "비워두면 폰 WebView 기준으로 자동 설정. 변경 후 앱 재시작 필요"
+            dialogTitle = "User-Agent"
+            setDefaultValue("")
         }.also(screen::addPreference)
     }
 
@@ -258,6 +364,9 @@ class Goodtoon : HttpSource(), ConfigurableSource {
 
     companion object {
         private const val KEY_DOMAIN = "pref_domain_key"
+        private const val KEY_AUTO = "pref_auto_domain"
+        private const val KEY_UA = "pref_user_agent"
+        private val HOST_REGEX = Regex("^(www\\.)?goodtoon\\d+\\.com$")
         private const val DEFAULT = "https://www.goodtoon006.com"
         private val LISTS = listOf(
             "전체(최신)" to "/",
