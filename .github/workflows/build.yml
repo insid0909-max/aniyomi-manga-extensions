@@ -1,0 +1,121 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.9"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Ensure permanent signing key
+        run: |
+          echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
+          KEYSTORE_FILE="signingkey.jks"
+          if [ ! -f "$KEYSTORE_FILE" ]; then
+            keytool -genkeypair -alias xtoonkey -keypass "xtoon1234" \
+              -keystore "$KEYSTORE_FILE" -storepass "xtoon1234" \
+              -dname "CN=NewXtoon, OU=Extension, O=Aniyomi, L=Seoul, ST=Seoul, C=KR" \
+              -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$KEYSTORE_FILE"
+            git commit -m "chore: persist signing key [skip ci]" || true
+            git push || true
+          fi
+          SIGNING_KEY=$(keytool -list -v -keystore "$KEYSTORE_FILE" -alias xtoonkey -storepass "xtoon1234" | grep "SHA256:" | awk '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          echo "SIGNING_KEY=$SIGNING_KEY" >> $GITHUB_ENV
+
+      - name: Version code
+        run: |
+          echo "AUTO_VCODE=$((100 + $(git rev-list --count HEAD)))" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          gradle assembleRelease --stacktrace \
+            -PextVersionCode=${{ env.AUTO_VCODE }} \
+            -PsigningStoreFile="$GITHUB_WORKSPACE/signingkey.jks" \
+            -PsigningStorePassword="xtoon1234" \
+            -PsigningKeyAlias="xtoonkey" \
+            -PsigningKeyPassword="xtoon1234"
+
+      - name: Generate repo index
+        run: |
+          mkdir -p repo/apk repo/icon
+          python3 - << 'EOF'
+          import os, glob, json, subprocess, hashlib
+
+          repo = "repo"
+          meta = {"meta": {"name": "NewXtoon Repository", "shortName": "NewXtoon",
+                           "website": "https://github.com/insid0909-max",
+                           "signingKeyFingerprint": os.environ.get("SIGNING_KEY", "")}}
+          json.dump(meta, open(f"{repo}/repo.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+          def source_id(name, lang, version_id=1):
+              h = hashlib.md5(f"{name.lower()}/{lang}/{version_id}".encode()).digest()
+              return str(int.from_bytes(h[:8], "big") & 0x7FFFFFFFFFFFFFFF)
+
+          out = []
+          for apk in glob.glob("build/outputs/apk/release/*.apk"):
+              info = subprocess.check_output(["aapt", "dump", "badging", apk]).decode("utf-8", "ignore")
+              pkg = vcode = vname = label = None
+              icon = None
+              for line in info.splitlines():
+                  if line.startswith("package:"):
+                      for part in line.split():
+                          if part.startswith("name='"): pkg = part.split("'")[1]
+                          elif part.startswith("versionCode='"): vcode = int(part.split("'")[1])
+                          elif part.startswith("versionName='"): vname = part.split("'")[1]
+                  elif line.startswith("application-label:"):
+                      label = line.split("'")[1]
+                  elif line.startswith("application-icon-"):
+                      icon = line.split("'")[1]
+              if not (pkg and vcode and vname):
+                  continue
+              apk_name = f"tachiyomi-ko.newxtoon-v{vname}.apk"
+              subprocess.run(["cp", apk, f"{repo}/apk/{apk_name}"], check=True)
+              icon_name = f"{pkg}.png"
+              if icon:
+                  with open(f"{repo}/icon/{icon_name}", "wb") as f:
+                      subprocess.run(["unzip", "-p", apk, icon], stdout=f)
+              display = (label or "Tachiyomi: 뉴엑스툰")
+              out.append({
+                  "name": display, "pkg": pkg, "apk": apk_name, "lang": "ko",
+                  "code": vcode, "version": vname, "nsfw": 1,
+                  "sources": [{"name": "뉴엑스툰", "lang": "ko", "id": source_id("뉴엑스툰", "ko"),
+                               "baseUrl": "https://newxtoon1.com"}],
+              })
+          json.dump(out, open(f"{repo}/index.min.json", "w", encoding="utf-8"),
+                    ensure_ascii=False, separators=(",", ":"))
+          print("indexed", len(out))
+          EOF
+          # 앱이 직접 읽는 위치 호환용 복사본
+          cp repo/apk/*.apk repo/ 2>/dev/null || true
+          cp repo/icon/*.png repo/ 2>/dev/null || true
+
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo
+          publish_branch: gh-pages
