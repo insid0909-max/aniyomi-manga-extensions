@@ -328,7 +328,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     override fun pageListRequest(chapter: SChapter) = GET(baseUrl + chapter.url, headers)
 
     private val imgRegex =
-        Regex("""https?://[^"'\s\\<>]+?/gt-\d+/ch-\d+/\d+\.(?:jpe?g|png|webp|gif|avif)""", RegexOption.IGNORE_CASE)
+        Regex("""https?://[^"'\s\\<>]+?/gt-\d+/(?:ch-)?\d+/\d+\.(?:jpe?g|png|webp|gif|avif)""", RegexOption.IGNORE_CASE)
 
     override fun pageListParse(response: Response): List<Page> {
         val html = response.body?.string().orEmpty().replace("\\/", "/")
@@ -336,7 +336,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         if (urls.isEmpty()) {
             val d = Jsoup.parse(html, response.request.url.toString())
             urls = d.select("img[data-src], img[src]").map { it.absUrl(if (it.hasAttr("data-src")) "data-src" else "src") }
-                .filter { it.contains("/ch-") }.distinct()
+                .filter { Regex("/gt-\\d+/(?:ch-)?\\d+/").containsMatchIn(it) }.distinct()
         }
         val sorted = urls.sortedBy { Regex("/(\\d+)\\.[a-z]+$", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0 }
         return sorted.mapIndexed { i, u -> Page(i, "", u) }
