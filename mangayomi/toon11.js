@@ -8,11 +8,16 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
 }];
+
+const AUTO_HOST = /^(www\.)?11toon\d*\.com$/;
+const AUTO_NUM = /11toon(\d+)/;
+const AUTO_PROBE = "/mb";
+const AUTO_MARKER = "content/info/";
 
 // 11toon 만화 (일일툰) - Aniyomi 확장(Toon11.kt)과 같은 구조를 망가요미용으로 옮김
 // 작품: /mb/content/info/{id}?page=toon, 회차: /mb/content/image/{id}?page=toon&parent_id={작품id}
@@ -32,9 +37,103 @@ class DefaultExtension extends MProvider {
         this.coverBase = "https://11toon8.com/data/toon_category/";
     }
 
+    // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
+    cleanUrl(v) {
+        v = String(v || "").trim().replace(/\/+$/, "");
+        return /^https?:\/\/[^\s/]+$/.test(v) ? v : "";
+    }
+
     get base() {
-        const v = (new SharedPreferences().get("domain") || "").trim().replace(/\/+$/, "");
-        return /^https?:\/\/[^\s/]+$/.test(v) ? v : this.source.baseUrl;
+        const prefs = new SharedPreferences();
+        const manual = this.cleanUrl(prefs.get("domain"));
+        if (manual && manual !== this.source.baseUrl) return manual;
+        return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+    }
+
+    autoOn() {
+        try {
+            const v = new SharedPreferences().get("auto_on");
+            return v !== false && v !== "false";
+        } catch (e) {
+            return true;
+        }
+    }
+
+    /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
+    async req(url, headers, post, body) {
+        const base = this.base;
+        const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
+        let failed = null;
+        let error = null;
+        try {
+            const res = post ? await this.client.post(url, headers || {}, body) : await this.client.get(url, headers || {});
+            if (!ours || !(res.statusCode >= 500)) return res;
+            failed = res;
+        } catch (e) {
+            if (!ours) throw e;
+            error = e;
+        }
+        const found = await this.discover(base);
+        if (!found) {
+            if (error) throw error;
+            return failed;
+        }
+        const fix = s => typeof s === "string" ? s.split(base).join(found) : s;
+        const h = {};
+        for (const k in headers || {}) h[k] = fix(headers[k]);
+        const newUrl = found + url.substring(base.length);
+        return post ? await this.client.post(newUrl, h, fix(body)) : await this.client.get(newUrl, h);
+    }
+
+    async discover(current) {
+        const prefs = new SharedPreferences();
+        const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
+        if (Date.now() - last < 60 * 1000) return null;
+        prefs.setString("auto_tried_at", String(Date.now()));
+
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        let found = null;
+        try {
+            found = await this.autoGuide(current);
+        } catch (e) {
+            found = null;
+        }
+        if (!found) {
+            const cands = this.autoCandidates(current).filter(c => c !== current);
+            const hits = await Promise.all(cands.map(async c => {
+                try {
+                    const r = await this.client.get(c + AUTO_PROBE, { "Referer": c + "/" });
+                    return r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER) ? c : null;
+                } catch (e) {
+                    return null;
+                }
+            }));
+            const ok = hits.filter(x => x);
+            ok.sort((a, b) => num(b) - num(a));
+            found = ok[0] || null;
+        }
+        if (found) prefs.setString("auto_domain", found);
+        return found;
+    }
+
+    /** 안내 페이지 본문에서 주소 찾기 (가장 큰 번호) */
+    pickFrom(text, current) {
+        const re = new RegExp(AUTO_HOST.source.replace(/^\^/, "").replace(/\$$/, ""), "gi");
+        const hosts = (String(text || "").match(re) || []).map(h => "https://" + h.toLowerCase())
+            .filter(h => h !== current);
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        hosts.sort((a, b) => num(b) - num(a));
+        return hosts[0] || null;
+    }
+
+    autoCandidates(current) {
+        const out = [];
+        for (let i = 1; i <= 30; i++) out.push(`https://11toon${i}.com`);
+        return out;
+    }
+
+    async autoGuide(current) {
+        return null;
     }
 
     getHeaders(url) {
@@ -65,7 +164,7 @@ class DefaultExtension extends MProvider {
     async token() {
         if (this._token) return this._token;
         try {
-            const res = await this.client.get(this.base + "/mb", this.getHeaders());
+            const res = await this.req(this.base + "/mb", this.getHeaders());
             const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
             if (t) this._token = t;
         } catch (e) {
@@ -98,7 +197,7 @@ class DefaultExtension extends MProvider {
     async api(path, params, referer) {
         const q = Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join("&");
         try {
-            const res = await this.client.get(`${this.base}${path}?${q}`, await this.apiHeaders(referer));
+            const res = await this.req(`${this.base}${path}?${q}`, await this.apiHeaders(referer));
             return this.parseJson(res.body);
         } catch (e) {
             return null;
@@ -184,7 +283,7 @@ class DefaultExtension extends MProvider {
 
     async mainPage(page) {
         if (page > 1) return { list: [], hasNextPage: false };
-        const res = await this.client.get(this.base + "/mb", this.getHeaders());
+        const res = await this.req(this.base + "/mb", this.getHeaders());
         return { list: this.parseCards(res.body), hasNextPage: false };
     }
 
@@ -215,7 +314,7 @@ class DefaultExtension extends MProvider {
         const q = (query || "").trim();
         const pageUrl = `${this.base}/mb/top_search?subject=${encodeURIComponent(q)}`;
         try {
-            const res = await this.client.get(pageUrl, this.getHeaders());
+            const res = await this.req(pageUrl, this.getHeaders());
             const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
             if (t) this._token = t;
         } catch (e) {
@@ -228,7 +327,7 @@ class DefaultExtension extends MProvider {
         const body = `subject=${encodeURIComponent(q)}&page=${page}&pagerow=${T11_SEARCH_ROW}` + (token ? `&_token=${encodeURIComponent(token)}` : "");
         let json = null;
         try {
-            json = this.parseJson((await this.client.post(`${this.base}/mb/top_search`, headers, body)).body);
+            json = this.parseJson((await this.req(`${this.base}/mb/top_search`, headers, true, body)).body);
         } catch (e) {
             json = null;
         }
@@ -315,7 +414,7 @@ class DefaultExtension extends MProvider {
             if (urls.length) break;
             if (attempt === 0) {
                 try {
-                    html = (await this.client.get(pageUrl, this.getHeaders())).body;
+                    html = (await this.req(pageUrl, this.getHeaders())).body;
                     const t = new Document(html).selectFirst("meta[name='_token']")?.attr("content");
                     if (t) this._token = t;
                 } catch (e) {
@@ -341,11 +440,18 @@ class DefaultExtension extends MProvider {
         return [{
             key: "domain",
             editTextPreference: {
-                title: "도메인 주소",
-                summary: "사이트 주소가 바뀌면 여기서 변경 (예: https://11toon3.com)",
-                value: this.source.baseUrl,
+                title: "도메인 주소 (수동)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://11toon3.com)",
+                value: "",
                 dialogTitle: "도메인 주소",
-                dialogMessage: ""
+                dialogMessage: "비워두면 자동"
+            }
+        }, {
+            key: "auto_on",
+            switchPreferenceCompat: {
+                title: "도메인 자동 찾기",
+                summary: "접속이 안 되면 11toon1~30.com 중 열리는 주소로 자동 변경",
+                value: true
             }
         }];
     }
