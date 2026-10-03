@@ -275,15 +275,15 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             if (!res.isSuccessful) throw IOException("블랙툰 목록 요청 실패 HTTP ${res.code}")
             (res.body?.string() ?: "") to res.request.url.toString()
         }
-        val scripts = pageScripts(html, pageUrl) { fetchScript(it, pageUrl) }
+        val scripts = pageScripts(html, pageUrl, withConfig = false) { fetchScript(it, pageUrl) }
         rememberImageHosts(scripts.variables)
         val byIndex = scripts.urls.mapNotNull { url ->
             val m = CATALOG_PATH.matchEntire(url.encodedPath) ?: return@mapNotNull null
             (m.groups[1] ?: m.groups[2])!!.value.toInt() to url
         }.groupBy({ it.first }, { it.second })
 
-        val result = ArrayList<Series>()
-        for (index in listOf(1, 0)) {
+        // 연재(1) / 완결(0) 데이터를 동시에 받음
+        fun load(index: Int): List<Series> {
             val urls = byIndex[index].orEmpty()
                 .sortedBy { it.encodedPath.startsWith("/data/webtoon/") }
                 .map { it.toString() }
@@ -303,9 +303,21 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                     failure = e
                 }
             }
-            result.addAll(items ?: throw IOException("블랙툰 작품 데이터 로드 실패", failure))
+            return items ?: throw IOException("블랙툰 작품 데이터 로드 실패", failure)
         }
-        return result
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        try {
+            val jobs = listOf(1, 0).map { index -> pool.submit<List<Series>> { load(index) } }
+            return jobs.flatMap {
+                try {
+                    it.get()
+                } catch (e: java.util.concurrent.ExecutionException) {
+                    throw (e.cause as? Exception) ?: e
+                }
+            }
+        } finally {
+            pool.shutdown()
+        }
     }
 
     private fun parseSeries(arr: JSONArray, index: Int): List<Series> = (0 until arr.length()).mapNotNull { i ->
@@ -408,15 +420,17 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     override fun mangaDetailsParse(response: Response): SManga {
         val doc = Jsoup.parse(response.body?.string().orEmpty(), response.request.url.toString())
         val mangaId = response.request.url.pathSegments.last().removeSuffix(".html")
-        val meta = try {
-            catalog(refresh = false).firstOrNull { it.id == mangaId }?.toSManga()
-        } catch (e: Exception) {
-            null
-        }
+        // 전체 목록은 크므로 새로 받지 않음 (이미 받아 둔 경우에만 사용), 없으면 작품 페이지에서 읽음
+        val meta = catalogCache?.firstOrNull { it.id == mangaId }?.toSManga()
         return (meta ?: SManga.create()).apply {
             if (meta == null) {
-                title = doc.selectFirst("h1, h2, h3")?.text()?.trim().orEmpty()
-                thumbnail_url = doc.selectFirst("meta[property=og:image]")?.attr("content")
+                title = (doc.selectFirst("h3 b") ?: doc.selectFirst("h1, h2, h3"))?.text()?.trim().orEmpty()
+                thumbnail_url = doc.selectFirst("img.thumb2")?.attr("src")?.ifEmpty { null }
+                    ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
+                author = doc.select("p").firstOrNull { it.ownText().contains("작가 :") }
+                    ?.ownText()?.substringAfter("작가 :")?.trim()?.ifEmpty { null }
+                genre = doc.select("span.badge-light").map { it.text().trim() }.filter { it.isNotEmpty() }
+                    .joinToString(", ").ifEmpty { null }
             }
             description = doc.select("p.mt-2").last()?.text()
         }
@@ -432,7 +446,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         val mangaId = response.request.url.pathSegments.last().removeSuffix(".html")
         if (mangaId.toLongOrNull() == null) throw IOException("잘못된 작품 주소")
         val html = response.body?.string().orEmpty()
-        val page = pageScripts(html, pageUrl) { fetchScript(it, pageUrl) }
+        val page = pageScripts(html, pageUrl, withConfig = false) { fetchScript(it, pageUrl) }
         val found = page.urls.filter { it.encodedPath == "/data/toonlist/$mangaId.js" }.map { it.toString() }
         // 페이지에서 주소를 못 찾았을 때: 설정(config.js)의 inc_url / 알려진 데이터 서버 / 사이트 순으로 시도
         val siteRoot = pageUrl.toHttpUrl().newBuilder().encodedPath("/").query(null).fragment(null)
@@ -536,7 +550,13 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     // ---------- 페이지 안 스크립트에서 데이터 주소/설정값 읽기 (사이트 JS는 실행하지 않음) ----------
     private class PageScripts(val document: Document, val variables: Map<String, String>, val urls: List<HttpUrl>)
 
-    private fun pageScripts(html: String, pageUrl: String, fetchConfig: (String) -> String): PageScripts {
+    // config.js 는 이미지 서버를 고를 때만 필요 (목록/회차는 페이지 변수로 충분)
+    private fun pageScripts(
+        html: String,
+        pageUrl: String,
+        withConfig: Boolean = true,
+        fetchConfig: (String) -> String,
+    ): PageScripts {
         val base = pageUrl.toHttpUrl()
         val document = Jsoup.parse(html, pageUrl)
         val variables = HashMap<String, String>()
@@ -552,6 +572,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         }
 
         fun readConfig(value: String) {
+            if (!withConfig) return
             val url = base.resolve(value) ?: return
             if (url.host != base.host || url.encodedPath != "/data/config.js" || url.fragment != null) return
             if (!configs.add(url.toString())) return

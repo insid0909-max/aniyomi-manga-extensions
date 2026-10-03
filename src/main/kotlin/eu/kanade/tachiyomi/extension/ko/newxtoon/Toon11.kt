@@ -105,8 +105,8 @@ class Toon11 : HttpSource(), ConfigurableSource {
         }
     }
 
-    private fun apiHeaders(referer: String): Headers = headersBuilder()
-        .apply { token()?.let { set("X-CSRF-TOKEN", it) } }
+    private fun apiHeaders(referer: String, withToken: Boolean = true): Headers = headersBuilder()
+        .apply { if (withToken) token()?.let { set("X-CSRF-TOKEN", it) } }
         .set("Referer", referer)
         .set("Accept", "application/json, text/javascript, */*; q=0.01")
         .set("X-Requested-With", "XMLHttpRequest")
@@ -216,15 +216,22 @@ class Toon11 : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 공통: API(JSON) ----------
-    private fun getJson(url: String, referer: String): JSONObject? = try {
-        client.newCall(GET(url, apiHeaders(referer))).execute().use { res ->
-            if (!res.isSuccessful) return@use null
-            val body = res.body?.string().orEmpty()
-            val start = body.indexOf('{')
-            if (start < 0) null else JSONObject(body.substring(start))
+    // 조회(GET) API는 토큰 없이 바로 요청 (메인 페이지를 먼저 받지 않아 빠름), 실패하면 토큰을 붙여 한 번 더
+    private fun getJson(url: String, referer: String): JSONObject? {
+        for (withToken in listOf(false, true)) {
+            val json = try {
+                client.newCall(GET(url, apiHeaders(referer, withToken))).execute().use { res ->
+                    if (!res.isSuccessful) return@use null
+                    val body = res.body?.string().orEmpty()
+                    val start = body.indexOf('{')
+                    if (start < 0) null else JSONObject(body.substring(start))
+                }
+            } catch (e: Exception) {
+                null
+            }
+            if (json != null && (!json.has("code") || json.optInt("code") == 200)) return json
         }
-    } catch (e: Exception) {
-        null
+        return null
     }
 
     /** 응답 형식: {"data":{"SucCode":20000,"SucData":{...}},"code":200} */
