@@ -310,9 +310,10 @@ class Toon11 : HttpSource(), ConfigurableSource {
                 thumbnail_url = imageOf(o)?.also { rememberCover(it) } ?: coverFor(id)
             }
         }.filter { !isPlaceholder(it.title) }.distinctBy { it.url }
-        if (mangas.isEmpty()) return null
+        if (mangas.isEmpty()) return if (page > 1) MangasPage(emptyList(), false) else null
+        // 다음 쪽은 이번 쪽이 꽉 찼고(요청한 개수만큼 옴) 전체 개수가 더 많을 때만
         val total = json.optJSONObject("data")?.optInt("SucAllCnt", -1) ?: -1
-        val hasNext = if (total > 0) page * PAGE_ROW < total else mangas.size >= PAGE_ROW
+        val hasNext = items.size >= PAGE_ROW && (total < 0 || page * PAGE_ROW < total)
         return MangasPage(mangas, hasNext)
     }
 
