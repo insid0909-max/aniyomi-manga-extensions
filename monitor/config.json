@@ -1,0 +1,157 @@
+{
+ "label": "웹툰",
+ "ntfy": "insid-ext-naqwwbg1dibo",
+ "sites": [
+  {
+   "name": "newxtoon",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
+    "regex": "DEFAULT_BASE_URL = \"(https://newxtoon\\d+\\.com)\""
+   },
+   "pattern": "^https://newxtoon(\\d+)\\.com$",
+   "format": "https://newxtoon{n}.com",
+   "pad": 0,
+   "probe": "/",
+   "marker": "뉴엑스툰",
+   "range": [
+    -1,
+    30
+   ]
+  },
+  {
+   "name": "굿툰",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
+    "regex": "DEFAULT = \"(https://www\\.goodtoon\\d+\\.com)\""
+   },
+   "pattern": "^https://www\\.goodtoon(\\d+)\\.com$",
+   "format": "https://www.goodtoon{n}.com",
+   "pad": 3,
+   "probe": "/",
+   "marker": "goodtoon",
+   "range": [
+    -3,
+    40
+   ]
+  },
+  {
+   "name": "짭툰",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Jjaptoon.kt",
+    "regex": "DEFAULT = \"(https://www\\.jjaptoon\\d+\\.com)\""
+   },
+   "pattern": "^https://www\\.jjaptoon(\\d+)\\.com$",
+   "format": "https://www.jjaptoon{n}.com",
+   "pad": 3,
+   "probe": "/",
+   "marker": "짭툰",
+   "range": [
+    -3,
+    40
+   ]
+  },
+  {
+   "name": "블랙툰",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+    "regex": "DEFAULT = \"(https://blacktoon\\d+\\.com)\""
+   },
+   "pattern": "^https://blacktoon(\\d+)\\.com$",
+   "format": "https://blacktoon{n}.com",
+   "pad": 0,
+   "probe": "/",
+   "marker": "webtoon_",
+   "range": [
+    -3,
+    40
+   ]
+  },
+  {
+   "name": "11toon",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toon11.kt",
+    "regex": "DEFAULT = \"(https://11toon\\d+\\.com)\""
+   },
+   "pattern": "^https://11toon(\\d+)\\.com$",
+   "format": "https://11toon{n}.com",
+   "pad": 0,
+   "probe": "/mb",
+   "marker": "content/info/",
+   "range": [
+    -1,
+    30
+   ]
+  },
+  {
+   "name": "늑대닷컴",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+    "regex": "DEFAULT = \"(https://wfwf\\d+\\.com)\""
+   },
+   "pattern": "^https://wfwf(\\d+)\\.com$",
+   "format": "https://wfwf{n}.com",
+   "pad": 0,
+   "probe": "/",
+   "marker": "t-card",
+   "range": [
+    -3,
+    60
+   ]
+  }
+ ],
+ "replaceIn": [
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Jjaptoon.kt",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toon11.kt",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+  "mangayomi/newxtoon.js",
+  "mangayomi/goodtoon.js",
+  "mangayomi/jjaptoon.js",
+  "mangayomi/blacktoon.js",
+  "mangayomi/toon11.js",
+  "mangayomi/wolftoon.js"
+ ],
+ "indexFiles": [],
+ "health": [
+  {
+   "name": "newxtoon (망가요미)",
+   "file": "mangayomi/newxtoon.js",
+   "depth": "pages"
+  },
+  {
+   "name": "굿툰 (망가요미)",
+   "file": "mangayomi/goodtoon.js",
+   "depth": "pages"
+  },
+  {
+   "name": "짭툰 (망가요미)",
+   "file": "mangayomi/jjaptoon.js",
+   "depth": "pages"
+  },
+  {
+   "name": "블랙툰 (망가요미)",
+   "file": "mangayomi/blacktoon.js",
+   "depth": "pages"
+  },
+  {
+   "name": "11toon (망가요미)",
+   "file": "mangayomi/toon11.js",
+   "depth": "pages"
+  },
+  {
+   "name": "늑대닷컴 (망가요미)",
+   "file": "mangayomi/wolftoon.js",
+   "depth": "pages"
+  }
+ ],
+ "watchSources": {
+  "newxtoon": "mangayomi/newxtoon.js",
+  "goodtoon": "mangayomi/goodtoon.js",
+  "jjaptoon": "mangayomi/jjaptoon.js",
+  "blacktoon": "mangayomi/blacktoon.js",
+  "toon11": "mangayomi/toon11.js",
+  "wolftoon": "mangayomi/wolftoon.js"
+ }
+}

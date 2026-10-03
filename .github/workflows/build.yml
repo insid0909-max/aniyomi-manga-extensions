@@ -3,6 +3,10 @@ name: Build
 on:
   push:
     branches: [master, main]
+    # 감시 도구만 바뀐 경우에는 확장앱을 다시 배포하지 않음
+    paths-ignore:
+      - 'monitor/**'
+      - '.github/workflows/monitor.yml'
   workflow_dispatch:
 
 permissions:
