@@ -1,4 +1,14 @@
 [
-  { "source": "goodtoon", "title": "별을 품은 소드마스터" },
-  { "source": "wolftoon", "title": "슬프게도 이게 내 인생" }
+  {
+    "source": "goodtoon",
+    "title": "별을 품은 소드마스터",
+    "url": "/manga/gt-14649/",
+    "name": "별을 품은 소드마스터"
+  },
+  {
+    "source": "wolftoon",
+    "title": "슬프게도 이게 내 인생",
+    "url": "/list?toon=3400",
+    "name": "슬프게도 이게 내 인생"
+  }
 ]
