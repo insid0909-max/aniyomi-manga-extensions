@@ -8,11 +8,13 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.1",
+    "version": "0.2.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
 }];
+
+const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
 const AUTO_HOST = /^(www\.)?11toon\d*\.com$/;
 const AUTO_NUM = /11toon(\d+)/;
@@ -142,12 +144,12 @@ class DefaultExtension extends MProvider {
     }
 
     getHeaders(url) {
-        return { "Referer": this.source.baseUrl + "/mb" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/mb" };
     }
 
     /** 실제 요청용 헤더 (현재 도메인 기준) */
     hdr(url) {
-        return { "Referer": this.base + "/mb" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.base + "/mb" };
     }
 
     abs(u) {
