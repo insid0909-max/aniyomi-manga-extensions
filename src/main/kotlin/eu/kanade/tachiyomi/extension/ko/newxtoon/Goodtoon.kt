@@ -29,6 +29,9 @@ import java.util.TimeZone
 class Goodtoon : HttpSource(), ConfigurableSource {
 
     override val name = "Goodtoon 웹툰"
+
+    // 다른 저장소의 Goodtoon 확장과 소스 ID가 겹치지 않도록 고유 ID 사용
+    override val id: Long = uniqueSourceId("newxtoon.goodtoon/ko/1")
     override val lang = "ko"
     override val supportsLatest = true
 
