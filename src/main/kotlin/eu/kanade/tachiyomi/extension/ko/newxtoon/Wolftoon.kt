@@ -24,6 +24,7 @@ import java.nio.charset.Charset
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import rx.Observable
 
 /** 늑대닷컴 (wfwf###.com) - 페이지가 euc-kr 이라 직접 CP949 로 풀고, 검색어·장르도 CP949 로 보냄 */
 class Wolftoon : HttpSource(), ConfigurableSource {
@@ -351,15 +352,33 @@ class Wolftoon : HttpSource(), ConfigurableSource {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ---------- 필터 ----------
-    override fun getFilterList() = FilterList(
-        Filter.Header("검색어가 없을 때만 적용"),
-        Pick("목록", "list", LISTS),
-        Pick("정렬", "o", SORTS),
-        Pick("분류 (웹툰)", "t2", TYPES),
-        Pick("요일 (웹툰)", "t1", DAYS),
-        Pick("장르", "t3", GENRES),
-        Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
-        Text("장르 직접 입력", "t3"),
+    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    private val tabRules by lazy { TabRules(id) }
+
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchPopularManga(page)
+
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchLatestUpdates(page)
+
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        tabRules.apply(filters)
+        return super.fetchSearchManga(page, query, filters)
+    }
+
+    override fun getFilterList() = tabRules.attach(
+        FilterList(
+            Filter.Header("검색어가 없을 때만 적용"),
+            Pick("목록", "list", LISTS),
+            Pick("정렬", "o", SORTS),
+            Pick("분류 (웹툰)", "t2", TYPES),
+            Pick("요일 (웹툰)", "t1", DAYS),
+            Pick("장르", "t3", GENRES),
+            Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
+            Text("장르 직접 입력", "t3"),
+        ),
     )
 
     class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
