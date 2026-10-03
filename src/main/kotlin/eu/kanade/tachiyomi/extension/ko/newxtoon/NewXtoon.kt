@@ -591,6 +591,11 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("짭툰 오류", e))
         }
+        try {
+            list.add(Blacktoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("블랙툰 오류", e))
+        }
         return list
     }
 }
