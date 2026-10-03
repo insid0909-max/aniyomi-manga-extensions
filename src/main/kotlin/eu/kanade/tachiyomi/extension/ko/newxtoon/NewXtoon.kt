@@ -601,6 +601,11 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("11toon 오류", e))
         }
+        try {
+            list.add(Wolftoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("늑대닷컴 오류", e))
+        }
         return list
     }
 }
