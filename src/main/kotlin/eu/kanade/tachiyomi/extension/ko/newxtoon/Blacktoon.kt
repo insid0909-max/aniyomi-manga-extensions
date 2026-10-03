@@ -119,7 +119,15 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     @Volatile
     private var imageHosts: List<String> = emptyList()
 
+    // 표지 서버 = 사이트의 inc_url2 / inc_url1 (현재 ttjsde.speedwebgo.com)
+    @Volatile
+    private var posterHosts: List<String> = emptyList()
+
     private fun rememberImageHosts(v: Map<String, String>) {
+        val posters = listOf("inc_url2", "inc_url1")
+            .mapNotNull { v[it]?.trim()?.takeIf { u -> u.startsWith("http") }?.trimEnd('/')?.plus("/") }
+            .distinct()
+        if (posters.isNotEmpty()) posterHosts = posters
         val hosts = (listOf("img_domain") + (2..8).map { "img_domain$it" })
             .mapNotNull { v[it]?.trim()?.takeIf { u -> u.startsWith("http") }?.trimEnd('/')?.plus("/") }
             .distinct()
@@ -133,7 +141,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             listOf(stripped, original).map { if (it.startsWith("//")) "https:$it" else it }
         } else {
             val paths = listOf(stripped, original).map { it.removePrefix("/") }.distinct()
-            (listOf(CDN_URL) + imageHosts + "$baseUrl/").distinct().flatMap { b -> paths.map { b + it } }
+            (posterHosts + POSTER_URL + CDN_URL + imageHosts + "$baseUrl/").distinct().flatMap { b -> paths.map { b + it } }
         }
         var last: String? = null
         for (u in urls.distinct()) {
@@ -326,7 +334,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             val first = when {
                 path.startsWith("http") -> path
                 path.startsWith("//") -> "https:$path"
-                else -> CDN_URL + path.removePrefix("/")
+                else -> (posterHosts.firstOrNull() ?: POSTER_URL) + path.removePrefix("/")
             }
             first + "#" + COVER_MARK + java.net.URLEncoder.encode(p, "UTF-8")
         }
@@ -429,7 +437,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         // 페이지에서 주소를 못 찾았을 때: 설정(config.js)의 inc_url / 알려진 데이터 서버 / 사이트 순으로 시도
         val siteRoot = pageUrl.toHttpUrl().newBuilder().encodedPath("/").query(null).fragment(null)
             .build().toString().trimEnd('/')
-        val fallback = (listOf(page.variables["inc_url"], page.variables["inc_url2"]) + DATA_HOSTS + siteRoot)
+        val fallback = (listOf(page.variables["inc_url1"], page.variables["inc_url"], page.variables["inc_url2"]) + DATA_HOSTS + siteRoot)
             .mapNotNull { it?.trim()?.trimEnd('/')?.takeIf { b -> b.startsWith("http") } }
             .map { "$it/data/toonlist/$mangaId.js?v=${Math.random()}" }
         val scripts = (found + fallback).distinctBy { it.substringBefore('?') }
@@ -621,6 +629,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val DEFAULT = "https://blacktoon423.com"
         private const val GUIDE_URL = "https://blacktoonurl.net/"
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
+        private const val POSTER_URL = "https://ttjsde.speedwebgo.com/"
         private const val COVER_MARK = "bt="
         private val DATA_HOSTS = listOf("https://jsc.speedwebgo.com", "https://ttjsde.speedwebgo.com")
         private const val USER_AGENT =
@@ -631,7 +640,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
 
         private val CATALOG_PATH = Regex("""/(?:webtoon_([01])|data/webtoon/webtoon_([01])_\d+)\.js""")
         private val CHAPTER_SCRIPT_PATH = Regex("""/data/toonlist/\d+\.js""")
-        private const val LITERAL_VARIABLES = "inc_url2|inc_url|poster_js|img_domain[2-8]?|img_per[3-8]|toonlistid|uptime"
+        private const val LITERAL_VARIABLES = "inc_url2|inc_url1|inc_url|poster_js|img_domain[2-8]?|img_per[3-8]|toonlistid|uptime"
         private val VARIABLE =
             Regex("""(?:^|[;\r\n])\s*(?:(?:var|let|const)\s+)?($LITERAL_VARIABLES)\s*=\s*([^;\r\n]+)""")
         private val EXPR_TOKEN =
