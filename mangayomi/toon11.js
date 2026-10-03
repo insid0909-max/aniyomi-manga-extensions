@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.0",
+    "version": "0.2.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -44,10 +44,15 @@ class DefaultExtension extends MProvider {
     }
 
     get base() {
-        const prefs = new SharedPreferences();
-        const manual = this.cleanUrl(prefs.get("domain"));
-        if (manual && manual !== this.source.baseUrl) return manual;
-        return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        // 설치 중 등 설정을 읽을 수 없을 때는 기본 주소
+        try {
+            const prefs = new SharedPreferences();
+            const manual = this.cleanUrl(prefs.get("domain"));
+            if (manual && manual !== this.source.baseUrl) return manual;
+            return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        } catch (e) {
+            return this.source.baseUrl;
+        }
     }
 
     autoOn() {
@@ -137,6 +142,11 @@ class DefaultExtension extends MProvider {
     }
 
     getHeaders(url) {
+        return { "Referer": this.source.baseUrl + "/mb" };
+    }
+
+    /** 실제 요청용 헤더 (현재 도메인 기준) */
+    hdr(url) {
         return { "Referer": this.base + "/mb" };
     }
 
@@ -164,7 +174,7 @@ class DefaultExtension extends MProvider {
     async token() {
         if (this._token) return this._token;
         try {
-            const res = await this.req(this.base + "/mb", this.getHeaders());
+            const res = await this.req(this.base + "/mb", this.hdr());
             const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
             if (t) this._token = t;
         } catch (e) {
@@ -283,7 +293,7 @@ class DefaultExtension extends MProvider {
 
     async mainPage(page) {
         if (page > 1) return { list: [], hasNextPage: false };
-        const res = await this.req(this.base + "/mb", this.getHeaders());
+        const res = await this.req(this.base + "/mb", this.hdr());
         return { list: this.parseCards(res.body), hasNextPage: false };
     }
 
@@ -314,7 +324,7 @@ class DefaultExtension extends MProvider {
         const q = (query || "").trim();
         const pageUrl = `${this.base}/mb/top_search?subject=${encodeURIComponent(q)}`;
         try {
-            const res = await this.req(pageUrl, this.getHeaders());
+            const res = await this.req(pageUrl, this.hdr());
             const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
             if (t) this._token = t;
         } catch (e) {
@@ -414,7 +424,7 @@ class DefaultExtension extends MProvider {
             if (urls.length) break;
             if (attempt === 0) {
                 try {
-                    html = (await this.req(pageUrl, this.getHeaders())).body;
+                    html = (await this.req(pageUrl, this.hdr())).body;
                     const t = new Document(html).selectFirst("meta[name='_token']")?.attr("content");
                     if (t) this._token = t;
                 } catch (e) {

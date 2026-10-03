@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.0",
+    "version": "0.2.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -43,10 +43,15 @@ class DefaultExtension extends MProvider {
     }
 
     get base() {
-        const prefs = new SharedPreferences();
-        const manual = this.cleanUrl(prefs.get("domain"));
-        if (manual && manual !== this.source.baseUrl) return manual;
-        return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        // 설치 중 등 설정을 읽을 수 없을 때는 기본 주소
+        try {
+            const prefs = new SharedPreferences();
+            const manual = this.cleanUrl(prefs.get("domain"));
+            if (manual && manual !== this.source.baseUrl) return manual;
+            return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        } catch (e) {
+            return this.source.baseUrl;
+        }
     }
 
     autoOn() {
@@ -142,6 +147,11 @@ class DefaultExtension extends MProvider {
     }
 
     getHeaders(url) {
+        return { "Referer": this.source.baseUrl + "/", "Origin": this.source.baseUrl };
+    }
+
+    /** 실제 요청용 헤더 (현재 도메인 기준) */
+    hdr(url) {
         return { "Referer": this.base + "/", "Origin": this.base };
     }
 

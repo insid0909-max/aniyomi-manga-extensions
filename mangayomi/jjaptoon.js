@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.0",
+    "version": "0.2.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "jjaptoon.js"
@@ -34,10 +34,15 @@ class DefaultExtension extends MProvider {
     }
 
     get base() {
-        const prefs = new SharedPreferences();
-        const manual = this.cleanUrl(prefs.get("domain"));
-        if (manual && manual !== this.source.baseUrl) return manual;
-        return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        // 설치 중 등 설정을 읽을 수 없을 때는 기본 주소
+        try {
+            const prefs = new SharedPreferences();
+            const manual = this.cleanUrl(prefs.get("domain"));
+            if (manual && manual !== this.source.baseUrl) return manual;
+            return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+        } catch (e) {
+            return this.source.baseUrl;
+        }
     }
 
     autoOn() {
@@ -144,6 +149,14 @@ class DefaultExtension extends MProvider {
 
     getHeaders(url) {
         return {
+            "Referer": this.source.baseUrl + "/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+        };
+    }
+
+    /** 실제 요청용 헤더 (현재 도메인 기준) */
+    hdr(url) {
+        return {
             "Referer": this.base + "/",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
         };
@@ -166,7 +179,7 @@ class DefaultExtension extends MProvider {
     }
 
     async get(url, headers) {
-        return (await this.req(url, headers || this.getHeaders(url))).body;
+        return (await this.req(url, headers || this.hdr(url))).body;
     }
 
     query(params) {
@@ -294,7 +307,7 @@ class DefaultExtension extends MProvider {
     // ---------- 이미지 ----------
     async getPageList(url) {
         const pageUrl = this.abs(url);
-        const doc = new Document(await this.get(pageUrl, Object.assign(this.getHeaders(pageUrl), { "Referer": pageUrl })));
+        const doc = new Document(await this.get(pageUrl, Object.assign(this.hdr(pageUrl), { "Referer": pageUrl })));
         const urls = [];
         for (const img of doc.select("[data-reading-image-index] > img")) {
             if ((img.attr("alt") || "").includes("광고문의")) continue;
