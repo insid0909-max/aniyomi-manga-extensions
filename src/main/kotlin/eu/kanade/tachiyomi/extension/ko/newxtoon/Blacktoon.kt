@@ -91,6 +91,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                 .header("Origin", baseUrl)
                 .build()
         }
+        if (req.url.encodedFragment?.startsWith(COVER_MARK) == true) return coverIntercept(chain, req)
         val baseHost = baseUrl.toHttpUrlOrNull()?.host
         val ours = autoDomain() && baseHost != null && req.url.host == baseHost && HOST_REGEX.matches(baseHost)
 
@@ -112,6 +113,42 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             saveDomain("https://$finalHost")
         }
         return res
+    }
+
+    // ---------- 표지: 이미지 서버가 바뀌어도 열리도록 여러 서버/경로를 차례로 시도 ----------
+    @Volatile
+    private var imageHosts: List<String> = emptyList()
+
+    private fun rememberImageHosts(v: Map<String, String>) {
+        val hosts = (listOf("img_domain") + (2..8).map { "img_domain$it" })
+            .mapNotNull { v[it]?.trim()?.takeIf { u -> u.startsWith("http") }?.trimEnd('/')?.plus("/") }
+            .distinct()
+        if (hosts.isNotEmpty()) imageHosts = hosts
+    }
+
+    private fun coverIntercept(chain: okhttp3.Interceptor.Chain, req: Request): Response {
+        val original = java.net.URLDecoder.decode(req.url.encodedFragment!!.removePrefix(COVER_MARK), "UTF-8")
+        val stripped = original.replace("_x4", "").replace("_x3", "")
+        val urls = if (original.startsWith("http") || original.startsWith("//")) {
+            listOf(stripped, original).map { if (it.startsWith("//")) "https:$it" else it }
+        } else {
+            val paths = listOf(stripped, original).map { it.removePrefix("/") }.distinct()
+            (listOf(CDN_URL) + imageHosts + "$baseUrl/").distinct().flatMap { b -> paths.map { b + it } }
+        }
+        var last: String? = null
+        for (u in urls.distinct()) {
+            val url = u.toHttpUrlOrNull() ?: continue
+            try {
+                val res = chain.proceed(req.newBuilder().url(url).build())
+                val type = res.body?.contentType()?.type
+                if (res.isSuccessful && (type == null || type == "image" || type == "application")) return res
+                last = "${url.host} HTTP ${res.code}"
+                res.close()
+            } catch (e: IOException) {
+                last = "${url.host} ${e.message}"
+            }
+        }
+        throw IOException("표지 이미지 로드 실패 ($last)")
     }
 
     private val discoverLock = Any()
@@ -231,6 +268,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             (res.body?.string() ?: "") to res.request.url.toString()
         }
         val scripts = pageScripts(html, pageUrl) { fetchScript(it, pageUrl) }
+        rememberImageHosts(scripts.variables)
         val byIndex = scripts.urls.mapNotNull { url ->
             val m = CATALOG_PATH.matchEntire(url.encodedPath) ?: return@mapNotNull null
             (m.groups[1] ?: m.groups[2])!!.value.toInt() to url
@@ -282,15 +320,16 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     private fun Series.toSManga() = SManga.create().apply {
         url = this@toSManga.id
         title = this@toSManga.title
-        thumbnail_url = poster.takeIf { it.isNotBlank() }
-            ?.replace("_x4", "")?.replace("_x3", "")
-            ?.let { p ->
-                when {
-                    p.startsWith("http") -> p
-                    p.startsWith("//") -> "https:$p"
-                    else -> CDN_URL + p.removePrefix("/")
-                }
+        // 실제 주소는 요청 때 coverIntercept 에서 정함 (#bt= 뒤에 원래 경로를 담아 둠)
+        thumbnail_url = poster.takeIf { it.isNotBlank() }?.let { p ->
+            val path = p.replace("_x4", "").replace("_x3", "")
+            val first = when {
+                path.startsWith("http") -> path
+                path.startsWith("//") -> "https:$path"
+                else -> CDN_URL + path.removePrefix("/")
             }
+            first + "#" + COVER_MARK + java.net.URLEncoder.encode(p, "UTF-8")
+        }
         author = this@toSManga.author
         genre = (listOf(PLATFORMS[platform], DAYS[day]) + tags.map { TAGS[it] })
             .filterNotNull().joinToString(", ")
@@ -431,6 +470,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     override fun pageListParse(response: Response): List<Page> {
         val pageUrl = response.request.url.toString()
         val scripts = pageScripts(response.body?.string().orEmpty(), pageUrl) { fetchScript(it, pageUrl) }
+        rememberImageHosts(scripts.variables)
         val cdn = imageCdn(scripts.variables, System.currentTimeMillis())
         val siteUrl = pageUrl.toHttpUrl().newBuilder().encodedPath("/").query(null).fragment(null).build().toString()
         val pages = scripts.document.select("#toon_content_imgs img").mapIndexed { i, el ->
@@ -581,6 +621,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val DEFAULT = "https://blacktoon423.com"
         private const val GUIDE_URL = "https://blacktoonurl.net/"
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
+        private const val COVER_MARK = "bt="
         private val DATA_HOSTS = listOf("https://jsc.speedwebgo.com", "https://ttjsde.speedwebgo.com")
         private const val USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
