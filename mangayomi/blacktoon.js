@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.3.0",
+    "version": "0.3.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -24,6 +24,7 @@ const AUTO_MARKER = "webtoon_";
 // Blacktoon 웹툰 - Aniyomi 확장(Blacktoon.kt)과 같은 구조를 망가요미용으로 옮김
 // 사이트가 전체 작품 목록을 webtoon_0.js / webtoon_1.js 로 내려주므로 받아서 정렬/검색/필터
 const BT_PAGE = 24;
+const BT_CACHE_MS = 30 * 60 * 1000; // 전체 작품 목록 저장 시간
 const BT_POSTER = "https://ttjsde.speedwebgo.com/";
 const BT_CDN = "https://aa3cc9.speedwebgo.com/";
 const BT_DATA_HOSTS = ["https://ttjsde.speedwebgo.com", "https://jsc.speedwebgo.com"];
@@ -158,10 +159,39 @@ class DefaultExtension extends MProvider {
     }
 
     async get(url, referer) {
-        const h = { "Referer": referer || (this.base + "/"), "Origin": this.base };
+        const h = { "User-Agent": MOBILE_UA, "Referer": referer || (this.base + "/"), "Origin": this.base };
         const res = await this.req(url, h);
         if (res.statusCode && res.statusCode >= 400) throw new Error(`HTTP ${res.statusCode}`);
-        return res.body;
+        return this.fixText(res.body || "");
+    }
+
+    /** 사이트가 문자셋을 알려 주지 않아 한글이 Latin-1 로 깨져 들어온 경우 UTF-8 로 다시 풂 */
+    fixText(s) {
+        if (/[\uac00-\ud7a3]/.test(s) || !/[\u00c0-\u00ff][\u0080-\u00bf]/.test(s)) return s;
+        let out = "";
+        for (let i = 0; i < s.length; i++) {
+            const c = s.charCodeAt(i);
+            if (c > 0xff) return s; // 이미 제대로 된 글자가 섞여 있으면 손대지 않음
+            const n = c >= 0xf0 ? 3 : c >= 0xe0 ? 2 : c >= 0xc0 ? 1 : 0;
+            if (!n || i + n >= s.length + 0) {
+                out += s[i];
+                continue;
+            }
+            let cp = c & (0x3f >> n);
+            let ok = true;
+            for (let k = 1; k <= n; k++) {
+                const d = s.charCodeAt(i + k);
+                if ((d & 0xc0) !== 0x80) { ok = false; break; }
+                cp = (cp << 6) | (d & 0x3f);
+            }
+            if (!ok) {
+                out += s[i];
+                continue;
+            }
+            out += String.fromCodePoint(cp);
+            i += n;
+        }
+        return out;
     }
 
     // ---------- 페이지 안 스크립트에서 변수/데이터 주소 읽기 (사이트 JS는 실행하지 않음) ----------
@@ -213,7 +243,10 @@ class DefaultExtension extends MProvider {
     // config 는 이미지 서버를 고를 때만 필요 (목록/회차는 페이지 변수로 충분)
     async pageScripts(html, pageUrl, config) {
         const vars = {};
-        this.readVars(html, vars);
+        const block = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+        let b;
+        while ((b = block.exec(html)) !== null) this.readVars(b[1], vars);
+        if (!Object.keys(vars).length) this.readVars(html, vars);
         if (config) this.readVars(config, vars);
         const urls = [];
         const add = u => {
@@ -232,9 +265,45 @@ class DefaultExtension extends MProvider {
     }
 
     // ---------- 작품 목록 ----------
+    loadSavedCatalog(now) {
+        try {
+            const prefs = new SharedPreferences();
+            const at = Number(prefs.getString("cat_at", "0")) || 0;
+            if (now - at > BT_CACHE_MS) return null;
+            const rows = JSON.parse(prefs.getString("cat_data", "[]"));
+            if (!rows.length) return null;
+            this.vars = JSON.parse(prefs.getString("cat_vars", "{}"));
+            this._catAt = at;
+            return rows.map(r => ({
+                id: r[0], title: r[1], poster: r[2], author: r[3], updated: r[4], hot: r[5],
+                tags: r[6] ? String(r[6]).split(",").map(Number) : [], platform: r[7], day: r[8], listIndex: r[9]
+            }));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    saveCatalog(items, now) {
+        try {
+            const rows = JSON.stringify(items.map(s => [s.id, s.title, s.poster, s.author, s.updated, s.hot, s.tags.join(","), s.platform, s.day, s.listIndex]));
+            if (rows.length > 8 * 1024 * 1024) return;
+            const prefs = new SharedPreferences();
+            prefs.setString("cat_data", rows);
+            prefs.setString("cat_vars", JSON.stringify({ inc_url1: (this.vars || {}).inc_url1, inc_url2: (this.vars || {}).inc_url2 }));
+            prefs.setString("cat_at", String(now));
+        } catch (e) {
+            // 저장 실패해도 계속
+        }
+    }
+
     async catalog() {
         const now = Date.now();
-        if (this._cat && now - this._catAt < 15 * 60 * 1000) return this._cat;
+        if (this._cat && now - this._catAt < BT_CACHE_MS) return this._cat;
+        const saved = this.loadSavedCatalog(now);
+        if (saved) {
+            this._cat = saved;
+            return saved;
+        }
         const pageUrl = this.base + "/";
         const html = await this.get(pageUrl);
         const { vars, urls } = await this.pageScripts(html, pageUrl);
@@ -275,6 +344,7 @@ class DefaultExtension extends MProvider {
         }
         this._cat = items;
         this._catAt = now;
+        this.saveCatalog(items, now);
         return items;
     }
 
@@ -290,7 +360,7 @@ class DefaultExtension extends MProvider {
             const p = s.poster.replace("_x4", "").replace("_x3", "");
             img = /^https?:/.test(p) ? p : p.startsWith("//") ? "https:" + p : this.posterHost() + p.replace(/^\/+/, "");
         }
-        return { name: s.title, imageUrl: img, link: s.id };
+        return { name: s.title, imageUrl: img, link: `/webtoon/${s.id}.html` };
     }
 
     async browse(page, sel) {
@@ -356,7 +426,7 @@ class DefaultExtension extends MProvider {
                 if (!arr.length) throw new Error("비어 있음");
                 chapters = arr.map(o => ({
                     name: o.t || String(o.id),
-                    url: (o.u || "").replace(/^\/webtoons\//, "").replace(/\.html$/, "") || `${id}/${o.id}`,
+                    url: /^\/webtoons\/.+\.html$/.test(o.u || "") ? o.u : `/webtoons/${id}/${o.id}.html`,
                     dateUpload: /^\d{4}-\d{2}-\d{2}/.test(o.d || "") ? String(new Date(`${o.d.substring(0, 10)}T00:00:00+09:00`).valueOf()) : null
                 })).reverse();
                 break;
@@ -405,7 +475,8 @@ class DefaultExtension extends MProvider {
     }
 
     async getPageList(url) {
-        const pageUrl = `${this.base}/webtoons/${url}.html`;
+        // 예전 형식("작품/회차")과 사이트 경로("/webtoons/작품/회차.html") 모두 지원
+        const pageUrl = String(url).startsWith("/") ? this.base + url : `${this.base}/webtoons/${url}.html`;
         const [html, config] = await Promise.all([this.get(pageUrl), this.configJs(pageUrl)]);
         const { vars } = await this.pageScripts(html, pageUrl, config);
         const cdn = this.imageCdn(vars);
