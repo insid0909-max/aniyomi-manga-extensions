@@ -211,6 +211,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
         null
     }
 
+    /** 응답 형식: {"data":{"SucCode":20000,"SucData":{...}},"code":200} */
+    private fun sucData(o: JSONObject): JSONObject =
+        o.optJSONObject("data")?.optJSONObject("SucData") ?: o.optJSONObject("SucData") ?: o.optJSONObject("data") ?: o
+
+    /** 스크립트가 채우기 전 자리표시 글자 */
+    private fun isPlaceholder(t: String?) = t.isNullOrBlank() || t.trim().lowercase().startsWith("loading")
+
     /** 응답 안 어디에 있든 id + subject 를 가진 작품 객체들을 모음 */
     private fun collectItems(node: Any?, out: MutableList<JSONObject>) {
         when (node) {
@@ -357,7 +364,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             val id = mangaId(el.attr("onclick")) ?: return@mapNotNull null
             if (el.attr("onclick").contains("page=aini") || !seen.add(id)) return@mapNotNull null
             val title = el.ownText().trim().ifEmpty { el.text().trim() }
-            if (title.isEmpty()) return@mapNotNull null
+            if (isPlaceholder(title)) return@mapNotNull null
             SManga.create().apply {
                 url = mangaUrl(id)
                 this.title = title
@@ -369,11 +376,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
             if (!seen.add(id)) return@mapNotNull null
             val title = (a.selectFirst("h4, h3, .subject, .title")?.text() ?: a.selectFirst("img[alt]")?.attr("alt"))
                 ?.trim().orEmpty()
-            if (title.isEmpty()) return@mapNotNull null
+            if (isPlaceholder(title)) return@mapNotNull null
             SManga.create().apply {
                 url = mangaUrl(id)
                 this.title = title
-                thumbnail_url = a.selectFirst("img")?.attr("src")?.takeIf { it.isNotBlank() }
+                // 실제 표지(toon_category)가 아니면 자리표시 그림이므로 작품 번호로 표지 주소를 만듦
+                thumbnail_url = a.select("img").map { it.attr("data-original").ifEmpty { it.attr("data-src") }.ifEmpty { it.attr("src") } }
+                    .firstOrNull { it.contains("toon_category") }
                     ?.let { absolute(it) }?.also { rememberCover(it) } ?: coverFor(id)
             }
         }
@@ -387,7 +396,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             .addQueryParameter("parent", id)
             .addQueryParameter("ordertype", "1")
             .build().toString()
-        return getJson(url, baseUrl + mangaUrl(id))?.let { it.optJSONObject("SucData") ?: it }
+        return getJson(url, baseUrl + mangaUrl(id))?.let { sucData(it) }
     }
 
     override fun mangaDetailsRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
@@ -397,12 +406,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
         val id = mangaId(response.request.url.toString())
         val data = id?.let { t3(it)?.optJSONObject("ToonData") }
         fun dd(label: String) = doc.select(".head-text dl").firstOrNull { it.selectFirst("dt")?.text()?.contains(label) == true }
-            ?.selectFirst("dd")?.text()?.trim()?.ifEmpty { null }
+            ?.selectFirst("dd")?.text()?.trim()?.takeUnless { isPlaceholder(it) }
         return SManga.create().apply {
             title = data?.optString("subject")?.trim()?.ifEmpty { null }
-                ?: doc.selectFirst(".head-text h3")?.text()?.trim().orEmpty()
+                ?: doc.selectFirst(".head-text h3")?.text()?.trim()?.takeUnless { isPlaceholder(it) }.orEmpty()
             thumbnail_url = data?.let { imageOf(it) }
-                ?: doc.selectFirst(".head-img img")?.attr("src")?.takeIf { it.isNotBlank() }?.let { absolute(it) }
+                ?: doc.selectFirst(".head-img img")?.attr("src")?.takeIf { it.contains("toon_category") }?.let { absolute(it) }
+                ?: id?.let { coverFor(it) }
             author = data?.optString("maker")?.trim()?.ifEmpty { null } ?: dd("작가")
             genre = (data?.optString("caname")?.trim()?.ifEmpty { null } ?: dd("장르"))
                 ?.split(",", "/")?.map { it.trim() }?.filter { it.isNotEmpty() }?.joinToString(", ")
@@ -424,16 +434,10 @@ class Toon11 : HttpSource(), ConfigurableSource {
         val id = mangaId(response.request.url.toString()) ?: throw IOException("잘못된 작품 주소")
         val title = doc.selectFirst(".head-text h3")?.text()?.trim().orEmpty()
 
-        // 1) 페이지에 목록이 들어 있으면 그대로 사용
-        var list = doc.select("a[href*=/content/image/]").mapNotNull { a ->
-            val cid = Regex("/content/image/(\\d+)").find(a.attr("href"))?.groupValues?.get(1) ?: return@mapNotNull null
-            val name = a.ownText().trim().ifEmpty { a.text().substringBefore("(").trim() }
-            chapter(cid, id, name.ifEmpty { "$cid" })
-        }
-
-        // 2) 없으면 t3 API (사이트가 목록을 그리는 데 쓰는 데이터)
-        if (list.isEmpty()) {
-            val data = t3(id) ?: throw IOException("11toon 회차 목록을 불러오지 못했습니다")
+        // 1) t3 API (사이트가 목록을 그리는 데 쓰는 데이터, 날짜 포함)
+        var list: List<SChapter> = emptyList()
+        val data = t3(id)
+        if (data != null) {
             val subject = data.optJSONObject("ToonData")?.optString("subject")?.trim().orEmpty().ifEmpty { title }
             val arr = data.optJSONArray("ToonList") ?: JSONArray()
             list = (0 until arr.length()).mapNotNull { i ->
@@ -443,11 +447,31 @@ class Toon11 : HttpSource(), ConfigurableSource {
                 // 사이트와 같이 회차 제목에서 작품 제목을 뺌 ("Re: 열혈강호 14권" → "Re: 14권")
                 val name = (if (subject.isNotEmpty()) full.replace(subject, "") else full)
                     .replace(Regex("\\s+"), " ").trim().ifEmpty { full }
-                chapter(cid, o.optString("parentid").ifEmpty { id }, name)
+                chapter(cid, o.optString("parentid").ifEmpty { id }, name).apply {
+                    date_upload = try {
+                        synchronized(dateFmt) { dateFmt.parse(o.optString("datetime"))?.time } ?: 0L
+                    } catch (e: Exception) {
+                        0L
+                    }
+                }
             }
         }
+
+        // 2) 실패하면 페이지에 그려진 목록
+        if (list.isEmpty()) {
+            list = doc.select("a[href*=/content/image/]").mapNotNull { a ->
+                val cid = Regex("/content/image/(\\d+)").find(a.attr("href"))?.groupValues?.get(1) ?: return@mapNotNull null
+                val name = a.ownText().trim().ifEmpty { a.text().substringBefore("(").trim() }
+                chapter(cid, id, name.ifEmpty { cid })
+            }
+        }
+        if (list.isEmpty()) throw IOException("11toon 회차 목록을 불러오지 못했습니다")
         // 사이트는 1화부터 순서대로 → 앱은 최신화가 위로
         return list.distinctBy { it.url }.reversed()
+    }
+
+    private val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).apply {
+        timeZone = java.util.TimeZone.getTimeZone("Asia/Seoul")
     }
 
     private fun chapter(cid: String, parent: String, name: String) = SChapter.create().apply {
@@ -474,7 +498,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
                 .addQueryParameter("id", cid)
                 .addQueryParameter("parent", parent)
                 .build().toString()
-            val data = getJson(api, referer)?.let { it.optJSONObject("SucData") ?: it }
+            val data = getJson(api, referer)?.let { sucData(it) }
             val image = data?.optJSONObject("Image")
             val file = image?.optString("file").orEmpty()
             val listRaw = image?.opt("imagelist")
