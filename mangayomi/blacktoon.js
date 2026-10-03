@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.2",
+    "version": "0.3.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -201,14 +201,20 @@ class DefaultExtension extends MProvider {
     }
 
     /** 페이지 + /data/config.js 의 변수, 그리고 loadScript/loadjs/script src 로 부르는 주소들 */
-    async pageScripts(html, pageUrl) {
+    /** config.js (이미지 서버 정보). 실패하면 빈 문자열 */
+    async configJs(pageUrl) {
+        try {
+            return await this.get(`${this.base}/data/config.js?m=${Math.random()}`, pageUrl);
+        } catch (e) {
+            return "";
+        }
+    }
+
+    // config 는 이미지 서버를 고를 때만 필요 (목록/회차는 페이지 변수로 충분)
+    async pageScripts(html, pageUrl, config) {
         const vars = {};
         this.readVars(html, vars);
-        try {
-            this.readVars(await this.get(`${this.base}/data/config.js?m=${Math.random()}`, pageUrl), vars);
-        } catch (e) {
-            // config.js 없어도 페이지 변수로 진행
-        }
+        if (config) this.readVars(config, vars);
         const urls = [];
         const add = u => {
             if (!u) return;
@@ -234,23 +240,28 @@ class DefaultExtension extends MProvider {
         const { vars, urls } = await this.pageScripts(html, pageUrl);
         this.vars = vars;
         const items = [];
-        for (const index of [1, 0]) {
+        // 연재(1) / 완결(0) 데이터를 동시에 받음
+        const loadIndex = async index => {
             const cands = urls.filter(u => new RegExp(`/(?:webtoon_${index}|data/webtoon/webtoon_${index}_\\d+)\\.js`).test(u.split("?")[0]));
             for (const h of [vars.inc_url2, vars.inc_url1].concat(BT_DATA_HOSTS)) {
                 if (h) cands.push(`${h.replace(/\/+$/, "")}/webtoon_${index}.js`);
             }
-            let loaded = null;
             for (const u of cands) {
                 try {
                     const body = await this.get(u, pageUrl);
                     const m = body.match(new RegExp(`data${index}\\s*=\\s*(\\[[\\s\\S]*\\])`));
                     if (!m) continue;
                     const arr = JSON.parse(m[1]);
-                    if (arr.length) { loaded = arr; break; }
+                    if (arr.length) return arr;
                 } catch (e) {
                     // 다음 후보
                 }
             }
+            return null;
+        };
+        const lists = await Promise.all([loadIndex(1), loadIndex(0)]);
+        for (const [n, index] of [[0, 1], [1, 0]]) {
+            const loaded = lists[n];
             if (!loaded) throw new Error(`블랙툰 작품 데이터(webtoon_${index})를 불러오지 못했습니다`);
             for (const o of loaded) {
                 if (!o.x) continue;
@@ -322,12 +333,8 @@ class DefaultExtension extends MProvider {
         const html = await this.get(pageUrl);
         const doc = new Document(html);
 
-        let meta = null;
-        try {
-            meta = (await this.catalog()).find(s => s.id === id) || null;
-        } catch (e) {
-            meta = null;
-        }
+        // 전체 목록은 크므로 새로 받지 않음 (이미 받아 둔 경우에만 사용)
+        const meta = (this._cat || []).find(s => s.id === id) || null;
         const descs = doc.select("p.mt-2");
         const genre = meta
             ? [BT_PLATFORMS[meta.platform], BT_DAYS[meta.day]].concat(meta.tags.map(t => BT_TAGS[t])).filter(x => x)
@@ -359,10 +366,12 @@ class DefaultExtension extends MProvider {
         }
         if (!chapters.length) throw new Error("블랙툰 회차 목록 로드 실패 " + errors.join(" / ").substring(0, 200));
 
+        const cover = doc.selectFirst("img.thumb2");
+        const plain = html.replace(/<[^>]+>/g, " ");
         return {
             name: meta ? meta.title : (doc.selectFirst("h3 b")?.text || "").trim(),
-            imageUrl: meta ? this.toManga(meta).imageUrl : (doc.selectFirst("img.thumb2")?.attr("src") || ""),
-            author: meta ? meta.author : "",
+            imageUrl: meta ? this.toManga(meta).imageUrl : (cover?.attr("src") || ""),
+            author: meta ? meta.author : ((plain.match(/작가\s*:\s*([^\n]+?)\s{2,}/) || [])[1] || "").trim(),
             description: descs.length ? descs[descs.length - 1].text.trim() : "",
             genre,
             status: meta ? (meta.listIndex === 0 ? 1 : 0) : 5,
@@ -397,8 +406,8 @@ class DefaultExtension extends MProvider {
 
     async getPageList(url) {
         const pageUrl = `${this.base}/webtoons/${url}.html`;
-        const html = await this.get(pageUrl);
-        const { vars } = await this.pageScripts(html, pageUrl);
+        const [html, config] = await Promise.all([this.get(pageUrl), this.configJs(pageUrl)]);
+        const { vars } = await this.pageScripts(html, pageUrl, config);
         const cdn = this.imageCdn(vars);
         const doc = new Document(html);
         const urls = [];
