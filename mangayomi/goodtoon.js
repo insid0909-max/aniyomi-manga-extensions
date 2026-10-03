@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.3",
+    "version": "0.3.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
