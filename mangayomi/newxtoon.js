@@ -8,11 +8,16 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
 }];
+
+const AUTO_HOST = /^(www\.)?newxtoon\d*\.com$/;
+const AUTO_NUM = /newxtoon(\d+)/;
+const AUTO_PROBE = "/";
+const AUTO_MARKER = "뉴엑스툰";
 
 // newxtoon 웹툰 - Aniyomi 확장(NewXtoon.kt)과 같은 구조를 망가요미용으로 옮김
 class DefaultExtension extends MProvider {
@@ -21,9 +26,103 @@ class DefaultExtension extends MProvider {
         this.client = new Client();
     }
 
+    // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
+    cleanUrl(v) {
+        v = String(v || "").trim().replace(/\/+$/, "");
+        return /^https?:\/\/[^\s/]+$/.test(v) ? v : "";
+    }
+
     get base() {
-        const v = (new SharedPreferences().get("domain") || "").trim().replace(/\/+$/, "");
-        return /^https?:\/\/[^\s/]+$/.test(v) ? v : this.source.baseUrl;
+        const prefs = new SharedPreferences();
+        const manual = this.cleanUrl(prefs.get("domain"));
+        if (manual && manual !== this.source.baseUrl) return manual;
+        return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+    }
+
+    autoOn() {
+        try {
+            const v = new SharedPreferences().get("auto_on");
+            return v !== false && v !== "false";
+        } catch (e) {
+            return true;
+        }
+    }
+
+    /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
+    async req(url, headers, post, body) {
+        const base = this.base;
+        const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
+        let failed = null;
+        let error = null;
+        try {
+            const res = post ? await this.client.post(url, headers || {}, body) : await this.client.get(url, headers || {});
+            if (!ours || !(res.statusCode >= 500)) return res;
+            failed = res;
+        } catch (e) {
+            if (!ours) throw e;
+            error = e;
+        }
+        const found = await this.discover(base);
+        if (!found) {
+            if (error) throw error;
+            return failed;
+        }
+        const fix = s => typeof s === "string" ? s.split(base).join(found) : s;
+        const h = {};
+        for (const k in headers || {}) h[k] = fix(headers[k]);
+        const newUrl = found + url.substring(base.length);
+        return post ? await this.client.post(newUrl, h, fix(body)) : await this.client.get(newUrl, h);
+    }
+
+    async discover(current) {
+        const prefs = new SharedPreferences();
+        const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
+        if (Date.now() - last < 60 * 1000) return null;
+        prefs.setString("auto_tried_at", String(Date.now()));
+
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        let found = null;
+        try {
+            found = await this.autoGuide(current);
+        } catch (e) {
+            found = null;
+        }
+        if (!found) {
+            const cands = this.autoCandidates(current).filter(c => c !== current);
+            const hits = await Promise.all(cands.map(async c => {
+                try {
+                    const r = await this.client.get(c + AUTO_PROBE, { "Referer": c + "/" });
+                    return r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER) ? c : null;
+                } catch (e) {
+                    return null;
+                }
+            }));
+            const ok = hits.filter(x => x);
+            ok.sort((a, b) => num(b) - num(a));
+            found = ok[0] || null;
+        }
+        if (found) prefs.setString("auto_domain", found);
+        return found;
+    }
+
+    /** 안내 페이지 본문에서 주소 찾기 (가장 큰 번호) */
+    pickFrom(text, current) {
+        const re = new RegExp(AUTO_HOST.source.replace(/^\^/, "").replace(/\$$/, ""), "gi");
+        const hosts = (String(text || "").match(re) || []).map(h => "https://" + h.toLowerCase())
+            .filter(h => h !== current);
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        hosts.sort((a, b) => num(b) - num(a));
+        return hosts[0] || null;
+    }
+
+    autoCandidates(current) {
+        const out = [];
+        for (let i = 1; i <= 40; i++) out.push(`https://newxtoon${i}.com`);
+        return out;
+    }
+
+    async autoGuide(current) {
+        return null;
     }
 
     getHeaders(url) {
@@ -42,7 +141,7 @@ class DefaultExtension extends MProvider {
     }
 
     async get(url, headers) {
-        const res = await this.client.get(url, headers || this.getHeaders(url));
+        const res = await this.req(url, headers || this.getHeaders(url));
         return res.body;
     }
 
@@ -205,11 +304,18 @@ class DefaultExtension extends MProvider {
         return [{
             key: "domain",
             editTextPreference: {
-                title: "도메인 주소",
-                summary: "사이트 주소가 바뀌면 여기서 변경 (예: https://newxtoon2.com)",
-                value: this.source.baseUrl,
+                title: "도메인 주소 (수동)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://newxtoon2.com)",
+                value: "",
                 dialogTitle: "도메인 주소",
-                dialogMessage: ""
+                dialogMessage: "비워두면 자동"
+            }
+        }, {
+            key: "auto_on",
+            switchPreferenceCompat: {
+                title: "도메인 자동 찾기",
+                summary: "접속이 안 되면 newxtoon1~40.com 중 열리는 주소로 자동 변경",
+                value: true
             }
         }];
     }
