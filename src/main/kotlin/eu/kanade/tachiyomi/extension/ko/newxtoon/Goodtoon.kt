@@ -25,6 +25,7 @@ import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import rx.Observable
 
 class Goodtoon : HttpSource(), ConfigurableSource {
 
@@ -348,13 +349,31 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ---------- 필터 ----------
-    override fun getFilterList() = FilterList(
-        Filter.Header("검색어가 없을 때만 적용"),
-        Pick("목록", "list", LISTS),
-        Pick("분류", "mcat", CATS),
-        Pick("요일", "mday", DAYS),
-        Pick("장르", "genre", GENRES),
-        Pick("플랫폼", "plat", PLATS),
+    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    private val tabRules by lazy { TabRules(id) }
+
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchPopularManga(page)
+
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchLatestUpdates(page)
+
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        tabRules.apply(filters)
+        return super.fetchSearchManga(page, query, filters)
+    }
+
+    override fun getFilterList() = tabRules.attach(
+        FilterList(
+            Filter.Header("검색어가 없을 때만 적용"),
+            Pick("목록", "list", LISTS),
+            Pick("분류", "mcat", CATS),
+            Pick("요일", "mday", DAYS),
+            Pick("장르", "genre", GENRES),
+            Pick("플랫폼", "plat", PLATS),
+        ),
     )
 
     class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
