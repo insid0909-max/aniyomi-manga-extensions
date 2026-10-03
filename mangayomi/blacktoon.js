@@ -8,11 +8,13 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.1",
+    "version": "0.2.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
 }];
+
+const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
 const AUTO_HOST = /^(www\.)?blacktoon\d+\.com$/;
 const AUTO_NUM = /blacktoon(\d+)/;
@@ -147,12 +149,12 @@ class DefaultExtension extends MProvider {
     }
 
     getHeaders(url) {
-        return { "Referer": this.source.baseUrl + "/", "Origin": this.source.baseUrl };
+        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/", "Origin": this.source.baseUrl };
     }
 
     /** 실제 요청용 헤더 (현재 도메인 기준) */
     hdr(url) {
-        return { "Referer": this.base + "/", "Origin": this.base };
+        return { "User-Agent": MOBILE_UA, "Referer": this.base + "/", "Origin": this.base };
     }
 
     async get(url, referer) {
