@@ -267,7 +267,12 @@ class Wolftoon : HttpSource(), ConfigurableSource {
             description = d.selectFirst("#summary")?.text()?.trim()
             genre = d.select(".genre-tags a.gtag").map { it.text().trim().removePrefix("#") }
                 .filter { it.isNotEmpty() }.joinToString(", ")
-            status = SManga.UNKNOWN
+            // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨
+            status = when (d.selectFirst("a.nav-item.active")?.attr("href").orEmpty()) {
+                "/ing" -> SManga.ONGOING
+                "/end" -> SManga.COMPLETED
+                else -> SManga.UNKNOWN
+            }
         }
     }
 

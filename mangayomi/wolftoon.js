@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.1.1",
+    "version": "0.1.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -257,7 +257,8 @@ class DefaultExtension extends MProvider {
             imageUrl: img ? this.abs(img.attr("src")) : "",
             description: (doc.selectFirst("#summary")?.text || "").trim(),
             genre: doc.select(".genre-tags a.gtag").map((e) => e.text.trim().replace(/^#/, "")).filter((s) => s),
-            status: 5,
+            // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨 (0 연재, 1 완결, 5 알 수 없음)
+            status: { "/ing": 0, "/end": 1 }[(doc.selectFirst("a.nav-item.active")?.attr("href") || "").trim()] ?? 5,
             link: this.abs(detailPath),
             chapters
         };
