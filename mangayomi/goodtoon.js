@@ -8,11 +8,13 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.1",
+    "version": "0.2.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
 }];
+
+const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
 const AUTO_HOST = /^(www\.)?goodtoon\d+\.com$/;
 const AUTO_NUM = /goodtoon(\d+)/;
@@ -132,12 +134,12 @@ class DefaultExtension extends MProvider {
     }
 
     getHeaders(url) {
-        return { "Referer": this.source.baseUrl + "/" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/" };
     }
 
     /** 실제 요청용 헤더 (현재 도메인 기준) */
     hdr(url) {
-        return { "Referer": this.base + "/" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.base + "/" };
     }
 
     abs(u) {
@@ -274,22 +276,32 @@ class DefaultExtension extends MProvider {
 
     // ---------- 이미지 ----------
     async getPageList(url) {
-        const html = (await this.get(this.abs(url))).replace(/\\\//g, "/");
+        const pageUrl = this.abs(url);
+        const res = await this.req(pageUrl, this.hdr(pageUrl));
+        const html = String(res.body || "").replace(/\\\//g, "/");
         const re = /https?:\/\/[^"'\s\\<>]+?\/gt-\d+\/ch-\d+\/\d+\.(?:jpe?g|png|webp|gif|avif)/gi;
         let urls = [];
         let m;
         while ((m = re.exec(html)) !== null) if (urls.indexOf(m[0]) < 0) urls.push(m[0]);
+        const doc = new Document(html);
         if (!urls.length) {
-            const doc = new Document(html);
-            for (const img of doc.select("img")) {
-                const u = this.abs(img.attr("data-src") || img.attr("src"));
-                if (u.includes("/ch-") && urls.indexOf(u) < 0) urls.push(u);
+            // 본문(.reading-content) 이미지 또는 주소에 /ch- 가 들어간 이미지
+            const inReader = doc.select(".reading-content img, .page-break img, #readerarea img");
+            const pool = inReader.length ? inReader : doc.select("img");
+            for (const img of pool) {
+                const raw = (img.attr("data-src") || img.attr("data-lazy-src") || img.attr("data-original") || img.attr("src") || "").trim();
+                if (!raw || raw.startsWith("data:")) continue;
+                const u = this.abs(raw);
+                if ((inReader.length || u.includes("/ch-")) && urls.indexOf(u) < 0) urls.push(u);
             }
         }
         const num = u => parseInt((u.match(/\/(\d+)\.[a-z]+$/i) || [0, 0])[1]);
-        urls.sort((a, b) => num(a) - num(b));
-        if (!urls.length) throw new Error("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)");
-        return urls.map(u => ({ url: u, headers: { "Referer": this.base + "/" } }));
+        if (urls.every(u => /\/ch-\d+\/\d+\./.test(u))) urls.sort((a, b) => num(a) - num(b));
+        if (!urls.length) {
+            const title = (doc.selectFirst("title")?.text || "").trim().substring(0, 40);
+            throw new Error(`이미지를 찾을 수 없습니다 (HTTP ${res.statusCode}, 제목: ${title || "없음"}, img ${doc.select("img").length}개)`);
+        }
+        return urls.map(u => ({ url: u, headers: { "Referer": this.base + "/", "User-Agent": MOBILE_UA } }));
     }
 
     getFilterList() {
