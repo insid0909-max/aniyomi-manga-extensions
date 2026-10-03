@@ -284,7 +284,13 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         title = this@toSManga.title
         thumbnail_url = poster.takeIf { it.isNotBlank() }
             ?.replace("_x4", "")?.replace("_x3", "")
-            ?.toImageUrl("$baseUrl/", CDN_URL)
+            ?.let { p ->
+                when {
+                    p.startsWith("http") -> p
+                    p.startsWith("//") -> "https:$p"
+                    else -> CDN_URL + p.removePrefix("/")
+                }
+            }
         author = this@toSManga.author
         genre = (listOf(PLATFORMS[platform], DAYS[day]) + tags.map { TAGS[it] })
             .filterNotNull().joinToString(", ")
@@ -299,7 +305,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
 
     private fun fetchScript(url: String, pageUrl: String): String =
         client.newCall(GET(url, dataHeaders(pageUrl))).execute().use { res ->
-            if (!res.isSuccessful) throw IOException("블랙툰 데이터 요청 실패 HTTP ${res.code}")
+            if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
             res.body?.string() ?: ""
         }
 
@@ -379,9 +385,16 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         val mangaId = response.request.url.pathSegments.last().removeSuffix(".html")
         if (mangaId.toLongOrNull() == null) throw IOException("잘못된 작품 주소")
         val html = response.body?.string().orEmpty()
-        val scripts = pageScripts(html, pageUrl) { fetchScript(it, pageUrl) }.urls
-            .filter { it.encodedPath == "/data/toonlist/$mangaId.js" }
-        var failure: Exception? = null
+        val page = pageScripts(html, pageUrl) { fetchScript(it, pageUrl) }
+        val found = page.urls.filter { it.encodedPath == "/data/toonlist/$mangaId.js" }.map { it.toString() }
+        // 페이지에서 주소를 못 찾았을 때: 설정(config.js)의 inc_url / 알려진 데이터 서버 / 사이트 순으로 시도
+        val siteRoot = pageUrl.toHttpUrl().newBuilder().encodedPath("/").query(null).fragment(null)
+            .build().toString().trimEnd('/')
+        val fallback = (listOf(page.variables["inc_url"], page.variables["inc_url2"]) + DATA_HOSTS + siteRoot)
+            .mapNotNull { it?.trim()?.trimEnd('/')?.takeIf { b -> b.startsWith("http") } }
+            .map { "$it/data/toonlist/$mangaId.js?v=${Math.random()}" }
+        val scripts = (found + fallback).distinctBy { it.substringBefore('?') }
+        val errors = ArrayList<String>()
         for (script in scripts) {
             try {
                 val m = CHAPTER_PAYLOAD.matchEntire(fetchScript(script.toString(), pageUrl))
@@ -404,10 +417,12 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                 if (list.isEmpty()) throw IOException("회차 목록이 비어 있습니다")
                 return list.reversed()
             } catch (e: Exception) {
-                failure = e
+                errors.add("${script.toHttpUrlOrNull()?.host}: ${e.message}")
             }
         }
-        throw IOException("블랙툰 회차 목록 로드 실패", failure)
+        throw IOException(
+            "블랙툰 회차 목록 로드 실패 (페이지 내 주소 ${found.size}개) " + errors.joinToString(" / ").take(200),
+        )
     }
 
     // ---------- 이미지 ----------
@@ -566,6 +581,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val DEFAULT = "https://blacktoon423.com"
         private const val GUIDE_URL = "https://blacktoonurl.net/"
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
+        private val DATA_HOSTS = listOf("https://jsc.speedwebgo.com", "https://ttjsde.speedwebgo.com")
         private const val USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         private const val PAGE_SIZE = 24
