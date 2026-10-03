@@ -167,6 +167,7 @@ jobs:
                       ("newxtoon 웹툰", "https://newxtoon1.com"),
                       ("Goodtoon 웹툰", "https://www.goodtoon006.com"),
                       ("짭툰", "https://www.jjaptoon008.com"),
+                      ("블랙툰", "https://blacktoon423.com"),
                   ]],
               })
           json.dump(out, open(f"{repo}/index.min.json", "w", encoding="utf-8"),
