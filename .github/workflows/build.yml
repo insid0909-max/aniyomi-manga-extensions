@@ -183,6 +183,37 @@ jobs:
           cp repo/apk/*.apk repo/ 2>/dev/null || true
           cp repo/icon/*.png repo/ 2>/dev/null || true
 
+      - name: Generate Mangayomi index
+        run: |
+          mkdir -p repo/mangayomi
+          cp mangayomi/*.js repo/mangayomi/
+          python3 - << 'EOF'
+          import glob, json, os, re
+
+          raw = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/"
+          out = []
+          for path in sorted(glob.glob("mangayomi/*.js")):
+              code = open(path, encoding="utf-8").read()
+              m = re.search(r"const\s+mangayomiSources\s*=\s*(\[.*?\]);", code, re.S)
+              if not m:
+                  continue
+              for s in json.loads(m.group(1)):
+                  out.append({
+                      "name": s["name"], "id": s["id"], "baseUrl": s["baseUrl"], "lang": s["lang"],
+                      "typeSource": s.get("typeSource", "single"), "iconUrl": s.get("iconUrl", ""),
+                      "dateFormat": s.get("dateFormat", ""), "dateFormatLocale": s.get("dateFormatLocale", ""),
+                      "isNsfw": s.get("isNsfw", False), "hasCloudflare": s.get("hasCloudflare", False),
+                      "sourceCodeUrl": raw + os.path.basename(path), "apiUrl": s.get("apiUrl", ""),
+                      "version": s["version"], "isManga": True, "itemType": s.get("itemType", 0),
+                      "isFullData": False, "appMinVerReq": s.get("appMinVerReq", "0.5.0"),
+                      "additionalParams": "", "sourceCodeLanguage": 1, "notes": "",
+                  })
+          json.dump(out, open("repo/mangayomi/index.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          json.dump({"name": "NewXtoon Mangayomi Repository", "website": "https://github.com/insid0909-max/aniyomi-manga-extensions"},
+                    open("repo/mangayomi/repo.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print("mangayomi sources", len(out))
+          EOF
+
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
