@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit
 class Blacktoon : HttpSource(), ConfigurableSource {
 
     override val name = "블랙툰"
+
+    // 다른 저장소의 블랙툰 확장과 소스 ID가 겹치지 않도록 고유 ID 사용
+    override val id: Long = uniqueSourceId("newxtoon.blacktoon/ko/1")
     override val lang = "ko"
     override val supportsLatest = true
 

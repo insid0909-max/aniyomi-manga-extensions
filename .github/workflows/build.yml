@@ -136,6 +136,10 @@ jobs:
               h = hashlib.md5(f"{name.lower()}/{lang}/{version_id}".encode()).digest()
               return str(int.from_bytes(h[:8], "big") & 0x7FFFFFFFFFFFFFFF)
 
+          def key_id(key):
+              h = hashlib.md5(key.encode()).digest()
+              return str(int.from_bytes(h[:8], "big") & 0x7FFFFFFFFFFFFFFF)
+
           out = []
           for apk in glob.glob("build/outputs/apk/release/*.apk"):
               info = subprocess.check_output(["aapt", "dump", "badging", apk]).decode("utf-8", "ignore")
@@ -163,11 +167,11 @@ jobs:
               out.append({
                   "name": display, "pkg": pkg, "apk": apk_name, "lang": "ko",
                   "code": vcode, "version": vname, "nsfw": 1,
-                  "sources": [{"name": n, "lang": "ko", "id": source_id(n, "ko"), "baseUrl": u} for n, u in [
-                      ("newxtoon 웹툰", "https://newxtoon1.com"),
-                      ("Goodtoon 웹툰", "https://www.goodtoon006.com"),
-                      ("짭툰", "https://www.jjaptoon008.com"),
-                      ("블랙툰", "https://blacktoon423.com"),
+                  "sources": [{"name": n, "lang": "ko", "id": i, "baseUrl": u} for n, i, u in [
+                      ("newxtoon 웹툰", source_id("newxtoon 웹툰", "ko"), "https://newxtoon1.com"),
+                      ("Goodtoon 웹툰", source_id("Goodtoon 웹툰", "ko"), "https://www.goodtoon006.com"),
+                      ("짭툰", key_id("newxtoon.jjaptoon/ko/1"), "https://www.jjaptoon008.com"),
+                      ("블랙툰", key_id("newxtoon.blacktoon/ko/1"), "https://blacktoon423.com"),
                   ]],
               })
           json.dump(out, open(f"{repo}/index.min.json", "w", encoding="utf-8"),

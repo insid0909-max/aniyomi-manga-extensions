@@ -33,6 +33,9 @@ import java.util.TimeZone
 class Jjaptoon : HttpSource(), ConfigurableSource {
 
     override val name = "짭툰"
+
+    // 다른 저장소의 짭툰 확장과 소스 ID가 겹치지 않도록 고유 ID 사용
+    override val id: Long = uniqueSourceId("newxtoon.jjaptoon/ko/1")
     override val lang = "ko"
     override val supportsLatest = true
 

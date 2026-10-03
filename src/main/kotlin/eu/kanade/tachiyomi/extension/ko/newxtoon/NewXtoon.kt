@@ -600,6 +600,13 @@ class NewXtoonFactory : SourceFactory {
     }
 }
 
+/** 이름이 같은 다른 저장소 소스와 ID가 겹치지 않도록, 고정 키로 소스 ID 생성 (앱의 ID 생성 방식과 동일) */
+internal fun uniqueSourceId(key: String): Long {
+    val bytes = java.security.MessageDigest.getInstance("MD5").digest(key.toByteArray())
+    return (0..7).map { bytes[it].toLong() and 0xffL shl 8 * (7 - it) }
+        .reduce(Long::or) and Long.MAX_VALUE
+}
+
 /** 소스 생성이 실패해도 확장 전체가 사라지지 않고, 오류 내용을 소스 이름에 보여줌 */
 class ErrorSource(label: String, err: Throwable) : HttpSource() {
     override val name = "$label: ${err.javaClass.simpleName} ${err.message ?: ""}".take(120)
