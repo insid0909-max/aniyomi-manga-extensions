@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.2",
+    "version": "0.3.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -260,7 +260,30 @@ class DefaultExtension extends MProvider {
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest"
         };
-        for (let guard = 0; comicId && guard < 300; guard++) {
+        const fetchPage = async p => {
+            try {
+                return JSON.parse(await this.get(`${this.base}/comics/${comicId}/chapters?page=${p}`, headers));
+            } catch (e) {
+                return null;
+            }
+        };
+        // 총 회차 수를 알면 남은 쪽을 6개씩 동시에 받음
+        const plain = html.replace(/<[^>]+>/g, " ");
+        const total = parseInt(((plain.match(/총\s*([\d,]+)\s*화/) || [])[1] || "").replace(/,/g, ""), 10);
+        const size = parseInt(doc.selectFirst("[data-chapter-page-size]")?.attr("data-chapter-page-size"), 10) || 20;
+        if (comicId && total > chapters.length) {
+            const last = Math.ceil(total / size);
+            for (let p = page; p <= last; p += 6) {
+                const batch = [];
+                for (let q = p; q < p + 6 && q <= last; q++) batch.push(fetchPage(q));
+                for (const json of await Promise.all(batch)) {
+                    for (const o of (json && json.chapters) || []) add(String(o.id), o.title, o.date);
+                }
+            }
+            page = last + 1;
+        }
+        // 총 회차 수를 모르거나 덜 받은 경우: 순서대로 이어서
+        for (let guard = 0; comicId && !(total > 0 && chapters.length >= total) && guard < 300; guard++) {
             let json;
             try {
                 json = JSON.parse(await this.get(`${this.base}/comics/${comicId}/chapters?page=${page}`, headers));

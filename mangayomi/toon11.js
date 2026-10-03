@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.2.2",
+    "version": "0.3.0",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -185,14 +185,17 @@ class DefaultExtension extends MProvider {
         return this._token || "";
     }
 
-    async apiHeaders(referer) {
+    async apiHeaders(referer, withToken = true) {
         const h = {
+            "User-Agent": MOBILE_UA,
             "Referer": referer,
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "X-Requested-With": "XMLHttpRequest"
         };
-        const t = await this.token();
-        if (t) h["X-CSRF-TOKEN"] = t;
+        if (withToken) {
+            const t = await this.token();
+            if (t) h["X-CSRF-TOKEN"] = t;
+        }
         return h;
     }
 
@@ -206,14 +209,19 @@ class DefaultExtension extends MProvider {
         }
     }
 
+    // 조회(GET) API는 토큰 없이 바로 요청 (메인 페이지를 먼저 받지 않아 빠름), 실패하면 토큰을 붙여 한 번 더
     async api(path, params, referer) {
         const q = Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join("&");
-        try {
-            const res = await this.req(`${this.base}${path}?${q}`, await this.apiHeaders(referer));
-            return this.parseJson(res.body);
-        } catch (e) {
-            return null;
+        const url = `${this.base}${path}?${q}`;
+        for (const withToken of [false, true]) {
+            try {
+                const json = this.parseJson((await this.req(url, await this.apiHeaders(referer, withToken))).body);
+                if (json && (json.code === undefined || json.code == 200)) return json;
+            } catch (e) {
+                // 토큰 붙여 재시도
+            }
         }
+        return null;
     }
 
     sucData(o) {
