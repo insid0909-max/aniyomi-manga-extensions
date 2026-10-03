@@ -7,7 +7,6 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -15,24 +14,22 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.Headers
-import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONArray
+import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
+import rx.Observable
 import java.io.IOException
-import java.net.URLEncoder
-import java.text.SimpleDateFormat
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * 11toon (11toon2.com) - 그누보드 게시판(toon_c 목록 / toons 작품) 구조
- * 사이트 구조 참고: oneulddu/Korean-Mihon-Extensions-Source ko/toon11 (Apache-2.0)
+ * 11toon (일일툰, 11toon2.com) 모바일 페이지(/mb) 구조
+ * - 작품: /mb/content/info/{id}?page=toon, 회차: /mb/content/image/{id}?page=toon&parent_id={작품id}
+ * - 데이터 API: /iapi/t3 (작품 정보+회차 목록), /iapi/t4 (랭킹), /iapi/t5 (회차 이미지)
  */
 class Toon11 : HttpSource(), ConfigurableSource {
 
@@ -75,23 +72,15 @@ class Toon11 : HttpSource(), ConfigurableSource {
             return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
         }
 
-    /** 게시판 경로 앞부분 ("" 또는 "/mb"). 404가 나면 반대쪽으로 바꿔 보고 맞는 쪽을 기억 */
-    private val prefix: String
-        get() = try {
-            sp.getString(KEY_PREFIX, DEFAULT_PREFIX) ?: DEFAULT_PREFIX
-        } catch (e: Throwable) {
-            DEFAULT_PREFIX
-        }
-
     private fun autoDomain(): Boolean = try {
         sp.getBoolean(KEY_AUTO, true)
     } catch (e: Throwable) {
         true
     }
 
-    private fun save(key: String, value: String) {
+    private fun saveDomain(url: String) {
         try {
-            sp.edit().putString(key, value).apply()
+            sp.edit().putString(KEY_DOMAIN, url).apply()
         } catch (e: Throwable) {
             // 저장 실패는 무시
         }
@@ -99,7 +88,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .set("User-Agent", userAgent)
-        .set("Referer", "$baseUrl/")
+        .set("Referer", "$baseUrl/mb")
+
+    private fun apiHeaders(referer: String): Headers = headersBuilder()
+        .set("Referer", referer)
+        .set("Accept", "application/json, text/javascript, */*; q=0.01")
+        .set("X-Requested-With", "XMLHttpRequest")
+        .build()
 
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor { chain -> smartIntercept(chain) }
@@ -108,15 +103,14 @@ class Toon11 : HttpSource(), ConfigurableSource {
     private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
         val req = chain.request()
         val baseHost = baseUrl.toHttpUrlOrNull()?.host
-        val ours = baseHost != null && req.url.host == baseHost
-        val auto = ours && autoDomain() && HOST_REGEX.matches(baseHost!!)
+        val auto = baseHost != null && req.url.host == baseHost && autoDomain() && HOST_REGEX.matches(baseHost)
 
         val res = try {
             chain.proceed(req)
         } catch (e: IOException) {
             val found = if (auto) discoverDomain(baseHost!!) else null
             if (found == null) throw e
-            save(KEY_DOMAIN, "https://$found")
+            saveDomain("https://$found")
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
         }
 
@@ -124,29 +118,9 @@ class Toon11 : HttpSource(), ConfigurableSource {
             res.close()
             throw IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
         }
-
-        // 게시판 경로가 "/mb/bbs/..." 인지 "/bbs/..." 인지 자동 맞춤
-        if (ours && res.code == 404) {
-            val path = req.url.encodedPath
-            val swapped = when {
-                path.startsWith("/mb/bbs/") -> path.removePrefix("/mb")
-                path.startsWith("/bbs/") -> "/mb$path"
-                else -> null
-            }
-            if (swapped != null) {
-                val retry = chain.proceed(req.newBuilder().url(req.url.newBuilder().encodedPath(swapped).build()).build())
-                if (retry.isSuccessful) {
-                    res.close()
-                    save(KEY_PREFIX, if (swapped.startsWith("/mb/")) "/mb" else "")
-                    return retry
-                }
-                retry.close()
-            }
-        }
-
         val finalHost = res.request.url.host
         if (auto && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
-            save(KEY_DOMAIN, "https://$finalHost")
+            saveDomain("https://$finalHost")
         }
         return res
     }
@@ -159,7 +133,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
     private fun hostNumber(host: String): Int =
         Regex("11toon(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** 11toon1~30.com 중 열리는 주소 (큰 번호 우선) */
+    /** 11toon1~30.com 중 일일툰 페이지가 열리는 주소 (큰 번호 우선) */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -174,15 +148,17 @@ class Toon11 : HttpSource(), ConfigurableSource {
         val www = if (currentHost.startsWith("www.")) "www." else ""
         val pool = java.util.concurrent.Executors.newFixedThreadPool(10)
         try {
-            val futures = (listOf("") + (1..30).map { it.toString() }).map { "${www}11toon$it.com" }
+            val futures = (1..30).map { "${www}11toon$it.com" }
                 .filter { it != currentHost }
                 .map { host ->
                     pool.submit<String?> {
                         try {
-                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
+                            val r = Request.Builder().url("https://$host/mb").header("User-Agent", ua).build()
                             plain.newCall(r).execute().use { res ->
                                 val fh = res.request.url.host
-                                if (res.code == 200 && HOST_REGEX.matches(fh)) fh else null
+                                val ok = res.code == 200 && HOST_REGEX.matches(fh) &&
+                                    (res.body?.string() ?: "").contains("content/info/")
+                                if (ok) fh else null
                             }
                         } catch (e: Exception) {
                             null
@@ -223,190 +199,235 @@ class Toon11 : HttpSource(), ConfigurableSource {
         }.also(screen::addPreference)
     }
 
-    // ---------- 목록 ----------
-    private fun bbs(path: String): HttpUrl = "$baseUrl$prefix/bbs/$path".toHttpUrl()
-
-    override fun popularMangaRequest(page: Int): Request = GET(
-        bbs("board.php").newBuilder()
-            .addQueryParameter("bo_table", "toon_c")
-            .addQueryParameter("is_over", "0")
-            .addQueryParameter("page", page.toString())
-            .build(),
-        headers,
-    )
-
-    override fun latestUpdatesRequest(page: Int): Request = GET(
-        bbs("board.php").newBuilder()
-            .addQueryParameter("bo_table", "toon_c")
-            .addQueryParameter("type", "upd")
-            .addQueryParameter("page", page.toString())
-            .build(),
-        headers,
-    )
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        if (query.isNotBlank()) {
-            return GET(
-                bbs("search_stx.php").newBuilder()
-                    .addQueryParameter("stx", query.trim())
-                    .addQueryParameter("page", page.toString())
-                    .build(),
-                headers,
-            )
+    // ---------- 공통: API(JSON) ----------
+    private fun getJson(url: String, referer: String): JSONObject? = try {
+        client.newCall(GET(url, apiHeaders(referer))).execute().use { res ->
+            if (!res.isSuccessful) return@use null
+            val body = res.body?.string().orEmpty()
+            val start = body.indexOf('{')
+            if (start < 0) null else JSONObject(body.substring(start))
         }
-        fun pick(param: String) = filters.filterIsInstance<Pick>().firstOrNull { it.param == param }
-            ?.let { it.pairs[it.state].second }.orEmpty()
-        val b = bbs("board.php").newBuilder().addQueryParameter("bo_table", "toon_c")
-        if (pick("sort") == "upd") b.addQueryParameter("type", "upd")
-        b.addQueryParameter("is_over", pick("is_over").ifEmpty { "0" })
-        pick("sca").takeIf { it.isNotEmpty() }?.let { b.addQueryParameter("sca", it) }
-        if (page > 1) b.addQueryParameter("page", page.toString())
-        return GET(b.build(), headers)
+    } catch (e: Exception) {
+        null
     }
 
-    override fun popularMangaParse(response: Response) = parseList(response)
-    override fun latestUpdatesParse(response: Response) = parseList(response)
-    override fun searchMangaParse(response: Response) = parseList(response)
-
-    private fun parseList(response: Response): MangasPage {
-        val doc = response.asDoc()
-        val mangas = doc.select("li[data-id]").mapNotNull { li ->
-            val title = li.selectFirst(".homelist-title")?.text()?.trim().orEmpty()
-            if (title.isEmpty()) return@mapNotNull null
-            val href = li.selectFirst("a[href]")?.absUrl("href").orEmpty()
-            val path = href.toHttpUrlOrNull()?.let { u -> u.encodedPath + (u.encodedQuery?.let { "?$it" } ?: "") }
-                // 검색 결과처럼 링크가 없으면 작품 번호로 상세 주소를 만듦
-                ?: li.attr("data-id").takeIf { it.isNotBlank() }?.let { dataId ->
-                    "$prefix/bbs/board.php?bo_table=toons&stx=${URLEncoder.encode(title, "UTF-8")}&is=$dataId"
+    /** 응답 안 어디에 있든 id + subject 를 가진 작품 객체들을 모음 */
+    private fun collectItems(node: Any?, out: MutableList<JSONObject>) {
+        when (node) {
+            is JSONObject -> {
+                if (node.has("id") && node.has("subject")) {
+                    out.add(node)
+                } else {
+                    node.keys().forEach { collectItems(node.opt(it), out) }
                 }
-                ?: return@mapNotNull null
+            }
+            is JSONArray -> for (i in 0 until node.length()) collectItems(node.opt(i), out)
+        }
+    }
+
+    private fun imageOf(o: JSONObject): String? {
+        val img = o.opt("image")
+        val raw = when (img) {
+            is JSONObject -> img.optString("Big").ifEmpty { img.optString("Small") }
+            is String -> img
+            else -> ""
+        }
+        return raw.takeIf { it.isNotBlank() }?.let { absolute(it) }
+    }
+
+    private fun absolute(u: String): String = when {
+        u.startsWith("http") -> u
+        u.startsWith("//") -> "https:$u"
+        else -> "$baseUrl/${u.removePrefix("/")}"
+    }
+
+    private fun mangaUrl(id: String) = "/mb/content/info/$id?page=toon"
+
+    private fun mangaId(url: String): String? = Regex("/content/info/(\\d+)").find(url)?.groupValues?.get(1)
+
+    // ---------- 목록 ----------
+    // 인기: 랭킹 API(t4) → 실패하면 메인(/mb) HOT 목록
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> = Observable.fromCallable {
+        val api = "$baseUrl/iapi/t4".toHttpUrl().newBuilder()
+            .addQueryParameter("usercode", USER_CODE)
+            .addQueryParameter("menucode", MENU_CODE)
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("pagerow", PAGE_ROW.toString())
+            .addQueryParameter("type", "0")
+            .build().toString()
+        val items = ArrayList<JSONObject>()
+        getJson(api, "$baseUrl/mb")?.let { collectItems(it, items) }
+        val mangas = items.mapNotNull { o ->
+            val id = o.optString("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             SManga.create().apply {
-                url = path
+                url = mangaUrl(id)
+                title = o.optString("subject").trim()
+                thumbnail_url = imageOf(o)
+            }
+        }.filter { it.title.isNotEmpty() }.distinctBy { it.url }
+        if (mangas.isNotEmpty()) {
+            MangasPage(mangas, mangas.size >= PAGE_ROW)
+        } else if (page == 1) {
+            client.newCall(GET("$baseUrl/mb", headers)).execute().use { parseHtmlList(it) }
+        } else {
+            MangasPage(emptyList(), false)
+        }
+    }
+
+    // 최신: 메인(/mb) 목록 (최신화가 올라온 순)
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/mb", headers)
+    override fun latestUpdatesParse(response: Response): MangasPage = parseHtmlList(response)
+
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
+        GET(
+            "$baseUrl/mb/top_search".toHttpUrl().newBuilder()
+                .addQueryParameter("subject", query.trim())
+                .build(),
+            headers,
+        )
+
+    override fun searchMangaParse(response: Response): MangasPage = parseHtmlList(response)
+
+    /** /mb/content/info/{id} 링크가 걸린 카드들을 모두 읽음 (메인, 랭킹, 검색 공통) */
+    private fun parseHtmlList(response: Response): MangasPage {
+        val doc = response.asDoc()
+        val seen = HashSet<String>()
+        val mangas = doc.select("a[href*=/content/info/]").mapNotNull { a ->
+            val id = mangaId(a.attr("href")) ?: return@mapNotNull null
+            if (!seen.add(id)) return@mapNotNull null
+            val title = (a.selectFirst("h4, h3, .subject, .title")?.text() ?: a.selectFirst("img[alt]")?.attr("alt"))
+                ?.trim().orEmpty()
+            if (title.isEmpty()) return@mapNotNull null
+            SManga.create().apply {
+                url = mangaUrl(id)
                 this.title = title
-                thumbnail_url = li.thumbnailUrl()
+                thumbnail_url = a.selectFirst("img")?.attr("src")?.takeIf { it.isNotBlank() }?.let { absolute(it) }
             }
-        }.distinctBy { it.url }
-        return MangasPage(mangas, hasNextPage(doc, response.request.url) && mangas.isNotEmpty())
-    }
-
-    private fun hasNextPage(doc: Document, url: HttpUrl): Boolean {
-        val cur = doc.selectFirst(".pg_current")?.ownText()?.trim()?.toIntOrNull()
-            ?: url.queryParameter("page")?.toIntOrNull() ?: 1
-        return doc.select("a.pg_page[href], a.pg_next[href], a.pg_end[href]").any { a ->
-            val next = url.resolve(a.attr("href"))?.queryParameter("page")?.toIntOrNull() ?: return@any false
-            next > cur
         }
+        return MangasPage(mangas, false)
     }
 
-    private fun Element.thumbnailUrl(): String? {
-        val thumb = selectFirst(".homelist-thumb") ?: return selectFirst("img")?.absUrl("src")?.ifEmpty { null }
-        return thumb.absUrl("data-mobile-image").ifEmpty { null }
-            ?: thumb.attr("style").substringAfter("url(", "").substringBefore(")")
-                .trim('\'', '"', ' ').ifEmpty { null }
-                ?.let { if (it.startsWith("//")) "https:$it" else it }
+    // ---------- 상세 + 회차 (작품 페이지 / t3 API) ----------
+    private fun t3(id: String): JSONObject? {
+        val url = "$baseUrl/iapi/t3".toHttpUrl().newBuilder()
+            .addQueryParameter("usercode", USER_CODE)
+            .addQueryParameter("menucode", MENU_CODE)
+            .addQueryParameter("parent", id)
+            .addQueryParameter("ordertype", "1")
+            .build().toString()
+        return getJson(url, baseUrl + mangaUrl(id))?.let { it.optJSONObject("SucData") ?: it }
     }
 
-    // ---------- 상세 ----------
+    override fun mangaDetailsRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
+
     override fun mangaDetailsParse(response: Response): SManga {
-        val d = response.asDoc()
+        val doc = response.asDoc()
+        val id = mangaId(response.request.url.toString())
+        val data = id?.let { t3(it)?.optJSONObject("ToonData") }
+        fun dd(label: String) = doc.select(".head-text dl").firstOrNull { it.selectFirst("dt")?.text()?.contains(label) == true }
+            ?.selectFirst("dd")?.text()?.trim()?.ifEmpty { null }
         return SManga.create().apply {
-            title = d.selectFirst("h2.title")?.text()?.trim().orEmpty()
-            thumbnail_url = d.selectFirst("img.banner")?.absUrl("src")?.ifEmpty { null }
-            d.selectFirst("span:contains(분류) + span")?.let { status = parseStatus(it.text()) }
-            d.selectFirst("span:contains(작가) + span")?.let { author = it.text().trim() }
-            d.selectFirst("span:contains(소개) + span")?.let { description = it.text().trim() }
-            d.selectFirst("span:contains(장르) + span")?.let {
-                genre = it.text().split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }.joinToString(", ")
+            title = data?.optString("subject")?.trim()?.ifEmpty { null }
+                ?: doc.selectFirst(".head-text h3")?.text()?.trim().orEmpty()
+            thumbnail_url = data?.let { imageOf(it) }
+                ?: doc.selectFirst(".head-img img")?.attr("src")?.takeIf { it.isNotBlank() }?.let { absolute(it) }
+            author = data?.optString("maker")?.trim()?.ifEmpty { null } ?: dd("작가")
+            genre = (data?.optString("caname")?.trim()?.ifEmpty { null } ?: dd("장르"))
+                ?.split(",", "/")?.map { it.trim() }?.filter { it.isNotEmpty() }?.joinToString(", ")
+            description = data?.optString("memo")?.trim()?.ifEmpty { null }
+                ?: doc.selectFirst(".manga-detail-body .pre p")?.text()?.trim()?.ifEmpty { null }
+            val state = data?.optString("end")?.trim()?.ifEmpty { null } ?: dd("상태").orEmpty()
+            status = when {
+                state.contains("완결") -> SManga.COMPLETED
+                state.contains("연재") || state.contains("주간") || state.contains("월간") || state.contains("격주") -> SManga.ONGOING
+                else -> SManga.UNKNOWN
             }
         }
     }
 
-    private fun parseStatus(text: String): Int = when {
-        "완결" in text -> SManga.COMPLETED
-        "주간" in text || "월간" in text || "연재" in text || "격주" in text -> SManga.ONGOING
-        else -> SManga.UNKNOWN
-    }
-
-    // ---------- 회차 (여러 쪽이면 이어서 받음) ----------
-    private val dateFmt = SimpleDateFormat("yy.MM.dd", Locale.ENGLISH)
+    override fun chapterListRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        var doc = response.asDoc()
-        val chapters = ArrayList<SChapter>()
-        val visited = HashSet<String>()
-        var guard = 0
-        while (guard++ < 100) {
-            chapters += doc.select("#comic-episode-list > li").mapNotNull(::parseChapter)
-            val next = doc.selectFirst(".pg_current ~ .pg_page")?.absUrl("href")
-            if (next.isNullOrBlank() || !visited.add(next)) break
-            doc = client.newCall(GET(next, headers)).execute().use { it.asDoc() }
-        }
-        return chapters.distinctBy { it.url }
-    }
+        val doc = response.asDoc()
+        val id = mangaId(response.request.url.toString()) ?: throw IOException("잘못된 작품 주소")
+        val title = doc.selectFirst(".head-text h3")?.text()?.trim().orEmpty()
 
-    private fun parseChapter(li: Element): SChapter? {
-        val button = li.selectFirst("button") ?: li.selectFirst("[onclick]") ?: return null
-        // onclick="location.href='./board.php?bo_table=toons&wr_id=...'"
-        val href = Regex("""location\.href\s*=\s*['"]([^'"]+)['"]""").find(button.attr("onclick"))
-            ?.groupValues?.get(1) ?: return null
-        val chapterUrl = href.removePrefix(".").let { if (it.startsWith("/")) it else "/$it" }
-        val name = button.selectFirst(".episode-title")?.text()?.trim().orEmpty()
-            .ifEmpty { button.text().trim() }
-        if (name.isEmpty()) return null
-        return SChapter.create().apply {
-            url = chapterUrl
-            this.name = name
-            date_upload = try {
-                li.selectFirst(".free-date")?.text()?.trim()?.let { synchronized(dateFmt) { dateFmt.parse(it)?.time } } ?: 0L
-            } catch (e: Exception) {
-                0L
+        // 1) 페이지에 목록이 들어 있으면 그대로 사용
+        var list = doc.select("a[href*=/content/image/]").mapNotNull { a ->
+            val cid = Regex("/content/image/(\\d+)").find(a.attr("href"))?.groupValues?.get(1) ?: return@mapNotNull null
+            val name = a.ownText().trim().ifEmpty { a.text().substringBefore("(").trim() }
+            chapter(cid, id, name.ifEmpty { "$cid" })
+        }
+
+        // 2) 없으면 t3 API (사이트가 목록을 그리는 데 쓰는 데이터)
+        if (list.isEmpty()) {
+            val data = t3(id) ?: throw IOException("11toon 회차 목록을 불러오지 못했습니다")
+            val subject = data.optJSONObject("ToonData")?.optString("subject")?.trim().orEmpty().ifEmpty { title }
+            val arr = data.optJSONArray("ToonList") ?: JSONArray()
+            list = (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val cid = o.optString("id").ifEmpty { return@mapNotNull null }
+                val full = o.optString("subject").trim()
+                val name = full.removePrefix(subject).trim().ifEmpty { full }
+                chapter(cid, o.optString("parentid").ifEmpty { id }, name)
             }
         }
+        // 사이트는 1화부터 순서대로 → 앱은 최신화가 위로
+        return list.distinctBy { it.url }.reversed()
     }
 
-    // 회차 주소는 "/board.php?..." 형태 (게시판 폴더 기준 상대 주소)
-    override fun pageListRequest(chapter: SChapter): Request {
-        val url = if (chapter.url.startsWith("/bbs/") || chapter.url.startsWith("/mb/")) {
-            baseUrl + chapter.url
-        } else {
-            "$baseUrl$prefix/bbs${chapter.url}"
-        }
-        return GET(url, headers)
+    private fun chapter(cid: String, parent: String, name: String) = SChapter.create().apply {
+        url = "/mb/content/image/$cid?page=toon&parent_id=$parent"
+        this.name = name.replace(' ', ' ')
+        chapter_number = Regex("(\\d+(?:\\.\\d+)?)\\s*화").find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
     }
 
-    // ---------- 이미지 (스크립트 안 img_list 배열) ----------
+    // ---------- 이미지 (t5 API → 실패하면 회차 페이지의 #ImageShow) ----------
+    override fun pageListRequest(chapter: SChapter): Request = GET(baseUrl + chapter.url, headers)
+
     override fun pageListParse(response: Response): List<Page> {
-        val html = response.body?.string().orEmpty()
-        val list = IMG_LIST.find(html)?.groupValues?.get(1)
-            ?: throw IOException("이미지 목록을 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)")
-        val arr = JSONArray(list)
-        val referer = response.request.url.toString()
-        return (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
-            .mapIndexed { i, img ->
-                val url = when {
-                    img.startsWith("http") -> img
-                    img.startsWith("//") -> "https:$img"
-                    else -> response.request.url.resolve(img)?.toString() ?: img
+        val pageUrl = response.request.url
+        val doc = response.asDoc()
+        val referer = pageUrl.toString()
+
+        var urls = doc.select("#ImageShow img").mapNotNull { it.attr("src").takeIf { s -> s.isNotBlank() }?.let { s -> absolute(s) } }
+
+        if (urls.isEmpty()) {
+            val cid = Regex("/content/image/(\\d+)").find(pageUrl.encodedPath)?.groupValues?.get(1)
+                ?: throw IOException("잘못된 회차 주소")
+            val parent = pageUrl.queryParameter("parent_id").orEmpty()
+            val api = "$baseUrl/iapi/t5".toHttpUrl().newBuilder()
+                .addQueryParameter("id", cid)
+                .addQueryParameter("parent", parent)
+                .build().toString()
+            val data = getJson(api, referer)?.let { it.optJSONObject("SucData") ?: it }
+            val image = data?.optJSONObject("Image")
+            val file = image?.optString("file").orEmpty()
+            val listRaw = image?.opt("imagelist")
+            val arr = when (listRaw) {
+                is JSONArray -> listRaw
+                is String -> try {
+                    JSONArray(listRaw)
+                } catch (e: Exception) {
+                    JSONArray()
                 }
-                Page(i, referer, url)
+                else -> JSONArray()
             }
+            urls = (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+                .map { if (it.startsWith("http") || it.startsWith("//")) absolute(it) else absolute(file + it) }
+        }
+        if (urls.isEmpty()) throw IOException("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)")
+        return urls.distinct().mapIndexed { i, u -> Page(i, referer, u) }
     }
 
     override fun imageRequest(page: Page): Request =
-        GET(page.imageUrl!!, headersBuilder().set("Referer", page.url.ifEmpty { "$baseUrl/" }).build())
+        GET(page.imageUrl!!, headersBuilder().set("Referer", page.url.ifEmpty { "$baseUrl/mb" }).build())
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
-    // ---------- 필터 (검색어가 없을 때만 적용) ----------
-    override fun getFilterList() = FilterList(
-        Filter.Header("검색어가 없을 때만 적용"),
-        Pick("정렬", "sort", listOf("인기순" to "", "최신순" to "upd")),
-        Pick("상태", "is_over", listOf("전체" to "0", "완결" to "1")),
-        Pick("장르", "sca", GENRES),
-    )
-
-    class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
-        Filter.Select<String>(name, pairs.map { it.first }.toTypedArray())
+    // fetchPopularManga 에서 직접 처리
+    override fun popularMangaRequest(page: Int): Request = throw UnsupportedOperationException()
+    override fun popularMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     private fun Response.asDoc(): Document = Jsoup.parse(body?.string().orEmpty(), request.url.toString())
 
@@ -414,17 +435,10 @@ class Toon11 : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val KEY_PREFIX = "pref_path_prefix"
         private const val DEFAULT = "https://11toon2.com"
-        private const val DEFAULT_PREFIX = ""
+        private const val USER_CODE = "100"
+        private const val MENU_CODE = "2001"
+        private const val PAGE_ROW = 30
         private val HOST_REGEX = Regex("^(www\\.)?11toon\\d*\\.com$")
-        private val IMG_LIST = Regex("""img_list\s*=\s*(\[.*?])""", RegexOption.DOT_MATCHES_ALL)
-        private val GENRES = listOf(
-            "전체" to "", "SF" to "SF", "무협" to "무협", "TS" to "TS", "개그" to "개그", "드라마" to "드라마",
-            "러브코미디" to "러브코미디", "먹방" to "먹방", "백합" to "백합", "붕탁" to "붕탁", "스릴러" to "스릴러",
-            "스포츠" to "스포츠", "시대" to "시대", "액션" to "액션", "순정" to "순정", "일상+치유" to "일상+치유",
-            "추리" to "추리", "판타지" to "판타지", "학원" to "학원", "호러" to "호러", "BL" to "BL", "17" to "17",
-            "이세계" to "이세계", "전생" to "전생", "라노벨" to "라노벨", "애니화" to "애니화", "TL" to "TL",
-        )
     }
 }
