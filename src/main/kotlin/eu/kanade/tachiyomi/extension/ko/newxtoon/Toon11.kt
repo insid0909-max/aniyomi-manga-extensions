@@ -90,7 +90,23 @@ class Toon11 : HttpSource(), ConfigurableSource {
         .set("User-Agent", userAgent)
         .set("Referer", "$baseUrl/mb")
 
+    // 사이트는 모든 API 요청에 페이지의 _token 을 X-CSRF-TOKEN 헤더로 보냄
+    @Volatile
+    private var csrfToken: String? = null
+
+    private fun token(): String? {
+        csrfToken?.let { return it }
+        return try {
+            client.newCall(GET("$baseUrl/mb", headers)).execute().use { res ->
+                res.asDoc().selectFirst("meta[name=_token]")?.attr("content")?.ifEmpty { null }
+            }?.also { csrfToken = it }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun apiHeaders(referer: String): Headers = headersBuilder()
+        .apply { token()?.let { set("X-CSRF-TOKEN", it) } }
         .set("Referer", referer)
         .set("Accept", "application/json, text/javascript, */*; q=0.01")
         .set("X-Requested-With", "XMLHttpRequest")
@@ -229,6 +245,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
                 }
             }
             is JSONArray -> for (i in 0 until node.length()) collectItems(node.opt(i), out)
+            is String -> if (node.startsWith("{")) {
+                try {
+                    collectItems(JSONObject(node), out)
+                } catch (e: Exception) {
+                    // 무시
+                }
+            }
         }
     }
 
@@ -253,37 +276,48 @@ class Toon11 : HttpSource(), ConfigurableSource {
     private fun mangaId(url: String): String? = Regex("/content/info/(\\d+)").find(url)?.groupValues?.get(1)
 
     // ---------- 목록 ----------
-    // 인기: 랭킹 API(t4) → 실패하면 메인(/mb) HOT 목록
+    // 인기: 랭킹 API(t4, menucode=TopCoce 400) → 실패하면 메인(/mb) 목록
     override fun fetchPopularManga(page: Int): Observable<MangasPage> = Observable.fromCallable {
+        rankingPage(TOP_CODE, page) ?: mainPage(page)
+    }
+
+    // 최신: t4 (menucode=NewCoce 100) → 실패하면 메인(/mb) 목록
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> = Observable.fromCallable {
+        rankingPage(NEW_CODE, page) ?: mainPage(page)
+    }
+
+    private fun mainPage(page: Int): MangasPage =
+        if (page == 1) client.newCall(GET("$baseUrl/mb", headers)).execute().use { parseHtmlList(it) } else MangasPage(emptyList(), false)
+
+    /** 응답: {"data":{"SucData":[작품...],"SucAllCnt":N},"code":200} */
+    private fun rankingPage(menuCode: String, page: Int): MangasPage? {
         val api = "$baseUrl/iapi/t4".toHttpUrl().newBuilder()
             .addQueryParameter("usercode", USER_CODE)
-            .addQueryParameter("menucode", MENU_CODE)
+            .addQueryParameter("menucode", menuCode)
             .addQueryParameter("page", page.toString())
             .addQueryParameter("pagerow", PAGE_ROW.toString())
             .addQueryParameter("type", "0")
             .build().toString()
+        val json = getJson(api, "$baseUrl/mb") ?: return null
         val items = ArrayList<JSONObject>()
-        getJson(api, "$baseUrl/mb")?.let { collectItems(it, items) }
+        collectItems(sucData(json).opt("SucData") ?: json.optJSONObject("data")?.opt("SucData") ?: json, items)
         val mangas = items.mapNotNull { o ->
             val id = o.optString("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             SManga.create().apply {
                 url = mangaUrl(id)
                 title = o.optString("subject").trim()
-                thumbnail_url = imageOf(o)
+                author = o.optString("maker").trim().ifEmpty { null }
+                thumbnail_url = imageOf(o)?.also { rememberCover(it) } ?: coverFor(id)
             }
-        }.filter { it.title.isNotEmpty() }.distinctBy { it.url }
-        if (mangas.isNotEmpty()) {
-            MangasPage(mangas, mangas.size >= PAGE_ROW)
-        } else if (page == 1) {
-            client.newCall(GET("$baseUrl/mb", headers)).execute().use { parseHtmlList(it) }
-        } else {
-            MangasPage(emptyList(), false)
-        }
+        }.filter { !isPlaceholder(it.title) }.distinctBy { it.url }
+        if (mangas.isEmpty()) return null
+        val total = json.optJSONObject("data")?.optInt("SucAllCnt", -1) ?: -1
+        val hasNext = if (total > 0) page * PAGE_ROW < total else mangas.size >= PAGE_ROW
+        return MangasPage(mangas, hasNext)
     }
 
-    // 최신: 메인(/mb) 목록 (최신화가 올라온 순)
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/mb", headers)
-    override fun latestUpdatesParse(response: Response): MangasPage = parseHtmlList(response)
+    override fun latestUpdatesRequest(page: Int): Request = throw UnsupportedOperationException()
+    override fun latestUpdatesParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     // 검색: 사이트처럼 검색 페이지를 연 뒤(토큰/쿠키) POST /mb/top_search 로 결과(JSON)를 받음
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
@@ -298,6 +332,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             if (inPage.isNotEmpty() && page == 1) return@fromCallable MangasPage(inPage, false)
 
             val token = doc.selectFirst("meta[name=_token]")?.attr("content").orEmpty()
+            if (token.isNotEmpty()) csrfToken = token
             val form = okhttp3.FormBody.Builder()
                 .add("subject", q)
                 .add("page", page.toString())
@@ -537,6 +572,8 @@ class Toon11 : HttpSource(), ConfigurableSource {
         private const val USER_CODE = "100"
         private const val MENU_CODE = "2001"
         private const val PAGE_ROW = 30
+        private const val TOP_CODE = "400"
+        private const val NEW_CODE = "100"
         private const val SEARCH_ROW = 20
         private val HOST_REGEX = Regex("^(www\\.)?11toon\\d*\\.com$")
     }
