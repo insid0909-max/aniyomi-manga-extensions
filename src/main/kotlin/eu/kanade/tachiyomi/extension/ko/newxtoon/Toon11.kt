@@ -516,43 +516,65 @@ class Toon11 : HttpSource(), ConfigurableSource {
         chapter_number = Regex("(\\d+(?:\\.\\d+)?)\\s*화").find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
     }
 
-    // ---------- 이미지 (t5 API → 실패하면 회차 페이지의 #ImageShow) ----------
-    override fun pageListRequest(chapter: SChapter): Request = GET(baseUrl + chapter.url, headers)
-
-    override fun pageListParse(response: Response): List<Page> {
-        val pageUrl = response.request.url
-        val doc = response.asDoc()
+    // ---------- 이미지 ----------
+    // 1) t5 API를 바로 호출 (회차 페이지를 먼저 받지 않아 빠름)
+    // 2) 실패하면 회차 페이지를 한 번 열어 세션/쿠키를 만든 뒤 다시 시도 (최대 3번)
+    // 3) 그래도 없으면 회차 페이지의 #ImageShow 이미지
+    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> = Observable.fromCallable {
+        val pageUrl = (baseUrl + chapter.url).toHttpUrl()
         val referer = pageUrl.toString()
+        val cid = Regex("/content/image/(\\d+)").find(pageUrl.encodedPath)?.groupValues?.get(1)
+            ?: throw IOException("잘못된 회차 주소")
+        val parent = pageUrl.queryParameter("parent_id").orEmpty()
 
-        var urls = doc.select("#ImageShow img").mapNotNull { it.attr("src").takeIf { s -> s.isNotBlank() }?.let { s -> absolute(s) } }
-
-        if (urls.isEmpty()) {
-            val cid = Regex("/content/image/(\\d+)").find(pageUrl.encodedPath)?.groupValues?.get(1)
-                ?: throw IOException("잘못된 회차 주소")
-            val parent = pageUrl.queryParameter("parent_id").orEmpty()
-            val api = "$baseUrl/iapi/t5".toHttpUrl().newBuilder()
-                .addQueryParameter("id", cid)
-                .addQueryParameter("parent", parent)
-                .build().toString()
-            val data = getJson(api, referer)?.let { sucData(it) }
-            val image = data?.optJSONObject("Image")
-            val file = image?.optString("file").orEmpty()
-            val listRaw = image?.opt("imagelist")
-            val arr = when (listRaw) {
-                is JSONArray -> listRaw
-                is String -> try {
-                    JSONArray(listRaw)
+        var urls = emptyList<String>()
+        var doc: Document? = null
+        for (attempt in 0 until 3) {
+            urls = t5Images(cid, parent, referer)
+            if (urls.isNotEmpty()) break
+            if (attempt == 0) {
+                doc = try {
+                    client.newCall(GET(referer, headers)).execute().use { it.asDoc() }
                 } catch (e: Exception) {
-                    JSONArray()
+                    null
                 }
-                else -> JSONArray()
+                doc?.selectFirst("meta[name=_token]")?.attr("content")?.ifEmpty { null }?.let { csrfToken = it }
+            } else {
+                Thread.sleep(500L * attempt)
             }
-            urls = (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
-                .map { if (it.startsWith("http") || it.startsWith("//")) absolute(it) else absolute(file + it) }
+        }
+        if (urls.isEmpty()) {
+            urls = doc?.select("#ImageShow img")
+                ?.mapNotNull { it.attr("src").takeIf { s -> s.isNotBlank() }?.let { s -> absolute(s) } }
+                .orEmpty()
         }
         if (urls.isEmpty()) throw IOException("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)")
-        return urls.distinct().mapIndexed { i, u -> Page(i, referer, u) }
+        urls.distinct().mapIndexed { i, u -> Page(i, referer, u) }
     }
+
+    /** 응답: data.SucData.Image.imagelist (JSON 문자열 배열) + Image.file (이미지 주소 앞부분) */
+    private fun t5Images(cid: String, parent: String, referer: String): List<String> {
+        val api = "$baseUrl/iapi/t5".toHttpUrl().newBuilder()
+            .addQueryParameter("id", cid)
+            .addQueryParameter("parent", parent)
+            .build().toString()
+        val image = getJson(api, referer)?.let { sucData(it) }?.optJSONObject("Image") ?: return emptyList()
+        val file = image.optString("file")
+        val arr = when (val raw = image.opt("imagelist")) {
+            is JSONArray -> raw
+            is String -> try {
+                JSONArray(raw)
+            } catch (e: Exception) {
+                JSONArray()
+            }
+            else -> JSONArray()
+        }
+        return (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+            .map { if (it.startsWith("http") || it.startsWith("//")) absolute(it) else absolute(file + it) }
+    }
+
+    override fun pageListRequest(chapter: SChapter): Request = GET(baseUrl + chapter.url, headers)
+    override fun pageListParse(response: Response): List<Page> = throw UnsupportedOperationException()
 
     override fun imageRequest(page: Page): Request =
         GET(page.imageUrl!!, headersBuilder().set("Referer", page.url.ifEmpty { "$baseUrl/mb" }).build())
