@@ -25,6 +25,7 @@ import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import rx.Observable
 
 /**
  * 짭툰 (www.jjaptoon008.com)
@@ -336,23 +337,41 @@ class Jjaptoon : HttpSource(), ConfigurableSource {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ---------- 필터 ----------
-    override fun getFilterList() = FilterList(
-        Filter.Header("인기순은 검색어/상태 필터와 함께 쓸 수 없음"),
-        Pick("정렬", "selectedSort", listOf("최신순" to "latest", "인기순" to "popular")),
-        Pick("분류", "selectedType", listOf("전체" to "", "일반" to "general", "성인" to "adult", "BL" to "bl")),
-        Pick(
-            "상태", "selectedStatus",
-            listOf("전체" to "", "연재" to "ongoing", "완결" to "completed", "휴재" to "paused"),
-        ),
-        Pick(
-            "요일", "selectedSchedule",
-            listOf(
-                "전체" to "", "월" to "monday", "화" to "tuesday", "수" to "wednesday", "목" to "thursday",
-                "금" to "friday", "토" to "saturday", "일" to "sunday",
+    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    private val tabRules by lazy { TabRules(id) }
+
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchPopularManga(page)
+
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: super.fetchLatestUpdates(page)
+
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        tabRules.apply(filters)
+        return super.fetchSearchManga(page, query, filters)
+    }
+
+    override fun getFilterList() = tabRules.attach(
+        FilterList(
+            Filter.Header("인기순은 검색어/상태 필터와 함께 쓸 수 없음"),
+            Pick("정렬", "selectedSort", listOf("최신순" to "latest", "인기순" to "popular")),
+            Pick("분류", "selectedType", listOf("전체" to "", "일반" to "general", "성인" to "adult", "BL" to "bl")),
+            Pick(
+                "상태", "selectedStatus",
+                listOf("전체" to "", "연재" to "ongoing", "완결" to "completed", "휴재" to "paused"),
             ),
+            Pick(
+                "요일", "selectedSchedule",
+                listOf(
+                    "전체" to "", "월" to "monday", "화" to "tuesday", "수" to "wednesday", "목" to "thursday",
+                    "금" to "friday", "토" to "saturday", "일" to "sunday",
+                ),
+            ),
+            Pick("장르", "selectedCategory", GENRES),
+            Pick("플랫폼", "selectedPublisher", PLATS),
         ),
-        Pick("장르", "selectedCategory", GENRES),
-        Pick("플랫폼", "selectedPublisher", PLATS),
     )
 
     class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
