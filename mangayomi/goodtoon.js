@@ -8,7 +8,7 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.3.0",
+    "version": "0.3.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -22,6 +22,19 @@ const AUTO_PROBE = "/";
 const AUTO_MARKER = "goodtoon";
 
 // Goodtoon 웹툰 - Aniyomi 확장(Goodtoon.kt)과 같은 구조를 망가요미용으로 옮김
+// ---------- Popular/Latest 규칙 ----------
+const TAB_RULE_NAME = "Popular/Latest 규칙";
+const TAB_KEY_POPULAR = "tab_rule_popular";
+const TAB_KEY_LATEST = "tab_rule_latest";
+const TAB_RULE_OPTIONS = [
+    "저장하지 않음 (필터 결과만 보기)",
+    "현재 조건을 Popular 탭에 저장",
+    "현재 조건을 Latest 탭에 저장",
+    "Popular 탭을 기본값으로 복원",
+    "Latest 탭을 기본값으로 복원",
+    "두 탭 모두 기본값으로 복원"
+];
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -195,15 +208,15 @@ class DefaultExtension extends MProvider {
         return { list, hasNextPage };
     }
 
-    async getPopular(page) {
+    async basePopular(page) {
         return this.parseList(await this.get(this.listUrl("/recommend/", page)), page);
     }
 
-    async getLatestUpdates(page) {
+    async baseLatest(page) {
         return this.parseList(await this.get(this.listUrl("/", page)), page);
     }
 
-    async search(query, page, filters) {
+    async baseSearch(query, page, filters) {
         if (query && query.trim()) return this.parseList(await this.get(this.listUrl("/", page, query.trim())), page);
         let path = "/";
         const extra = {};
@@ -304,7 +317,7 @@ class DefaultExtension extends MProvider {
         return urls.map(u => ({ url: u, headers: { "Referer": this.base + "/", "User-Agent": MOBILE_UA } }));
     }
 
-    getFilterList() {
+    baseFilterList() {
         const sel = (name, param, pairs) => ({
             type_name: "SelectFilter", name, param, state: 0,
             values: pairs.map(p => ({ type_name: "SelectOption", name: p[0], value: p[1] }))
@@ -317,6 +330,90 @@ class DefaultExtension extends MProvider {
             sel("장르", "genre", [["전체", ""], ["학원", "school"], ["액션", "action"], ["SF", "sci-fi"], ["스토리", "story"], ["판타지", "fantasy"], ["BL", "bl"], ["개그", "gag"], ["연애", "romance-drama"], ["드라마", "drama"], ["로맨스", "romance"], ["시대극", "period"], ["스포츠", "sports"], ["일상", "slice-of-life"], ["추리", "mystery"], ["공포", "horror"], ["성인", "adult"], ["무협", "martial-arts"], ["하렘", "harem"], ["백합", "yuri"]]),
             sel("플랫폼", "plat", [["전체", ""], ["네이버", "naver"], ["다음", "daum"], ["카카오", "kakao"], ["레진", "rejin"], ["투믹스", "tomics"], ["탑툰", "toptoon"], ["리디", "ridi"], ["봄툰", "bom"], ["기타", "etc"]])
         ];
+    }
+
+    // ---------- Popular/Latest 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
+    tabLoad(key) {
+        try {
+            const v = JSON.parse(new SharedPreferences().getString(key, "") || "null");
+            return Array.isArray(v) ? v : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    tabStore(key, value) {
+        try {
+            new SharedPreferences().setString(key, value === null ? "" : JSON.stringify(value));
+        } catch (e) {
+            // 저장 실패는 무시
+        }
+    }
+
+    /** 저장된 상태값을 새 필터 목록에 채움 (필터 구성이 바뀐 항목은 기본값 유지) */
+    tabRestore(states) {
+        const list = this.getFilterList();
+        list.forEach((f, i) => {
+            const s = states[i];
+            if (s === null || s === undefined || !f || f.name === TAB_RULE_NAME) return;
+            if (f.type_name === "SelectFilter" && typeof s === "number" && s >= 0 && s < f.values.length) f.state = s;
+            else if (f.type_name === "TextFilter" && typeof s === "string") f.state = s;
+            else if (f.type_name === "CheckBox" && typeof s === "boolean") f.state = s;
+        });
+        return list;
+    }
+
+    tabDescribe(key, base, fallback) {
+        const states = this.tabLoad(key);
+        if (!states) return fallback;
+        const parts = [];
+        base.forEach((f, i) => {
+            const s = states[i];
+            if (!f || f.name === TAB_RULE_NAME || s === null || s === undefined) return;
+            if (f.type_name === "SelectFilter" && f.values[s]) {
+                const label = String(f.name || "").replace(/\s*\(.*?\)\s*/g, "").trim();
+                parts.push(label === "목록" || label === "정렬" ? f.values[s].name : `${label} ${f.values[s].name}`);
+            }
+            else if (f.type_name === "TextFilter" && String(s).trim()) parts.push(`${f.name}: ${s}`);
+            else if (f.type_name === "CheckBox" && s === true) parts.push(f.name);
+        });
+        return parts.join(" / ") || fallback;
+    }
+
+    async getPopular(page) {
+        const s = this.tabLoad(TAB_KEY_POPULAR);
+        return s ? this.baseSearch("", page, this.tabRestore(s)) : this.basePopular(page);
+    }
+
+    async getLatestUpdates(page) {
+        const s = this.tabLoad(TAB_KEY_LATEST);
+        return s ? this.baseSearch("", page, this.tabRestore(s)) : this.baseLatest(page);
+    }
+
+    async search(query, page, filters) {
+        const list = filters || [];
+        const rule = list.find((f) => f && f.name === TAB_RULE_NAME);
+        const r = rule ? Number(rule.state) || 0 : 0;
+        if (r === 1 || r === 2) {
+            const states = list.map((f) => (!f || f.name === TAB_RULE_NAME || f.state === undefined || typeof f.state === "object") ? null : f.state);
+            this.tabStore(r === 1 ? TAB_KEY_POPULAR : TAB_KEY_LATEST, states);
+        }
+        if (r === 3 || r === 5) this.tabStore(TAB_KEY_POPULAR, null);
+        if (r === 4 || r === 5) this.tabStore(TAB_KEY_LATEST, null);
+        return this.baseSearch(query, page, list);
+    }
+
+    getFilterList() {
+        const base = this.baseFilterList();
+        return base.concat([
+            { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
+            { type_name: "HeaderFilter", name: `현재 Popular: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (사이트 인기 목록)")}` },
+            { type_name: "HeaderFilter", name: `현재 Latest: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (사이트 최신 목록)")}` },
+            {
+                type_name: "SelectFilter", name: TAB_RULE_NAME, state: 0,
+                values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))
+            }
+        ]);
     }
 
     getSourcePreferences() {

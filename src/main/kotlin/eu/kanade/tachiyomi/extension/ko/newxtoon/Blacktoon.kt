@@ -396,10 +396,15 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         val tag: Int = -1,
     )
 
-    override fun fetchPopularManga(page: Int): Observable<MangasPage> = browse(page, Selection(order = 1))
-    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> = browse(page, Selection(order = 0))
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: browse(page, Selection(order = 1))
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: browse(page, Selection(order = 0))
 
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        tabRules.apply(filters)
         fun pick(param: String) = filters.filterIsInstance<IntPick>().firstOrNull { it.param == param }?.value() ?: -1
         return browse(
             page,
@@ -630,13 +635,18 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 필터 ----------
-    override fun getFilterList() = FilterList(
-        Filter.Header("검색어와 필터를 함께 쓸 수 있음"),
-        IntPick("정렬", "order", listOf(0 to "최신순", 1 to "인기순")),
-        IntPick("상태", "status", listOf(-1 to "전체", 1 to "연재", 0 to "완결")),
-        IntPick("플랫폼", "platform", listOf(-1 to "전체") + PLATFORMS.toList()),
-        IntPick("요일", "day", listOf(-1 to "전체") + DAYS.toList()),
-        IntPick("장르", "tag", listOf(-1 to "전체") + TAGS.toList()),
+    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    private val tabRules by lazy { TabRules(id) }
+
+    override fun getFilterList() = tabRules.attach(
+        FilterList(
+            Filter.Header("검색어와 필터를 함께 쓸 수 있음"),
+            IntPick("정렬", "order", listOf(0 to "최신순", 1 to "인기순")),
+            IntPick("상태", "status", listOf(-1 to "전체", 1 to "연재", 0 to "완결")),
+            IntPick("플랫폼", "platform", listOf(-1 to "전체") + PLATFORMS.toList()),
+            IntPick("요일", "day", listOf(-1 to "전체") + DAYS.toList()),
+            IntPick("장르", "tag", listOf(-1 to "전체") + TAGS.toList()),
+        ),
     )
 
     private class IntPick(name: String, val param: String, private val pairs: List<Pair<Int, String>>) :
