@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.3",
+    "version": "0.3.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -412,7 +412,7 @@ class DefaultExtension extends MProvider {
     async search(query, page, filters) {
         await statusRefresh(this.client);
         // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
-        const list = (filters || []).filter((f) => !(f && f._status));
+        const list = withParams(filters, this.tabFilterList());
         const rule = list.find((f) => f && f.name === TAB_RULE_NAME);
         const r = rule ? Number(rule.state) || 0 : 0;
         if (r === 1 || r === 2) {
@@ -486,6 +486,22 @@ class DefaultExtension extends MProvider {
 // 망가요미는 내장 웹뷰에서 Cloudflare 확인을 통과하면 쿠키와 그 웹뷰의 User-Agent 를 함께 저장하고,
 // 요청에 User-Agent 가 없을 때만 그 값을 넣는다. 확장이 고정 User-Agent 를 보내면 통과 쿠키가 거부되므로
 // 사이트(문서·API) 요청에서는 확장의 User-Agent 를 빼고 앱 값을 쓰게 한다. 영상·이미지 주소 요청은 그대로 둔다.
+// ---------- 망가요미가 돌려준 필터에 우리 표식(param/_status)이 빠져 있어도 동작하게 ----------
+// 앱은 필터를 이름·상태값만 남겨 돌려줄 수 있어서, 같은 이름의 원래 필터에서 param 을 다시 채우고 상태 줄은 뺀다.
+const STATUS_LINE = /^(?:📡|🩺|❌|🛡)/;
+function withParams(list, base) {
+    const out = [];
+    for (const f of list || []) {
+        if (!f || f._status || (f.type_name === "HeaderFilter" && STATUS_LINE.test(String(f.name || "")))) continue;
+        if (!f.param) {
+            const b = (base || []).find((x) => x && x.name === f.name && x.type_name === f.type_name);
+            if (b && b.param) f.param = b.param;
+        }
+        out.push(f);
+    }
+    return out;
+}
+
 function appClient(raw) {
     const media = /\.(?:m3u8|mp4|ts|m4s|jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
     const strip = (url, headers) => {
