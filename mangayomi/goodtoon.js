@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.2",
+    "version": "0.3.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -353,7 +353,7 @@ class DefaultExtension extends MProvider {
 
     /** 저장된 상태값을 새 필터 목록에 채움 (필터 구성이 바뀐 항목은 기본값 유지) */
     tabRestore(states) {
-        const list = this.getFilterList();
+        const list = this.tabFilterList();
         list.forEach((f, i) => {
             const s = states[i];
             if (s === null || s === undefined || !f || f.name === TAB_RULE_NAME) return;
@@ -382,17 +382,21 @@ class DefaultExtension extends MProvider {
     }
 
     async getPopular(page) {
+        await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_POPULAR);
         return s ? this.baseSearch("", page, this.tabRestore(s)) : this.basePopular(page);
     }
 
     async getLatestUpdates(page) {
+        await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_LATEST);
         return s ? this.baseSearch("", page, this.tabRestore(s)) : this.baseLatest(page);
     }
 
     async search(query, page, filters) {
-        const list = filters || [];
+        await statusRefresh(this.client);
+        // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
+        const list = (filters || []).filter((f) => !(f && f._status));
         const rule = list.find((f) => f && f.name === TAB_RULE_NAME);
         const r = rule ? Number(rule.state) || 0 : 0;
         if (r === 1 || r === 2) {
@@ -404,7 +408,7 @@ class DefaultExtension extends MProvider {
         return this.baseSearch(query, page, list);
     }
 
-    getFilterList() {
+    tabFilterList() {
         const base = this.baseFilterList();
         return base.concat([
             { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
@@ -415,6 +419,30 @@ class DefaultExtension extends MProvider {
                 values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))
             }
         ]);
+    }
+
+    // ---------- 상태 표시 ----------
+    statusBase() {
+        try {
+            const b = typeof this.getBaseUrl === "function" ? this.getBaseUrl() : this.base;
+            // getBaseUrl 이 비동기(Promise)인 확장은 마지막 정상 주소를 씀
+            if (b && typeof b.then === "function") return (this.lastGood && this.lastGood()) || this.source.baseUrl;
+            return b;
+        } catch (e) {
+            return this.source.baseUrl;
+        }
+    }
+
+    statusAuto() {
+        try {
+            return typeof this.autoOn === "function" ? this.autoOn() : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    getFilterList() {
+        return statusFilters("goodtoon", this.statusBase(), this.statusAuto()).concat(this.tabFilterList());
     }
 
     getSourcePreferences() {
@@ -454,4 +482,50 @@ function appClient(raw) {
         get: (url, headers) => raw.get(url, strip(url, headers)),
         post: (url, headers, body) => raw.post(url, strip(url, headers), body),
     };
+}
+
+// ---------- 필터 화면 맨 위 상태 표시 (주소 · 자동 찾기 · 감시 점검 결과) ----------
+// 점검 결과는 저장소 감시 작업이 올리는 status.json 을 20분에 한 번 받아 두었다가 보여 준다.
+const STATUS_URL = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/monitor-state/status.json";
+
+function statusKst(iso) {
+    const t = Date.parse(iso || "");
+    if (isNaN(t)) return "";
+    const d = new Date(t + 9 * 3600000).toISOString();
+    return d.substring(5, 7) + "/" + d.substring(8, 10) + " " + d.substring(11, 16);
+}
+
+async function statusRefresh(client) {
+    let p;
+    try {
+        p = new SharedPreferences();
+    } catch (e) {
+        return;
+    }
+    const last = Number(p.getString("status_at", "0")) || 0;
+    if (Date.now() - last < 20 * 60000) return;
+    p.setString("status_at", String(Date.now()));
+    try {
+        const r = await client.get(STATUS_URL, {});
+        const body = String(r.body || "");
+        if (r.statusCode === 200 && body.trim().startsWith("{")) p.setString("status_json", body);
+    } catch (e) {
+        // 다음 기회에 다시 받음
+    }
+}
+
+function statusFilters(key, base, autoOn) {
+    const host = String(base || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    const lines = [`📡 주소: ${host}` + (autoOn === null || autoOn === undefined ? "" : ` · 자동 찾기 ${autoOn ? "켜짐" : "꺼짐"}`)];
+    let item = null;
+    try {
+        item = (JSON.parse(new SharedPreferences().getString("status_json", "") || "{}").items || {})[key] || null;
+    } catch (e) {
+        item = null;
+    }
+    if (!item || item.ok === undefined) lines.push("🩺 점검: 정보 없음 (목록을 한 번 연 뒤 필터를 다시 열면 표시)");
+    else if (item.ok) lines.push(`🩺 점검: 정상 · ${statusKst(item.checkedAt)}`);
+    else lines.push(`❌ 점검: 문제 · ${statusKst(item.checkedAt)} · ${String(item.msg || "").substring(0, 40)}`);
+    lines.push("🛡 Cloudflare에 막히면: 웹뷰 버튼으로 한 번 열어 통과");
+    return lines.map((name) => ({ type_name: "HeaderFilter", name, _status: true }));
 }

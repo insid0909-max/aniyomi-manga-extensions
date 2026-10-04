@@ -373,16 +373,21 @@ class Wolftoon : HttpSource(), ConfigurableSource {
         return super.fetchSearchManga(page, query, filters)
     }
 
-    override fun getFilterList() = tabRules.attach(
-        FilterList(
-            Filter.Header("검색어가 없을 때만 적용"),
-            Pick("목록", "list", LISTS),
-            Pick("정렬", "o", SORTS),
-            Pick("분류 (웹툰)", "t2", TYPES),
-            Pick("요일 (웹툰)", "t1", DAYS),
-            Pick("장르", "t3", GENRES),
-            Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
-            Text("장르 직접 입력", "t3"),
+    override fun getFilterList() = ExtStatus.prepend(
+        "wolftoon",
+        baseUrl,
+        autoDomain(),
+        tabRules.attach(
+            FilterList(
+                Filter.Header("검색어가 없을 때만 적용"),
+                Pick("목록", "list", LISTS),
+                Pick("정렬", "o", SORTS),
+                Pick("분류 (웹툰)", "t2", TYPES),
+                Pick("요일 (웹툰)", "t1", DAYS),
+                Pick("장르", "t3", GENRES),
+                Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
+                Text("장르 직접 입력", "t3"),
+            ),
         ),
     )
 
