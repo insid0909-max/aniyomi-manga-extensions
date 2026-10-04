@@ -630,6 +630,11 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("늑대닷컴 오류", e))
         }
+        try {
+            list.add(Toki())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("토끼 소설 오류", e))
+        }
         return list
     }
 }
