@@ -589,6 +589,9 @@ class Toon11 : HttpSource(), ConfigurableSource {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // fetchPopularManga 에서 직접 처리
+    // 필터는 없고, 맨 위에 현재 상태만 표시
+    override fun getFilterList() = ExtStatus.prepend("toon11", baseUrl, autoDomain(), FilterList())
+
     override fun popularMangaRequest(page: Int): Request = throw UnsupportedOperationException()
     override fun popularMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
