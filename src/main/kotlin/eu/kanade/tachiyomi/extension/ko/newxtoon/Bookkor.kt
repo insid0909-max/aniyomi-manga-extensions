@@ -182,7 +182,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
             entries = FONT_SIZES.map { it.first }.toTypedArray()
             entryValues = FONT_SIZES.map { it.second }.toTypedArray()
             setDefaultValue("44")
-            summary = "%s (바꾼 뒤 회차를 다시 열면 적용)"
+            summary = "%s (바꾼 뒤 회차를 다시 열면 바로 적용)"
         }.also(screen::addPreference)
 
         ListPreference(screen.context).apply {
@@ -191,6 +191,15 @@ class Bookkor : HttpSource(), ConfigurableSource {
             entries = THEMES.map { it.first }.toTypedArray()
             entryValues = THEMES.map { it.second }.toTypedArray()
             setDefaultValue("dark")
+            summary = "%s"
+        }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
+            key = KEY_LINE
+            title = "줄 간격"
+            entries = LINE_SPACINGS.map { it.first }.toTypedArray()
+            entryValues = LINE_SPACINGS.map { it.second }.toTypedArray()
+            setDefaultValue("1.6")
             summary = "%s"
         }.also(screen::addPreference)
 
@@ -396,7 +405,8 @@ class Bookkor : HttpSource(), ConfigurableSource {
     }
 
     private fun loadDoc(chapterPath: String): Doc {
-        synchronized(docCache) { docCache[chapterPath] }?.let { return it }
+        val cacheKey = "$chapterPath|${gap()}"
+        synchronized(docCache) { docCache[cacheKey] }?.let { return it }
         val ep = fetchProps(baseUrl + chapterPath).optJSONObject("episode") ?: throw Exception("회차 정보를 찾을 수 없습니다")
         val body = ep.optJSONObject("body")
         val raw = body?.let { it.str("html").ifEmpty { it.str("text") } }.orEmpty()
@@ -410,7 +420,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         }
         val text = paragraphs.filter { it.isNotEmpty() }.joinToString(if (gap()) "\n\n" else "\n")
         if (text.isEmpty()) throw Exception("본문이 비어 있습니다")
-        return Doc(ep.str("title"), text).also { synchronized(docCache) { docCache[chapterPath] = it } }
+        return Doc(ep.str("title"), text).also { synchronized(docCache) { docCache[cacheKey] = it } }
     }
 
     private fun gap(): Boolean = try {
@@ -421,11 +431,20 @@ class Bookkor : HttpSource(), ConfigurableSource {
 
     private fun fontPx(): Float = pref(KEY_FONT, "44").toFloatOrNull()?.coerceIn(24f, 96f) ?: 44f
 
+    private fun lineMult(): Float = pref(KEY_LINE, "1.6").toFloatOrNull()?.coerceIn(1.0f, 3.0f) ?: 1.6f
+
     private fun colors(): Pair<Int, Int> = when (pref(KEY_THEME, "dark")) {
         "light" -> Color.rgb(250, 250, 248) to Color.rgb(34, 34, 34)
         "sepia" -> Color.rgb(244, 236, 216) to Color.rgb(68, 52, 36)
+        "black" -> Color.rgb(0, 0, 0) to Color.rgb(200, 200, 200)
+        "gray" -> Color.rgb(58, 60, 64) to Color.rgb(230, 230, 230)
+        "green" -> Color.rgb(204, 232, 207) to Color.rgb(36, 50, 38)
+        "navy" -> Color.rgb(22, 30, 46) to Color.rgb(214, 222, 235)
         else -> Color.rgb(24, 24, 24) to Color.rgb(222, 222, 222)
     }
+
+    /** 설정이 바뀌면 그림 주소도 바뀌도록 (앱이 저장해 둔 예전 그림을 다시 쓰지 않게) */
+    private fun styleKey(): String = "f${fontPx().toInt()}-${pref(KEY_THEME, "dark")}-l${lineMult()}-g${if (gap()) 1 else 0}"
 
     /** 제목 + 본문을 한 덩어리로 배치하고, 페이지 높이에 맞춰 줄 단위로 나눈 시작 줄 목록 */
     private fun layout(doc: Doc): Pair<StaticLayout, List<Int>> {
@@ -436,7 +455,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         val width = PAGE_W - PAD * 2
         val full = "${doc.title}\n\n${doc.text}"
         @Suppress("DEPRECATION")
-        val sl = StaticLayout(full, paint, width, Layout.Alignment.ALIGN_NORMAL, 1.6f, 0f, false)
+        val sl = StaticLayout(full, paint, width, Layout.Alignment.ALIGN_NORMAL, lineMult(), 0f, false)
         val starts = mutableListOf(0)
         val usable = PAGE_H - PAD * 2
         var top = 0
@@ -452,7 +471,8 @@ class Bookkor : HttpSource(), ConfigurableSource {
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> = Observable.fromCallable {
         val (_, starts) = layout(loadDoc(chapter.url))
         val key = seg(chapter.url)
-        starts.indices.map { i -> Page(i, baseUrl + chapter.url, "https://$RENDER_HOST/$key/$i") }
+        val style = styleKey()
+        starts.indices.map { i -> Page(i, baseUrl + chapter.url, "https://$RENDER_HOST/$key/$i?s=$style") }
     }
 
     /** 그림 페이지 주소면 직접 그려서 PNG 로 돌려줌 */
@@ -535,6 +555,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         private const val KEY_FONT = "pref_font_px"
         private const val KEY_THEME = "pref_theme"
         private const val KEY_GAP = "pref_paragraph_gap"
+        private const val KEY_LINE = "pref_line_spacing"
         private const val DEFAULT = "https://002.bookkor.com"
         private const val RENDER_HOST = "bookkor-render.local"
         private const val PAGE_W = 1080
@@ -557,7 +578,14 @@ class Bookkor : HttpSource(), ConfigurableSource {
         private val STATUSES = listOf("전체" to "", "연재중" to "연재중", "완결" to "완결")
         private val SORTS = listOf("최근 업데이트순" to "desc", "오래된순" to "asc")
         private val GENRES = listOf("판타지", "무협", "현대", "로맨스", "로맨스 판타지", "라노벨", "19금", "BL", "기타")
-        private val FONT_SIZES = listOf("작게" to "36", "보통" to "44", "크게" to "52", "아주 크게" to "62")
-        private val THEMES = listOf("어둡게" to "dark", "밝게" to "light", "세피아" to "sepia")
+        private val FONT_SIZES = listOf(
+            "아주 작게" to "32", "작게" to "38", "보통" to "44", "조금 크게" to "50",
+            "크게" to "56", "아주 크게" to "64", "최대" to "74",
+        )
+        private val THEMES = listOf(
+            "어둡게 (진회색)" to "dark", "검정 (OLED)" to "black", "회색" to "gray", "남색" to "navy",
+            "밝게 (흰색)" to "light", "세피아 (종이)" to "sepia", "연두 (눈 보호)" to "green",
+        )
+        private val LINE_SPACINGS = listOf("좁게" to "1.3", "보통" to "1.6", "넓게" to "1.9", "아주 넓게" to "2.2")
     }
 }
