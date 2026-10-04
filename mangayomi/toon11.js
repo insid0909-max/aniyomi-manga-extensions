@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.2",
+    "version": "0.3.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -32,6 +32,27 @@ const T11_TOP = "400";     // TopCoce
 const T11_NEW = "100";     // NewCoce
 const T11_ROW = 30;
 const T11_SEARCH_ROW = 20;
+
+// ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
+// 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
+let lastSiteRequest = 0;
+async function siteWait(url) {
+    const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
+    if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
+    const wait = lastSiteRequest + 350 - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastSiteRequest = Date.now();
+}
+
+// 검색창에 사이트 작품(또는 회차) 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
+async function openByUrl(ext, query, toLink) {
+    const m = /^https?:\/\/([^/?#]+)(\/[^#]*)?/.exec(String(query || "").trim());
+    if (!m || !AUTO_HOST.test(m[1])) return null;
+    const link = toLink(m[2] || "/");
+    if (!link) return null;
+    const d = await ext.getDetail(link);
+    return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
+}
 
 class DefaultExtension extends MProvider {
     constructor() {
@@ -69,6 +90,7 @@ class DefaultExtension extends MProvider {
 
     /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
     async req(url, headers, post, body) {
+        await siteWait(url);
         const base = this.base;
         const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
         let failed = null;
@@ -334,6 +356,8 @@ class DefaultExtension extends MProvider {
 
     // 검색: 검색 페이지를 연 뒤(토큰) POST /mb/top_search → {"data":[...],"total":N}
     async search(query, page, filters) {
+        const byUrl = await openByUrl(this, query, (p) => { const m = /\/content\/info\/(\d+)/.exec(p); return m ? this.mangaUrl(m[1]) : null; });
+        if (byUrl) return byUrl;
         const q = (query || "").trim();
         const pageUrl = `${this.base}/mb/top_search?subject=${encodeURIComponent(q)}`;
         try {
