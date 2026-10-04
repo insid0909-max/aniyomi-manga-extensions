@@ -1,6 +1,5 @@
 {
  "label": "웹툰",
- "ntfy": "insid-ext-naqwwbg1dibo",
  "sites": [
   {
    "name": "newxtoon",
@@ -182,14 +181,5 @@
    "depth": "text",
    "key": "bookkor"
   }
- ],
- "watchSources": {
-  "newxtoon": "mangayomi/newxtoon.js",
-  "goodtoon": "mangayomi/goodtoon.js",
-  "jjaptoon": "mangayomi/jjaptoon.js",
-  "blacktoon": "mangayomi/blacktoon.js",
-  "toon11": "mangayomi/toon11.js",
-  "wolftoon": "mangayomi/wolftoon.js",
-  "bookkor": "mangayomi/bookkor.js"
- }
+ ]
 }
