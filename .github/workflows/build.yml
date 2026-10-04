@@ -178,6 +178,7 @@ jobs:
                       ("Blacktoon 웹툰", key_id("newxtoon.blacktoon/ko/1"), "https://blacktoon423.com"),
                       ("11toon 만화", key_id("newxtoon.toon11/ko/1"), "https://11toon2.com"),
                       ("늑대닷컴 웹툰", key_id("newxtoon.wolftoon/ko/1"), "https://wfwf510.com"),
+                      ("북코 소설", key_id("newxtoon.bookkor/ko/1"), "https://002.bookkor.com"),
                   ]],
               })
           json.dump(out, open(f"{repo}/index.min.json", "w", encoding="utf-8"),
@@ -213,7 +214,11 @@ jobs:
                       "isFullData": False, "appMinVerReq": s.get("appMinVerReq", "0.5.0"),
                       "additionalParams": "", "sourceCodeLanguage": 1, "notes": "",
                   })
-          json.dump(out, open("repo/mangayomi/index.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          # 망가요미는 저장소를 만화/애니/소설로 따로 받으므로 소설(itemType 2)은 novel_index.json 에 나눠 담음
+          for s in out:
+              s["isManga"] = s["itemType"] == 0
+          json.dump([s for s in out if s["itemType"] != 2], open("repo/mangayomi/index.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          json.dump([s for s in out if s["itemType"] == 2], open("repo/mangayomi/novel_index.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
           json.dump({"name": "NewXtoon Mangayomi Repository", "website": "https://github.com/insid0909-max/aniyomi-manga-extensions"},
                     open("repo/mangayomi/repo.json", "w", encoding="utf-8"), ensure_ascii=False)
           print("mangayomi sources", len(out))

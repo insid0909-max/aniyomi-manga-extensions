@@ -103,6 +103,23 @@
     60
    ],
    "key": "wolftoon"
+  },
+  {
+   "name": "북코 소설",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+    "regex": "DEFAULT = \"(https://\\d+\\.bookkor\\.com)\""
+   },
+   "pattern": "^https://(\\d+)\\.bookkor\\.com$",
+   "format": "https://{n}.bookkor.com",
+   "pad": 3,
+   "probe": "/",
+   "marker": "data-page=\"app\"",
+   "range": [
+    -2,
+    30
+   ],
+   "key": "bookkor"
   }
  ],
  "replaceIn": [
@@ -117,7 +134,9 @@
   "mangayomi/jjaptoon.js",
   "mangayomi/blacktoon.js",
   "mangayomi/toon11.js",
-  "mangayomi/wolftoon.js"
+  "mangayomi/wolftoon.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+  "mangayomi/bookkor.js"
  ],
  "indexFiles": [],
  "health": [
@@ -156,6 +175,12 @@
    "file": "mangayomi/wolftoon.js",
    "depth": "pages",
    "key": "wolftoon"
+  },
+  {
+   "name": "북코 소설 (망가요미)",
+   "file": "mangayomi/bookkor.js",
+   "depth": "text",
+   "key": "bookkor"
   }
  ],
  "watchSources": {
@@ -164,6 +189,7 @@
   "jjaptoon": "mangayomi/jjaptoon.js",
   "blacktoon": "mangayomi/blacktoon.js",
   "toon11": "mangayomi/toon11.js",
-  "wolftoon": "mangayomi/wolftoon.js"
+  "wolftoon": "mangayomi/wolftoon.js",
+  "bookkor": "mangayomi/bookkor.js"
  }
 }
