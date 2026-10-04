@@ -103,23 +103,6 @@
     60
    ],
    "key": "wolftoon"
-  },
-  {
-   "name": "토끼 소설",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toki.kt",
-    "regex": "DEFAULT = \"(https://sbxh\\d+\\.com)\""
-   },
-   "pattern": "^https://sbxh(\\d+)\\.com$",
-   "format": "https://sbxh{n}.com",
-   "pad": 0,
-   "probe": "/",
-   "marker": "ntk-fonts",
-   "range": [
-    -3,
-    40
-   ],
-   "key": "toki"
   }
  ],
  "replaceIn": [
@@ -134,9 +117,7 @@
   "mangayomi/jjaptoon.js",
   "mangayomi/blacktoon.js",
   "mangayomi/toon11.js",
-  "mangayomi/wolftoon.js",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toki.kt",
-  "mangayomi/toki.js"
+  "mangayomi/wolftoon.js"
  ],
  "indexFiles": [],
  "health": [
