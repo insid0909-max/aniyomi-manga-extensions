@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -198,7 +198,7 @@ class DefaultExtension extends MProvider {
                 const v = f.values[f.state].value;
                 if (f.param === "menu") menu = v; else params[f.param] = v;
             } else if (f.type_name === "GroupFilter" && f.param === "genres") {
-                for (const g of f.state || []) if (g.state) params.genres.push(g.value);
+                for (const g of f.state || []) if (g.state) params.genres.push(g.value || g.name);
             }
         }
         if (query && query.trim()) {
@@ -362,7 +362,7 @@ class DefaultExtension extends MProvider {
     async search(query, page, filters) {
         await statusRefresh(this.client);
         // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
-        const list = (filters || []).filter((f) => !(f && f._status));
+        const list = withParams(filters, this.tabFilterList());
         const rule = list.find((f) => f && f.name === TAB_RULE_NAME);
         const r = rule ? Number(rule.state) || 0 : 0;
         if (r === 1 || r === 2) {
@@ -458,6 +458,22 @@ function fixUtf8(s) {
         } else {
             out += s[i];
         }
+    }
+    return out;
+}
+
+// ---------- 망가요미가 돌려준 필터에 우리 표식(param/_status)이 빠져 있어도 동작하게 ----------
+// 앱은 필터를 이름·상태값만 남겨 돌려줄 수 있어서, 같은 이름의 원래 필터에서 param 을 다시 채우고 상태 줄은 뺀다.
+const STATUS_LINE = /^(?:📡|🩺|❌|🛡)/;
+function withParams(list, base) {
+    const out = [];
+    for (const f of list || []) {
+        if (!f || f._status || (f.type_name === "HeaderFilter" && STATUS_LINE.test(String(f.name || "")))) continue;
+        if (!f.param) {
+            const b = (base || []).find((x) => x && x.name === f.name && x.type_name === f.type_name);
+            if (b && b.param) f.param = b.param;
+        }
+        out.push(f);
     }
     return out;
 }
