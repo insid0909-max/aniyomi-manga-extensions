@@ -211,6 +211,12 @@ async function runHealth(item) {
     const st = { 0: "연재", 1: "완결" }[detail.status] || "상태 미확인";
     if (item.depth === "detail") return `목록 ${list.length}개, 회차 ${eps.length}개, ${st}`;
     const ep = eps[0];
+    if (item.depth === "text") {
+        const html = await withTimeout(ext.getHtmlContent(ep.name, ep.url), T, "본문");
+        const len = String(html || "").replace(/<[^>]+>/g, "").trim().length;
+        if (len < 200) throw new Error(`본문이 너무 짧음 ${len}자 (${first.name} ${ep.name})`);
+        return `목록 ${list.length}개, 회차 ${eps.length}개, 본문 ${len}자, ${st}`;
+    }
     if (item.depth === "pages") {
         const pages = await withTimeout(ext.getPageList(ep.url), T, "이미지");
         if (!pages || !pages.length) throw new Error(`이미지 0개 (${first.name} ${ep.name})`);
