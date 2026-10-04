@@ -113,6 +113,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
         .build()
 
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
         .build()
 
@@ -328,8 +329,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
     override fun latestUpdatesParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     // 검색: 사이트처럼 검색 페이지를 연 뒤(토큰/쿠키) POST /mb/top_search 로 결과(JSON)를 받음
+    /** 붙여 넣은 사이트 주소 → 작품 주소 (모르는 모양이면 null) */
+    private fun urlToManga(u: okhttp3.HttpUrl): String? =
+        mangaId(u.toString())?.let { mangaUrl(it) }
+
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
-        Observable.fromCallable {
+        // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌
+        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails) ?: Observable.fromCallable {
             val q = query.trim()
             val pageUrl = "$baseUrl/mb/top_search".toHttpUrl().newBuilder()
                 .addQueryParameter("subject", q).build().toString()
