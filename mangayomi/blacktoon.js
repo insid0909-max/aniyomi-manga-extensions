@@ -8,7 +8,8 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "version": "0.3.2",
+    "hasCloudflare": true,
+    "version": "0.3.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -49,7 +50,7 @@ const TAB_RULE_OPTIONS = [
 class DefaultExtension extends MProvider {
     constructor() {
         super();
-        this.client = new Client();
+        this.client = appClient(new Client());
     }
 
     // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
@@ -626,4 +627,22 @@ class DefaultExtension extends MProvider {
             }
         }];
     }
+}
+
+// ---------- 앱 기본 User-Agent 사용 ----------
+// 망가요미는 내장 웹뷰에서 Cloudflare 확인을 통과하면 쿠키와 그 웹뷰의 User-Agent 를 함께 저장하고,
+// 요청에 User-Agent 가 없을 때만 그 값을 넣는다. 확장이 고정 User-Agent 를 보내면 통과 쿠키가 거부되므로
+// 사이트(문서·API) 요청에서는 확장의 User-Agent 를 빼고 앱 값을 쓰게 한다. 영상·이미지 주소 요청은 그대로 둔다.
+function appClient(raw) {
+    const media = /\.(?:m3u8|mp4|ts|m4s|jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
+    const strip = (url, headers) => {
+        if (!headers || media.test(String(url || ""))) return headers || {};
+        const out = {};
+        for (const k in headers) if (k.toLowerCase() !== "user-agent") out[k] = headers[k];
+        return out;
+    };
+    return {
+        get: (url, headers) => raw.get(url, strip(url, headers)),
+        post: (url, headers, body) => raw.post(url, strip(url, headers), body),
+    };
 }
