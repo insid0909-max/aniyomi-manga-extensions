@@ -95,6 +95,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
     }
 
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> renderIntercept(chain) ?: domainIntercept(chain) }
         .build()
 
@@ -521,8 +522,14 @@ class Bookkor : HttpSource(), ConfigurableSource {
         tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
             ?: super.fetchLatestUpdates(page)
 
+    /** 붙여 넣은 사이트 주소 → 작품 주소 (모르는 모양이면 null) */
+    private fun urlToManga(u: okhttp3.HttpUrl): String? =
+        u.pathSegments.firstOrNull { it.isNotEmpty() }?.let { "/$it" }
+
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         tabRules.apply(filters)
+        // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
+        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
         return super.fetchSearchManga(page, query, filters)
     }
 
