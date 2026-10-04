@@ -353,24 +353,29 @@ class Jjaptoon : HttpSource(), ConfigurableSource {
         return super.fetchSearchManga(page, query, filters)
     }
 
-    override fun getFilterList() = tabRules.attach(
-        FilterList(
-            Filter.Header("인기순은 검색어/상태 필터와 함께 쓸 수 없음"),
-            Pick("정렬", "selectedSort", listOf("최신순" to "latest", "인기순" to "popular")),
-            Pick("분류", "selectedType", listOf("전체" to "", "일반" to "general", "성인" to "adult", "BL" to "bl")),
-            Pick(
-                "상태", "selectedStatus",
-                listOf("전체" to "", "연재" to "ongoing", "완결" to "completed", "휴재" to "paused"),
-            ),
-            Pick(
-                "요일", "selectedSchedule",
-                listOf(
-                    "전체" to "", "월" to "monday", "화" to "tuesday", "수" to "wednesday", "목" to "thursday",
-                    "금" to "friday", "토" to "saturday", "일" to "sunday",
+    override fun getFilterList() = ExtStatus.prepend(
+        "jjaptoon",
+        baseUrl,
+        autoDomain(),
+        tabRules.attach(
+            FilterList(
+                Filter.Header("인기순은 검색어/상태 필터와 함께 쓸 수 없음"),
+                Pick("정렬", "selectedSort", listOf("최신순" to "latest", "인기순" to "popular")),
+                Pick("분류", "selectedType", listOf("전체" to "", "일반" to "general", "성인" to "adult", "BL" to "bl")),
+                Pick(
+                    "상태", "selectedStatus",
+                    listOf("전체" to "", "연재" to "ongoing", "완결" to "completed", "휴재" to "paused"),
                 ),
+                Pick(
+                    "요일", "selectedSchedule",
+                    listOf(
+                        "전체" to "", "월" to "monday", "화" to "tuesday", "수" to "wednesday", "목" to "thursday",
+                        "금" to "friday", "토" to "saturday", "일" to "sunday",
+                    ),
+                ),
+                Pick("장르", "selectedCategory", GENRES),
+                Pick("플랫폼", "selectedPublisher", PLATS),
             ),
-            Pick("장르", "selectedCategory", GENRES),
-            Pick("플랫폼", "selectedPublisher", PLATS),
         ),
     )
 

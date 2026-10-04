@@ -16,7 +16,8 @@
    "range": [
     -1,
     30
-   ]
+   ],
+   "key": "newxtoon"
   },
   {
    "name": "굿툰",
@@ -32,7 +33,8 @@
    "range": [
     -3,
     40
-   ]
+   ],
+   "key": "goodtoon"
   },
   {
    "name": "짭툰",
@@ -48,7 +50,8 @@
    "range": [
     -3,
     40
-   ]
+   ],
+   "key": "jjaptoon"
   },
   {
    "name": "블랙툰",
@@ -64,7 +67,8 @@
    "range": [
     -3,
     40
-   ]
+   ],
+   "key": "blacktoon"
   },
   {
    "name": "11toon",
@@ -80,7 +84,8 @@
    "range": [
     -1,
     30
-   ]
+   ],
+   "key": "toon11"
   },
   {
    "name": "늑대닷컴",
@@ -96,7 +101,8 @@
    "range": [
     -3,
     60
-   ]
+   ],
+   "key": "wolftoon"
   }
  ],
  "replaceIn": [
@@ -118,32 +124,38 @@
   {
    "name": "newxtoon (망가요미)",
    "file": "mangayomi/newxtoon.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "newxtoon"
   },
   {
    "name": "굿툰 (망가요미)",
    "file": "mangayomi/goodtoon.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "goodtoon"
   },
   {
    "name": "짭툰 (망가요미)",
    "file": "mangayomi/jjaptoon.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "jjaptoon"
   },
   {
    "name": "블랙툰 (망가요미)",
    "file": "mangayomi/blacktoon.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "blacktoon"
   },
   {
    "name": "11toon (망가요미)",
    "file": "mangayomi/toon11.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "toon11"
   },
   {
    "name": "늑대닷컴 (망가요미)",
    "file": "mangayomi/wolftoon.js",
-   "depth": "pages"
+   "depth": "pages",
+   "key": "wolftoon"
   }
  ],
  "watchSources": {

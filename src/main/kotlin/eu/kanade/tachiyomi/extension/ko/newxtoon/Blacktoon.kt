@@ -638,14 +638,19 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
     private val tabRules by lazy { TabRules(id) }
 
-    override fun getFilterList() = tabRules.attach(
-        FilterList(
-            Filter.Header("검색어와 필터를 함께 쓸 수 있음"),
-            IntPick("정렬", "order", listOf(0 to "최신순", 1 to "인기순")),
-            IntPick("상태", "status", listOf(-1 to "전체", 1 to "연재", 0 to "완결")),
-            IntPick("플랫폼", "platform", listOf(-1 to "전체") + PLATFORMS.toList()),
-            IntPick("요일", "day", listOf(-1 to "전체") + DAYS.toList()),
-            IntPick("장르", "tag", listOf(-1 to "전체") + TAGS.toList()),
+    override fun getFilterList() = ExtStatus.prepend(
+        "blacktoon",
+        baseUrl,
+        autoDomain(),
+        tabRules.attach(
+            FilterList(
+                Filter.Header("검색어와 필터를 함께 쓸 수 있음"),
+                IntPick("정렬", "order", listOf(0 to "최신순", 1 to "인기순")),
+                IntPick("상태", "status", listOf(-1 to "전체", 1 to "연재", 0 to "완결")),
+                IntPick("플랫폼", "platform", listOf(-1 to "전체") + PLATFORMS.toList()),
+                IntPick("요일", "day", listOf(-1 to "전체") + DAYS.toList()),
+                IntPick("장르", "tag", listOf(-1 to "전체") + TAGS.toList()),
+            ),
         ),
     )
 

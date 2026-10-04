@@ -42,8 +42,8 @@ internal class TabRules(private val sourceId: Long) {
     fun apply(filters: FilterList) {
         val rule = filters.filterIsInstance<TabRuleFilter>().firstOrNull() ?: return
         when (rule.state) {
-            1 -> save(POPULAR, filters)
-            2 -> save(LATEST, filters)
+            1 -> save(POPULAR, filters.withoutStatus())
+            2 -> save(LATEST, filters.withoutStatus())
             3 -> remove(POPULAR)
             4 -> remove(LATEST)
             5 -> {
@@ -56,7 +56,7 @@ internal class TabRules(private val sourceId: Long) {
     /** 저장된 조건이 있으면 그 상태를 채운 필터 목록, 없으면 null */
     fun saved(key: String, fresh: FilterList): FilterList? {
         val states = load(key) ?: return null
-        fresh.forEachIndexed { i, f ->
+        fresh.withoutStatus().forEachIndexed { i, f ->
             val s = states.getOrNull(i) ?: return@forEachIndexed
             try {
                 when {
@@ -76,7 +76,7 @@ internal class TabRules(private val sourceId: Long) {
 
     private fun describe(key: String, base: FilterList, fallback: String): String {
         val states = load(key) ?: return fallback
-        val parts = base.mapIndexedNotNull { i, f ->
+        val parts = base.withoutStatus().mapIndexedNotNull { i, f ->
             val s = states.getOrNull(i) ?: return@mapIndexedNotNull null
             when {
                 f is TabRuleFilter -> null
@@ -94,7 +94,9 @@ internal class TabRules(private val sourceId: Long) {
         return parts.joinToString(" / ").ifEmpty { fallback }
     }
 
-    private fun save(key: String, filters: FilterList) {
+    private fun List<Filter<*>>.withoutStatus(): List<Filter<*>> = filterNot { it is StatusItem }
+
+    private fun save(key: String, filters: List<Filter<*>>) {
         val encoded = filters.joinToString(",") { f ->
             when (f) {
                 is TabRuleFilter -> "s0"

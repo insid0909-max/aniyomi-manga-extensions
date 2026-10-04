@@ -365,14 +365,19 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         return super.fetchSearchManga(page, query, filters)
     }
 
-    override fun getFilterList() = tabRules.attach(
-        FilterList(
-            Filter.Header("검색어가 없을 때만 적용"),
-            Pick("목록", "list", LISTS),
-            Pick("분류", "mcat", CATS),
-            Pick("요일", "mday", DAYS),
-            Pick("장르", "genre", GENRES),
-            Pick("플랫폼", "plat", PLATS),
+    override fun getFilterList() = ExtStatus.prepend(
+        "goodtoon",
+        baseUrl,
+        autoDomain(),
+        tabRules.attach(
+            FilterList(
+                Filter.Header("검색어가 없을 때만 적용"),
+                Pick("목록", "list", LISTS),
+                Pick("분류", "mcat", CATS),
+                Pick("요일", "mday", DAYS),
+                Pick("장르", "genre", GENRES),
+                Pick("플랫폼", "plat", PLATS),
+            ),
         ),
     )
 
