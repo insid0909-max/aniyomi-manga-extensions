@@ -113,6 +113,7 @@ class NewXtoon(
 
     // 접속 차단(451) 안내 + 주소 번호 변경 시 자동 연결
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
         .build()
 
@@ -499,8 +500,14 @@ class NewXtoon(
         tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
             ?: super.fetchLatestUpdates(page)
 
+    /** 붙여 넣은 사이트 주소 → 작품 주소 (모르는 모양이면 null) */
+    private fun urlToManga(u: okhttp3.HttpUrl): String? =
+        Regex("^/comics/(\\d+)").find(u.encodedPath)?.let { "/comics/${it.groupValues[1]}" }
+
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         tabRules.apply(filters)
+        // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
+        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
         return super.fetchSearchManga(page, query, filters)
     }
 

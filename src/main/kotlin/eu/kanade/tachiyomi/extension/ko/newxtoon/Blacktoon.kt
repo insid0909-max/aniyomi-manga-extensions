@@ -80,6 +80,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
 
     // 주소 번호가 바뀌면 자동으로 찾아 연결 + 이미지 서버 요청에 Referer/Origin 추가
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
         .build()
 
@@ -403,8 +404,14 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
             ?: browse(page, Selection(order = 0))
 
+    /** 붙여 넣은 사이트 주소 → 작품 주소 (모르는 모양이면 null) */
+    private fun urlToManga(u: okhttp3.HttpUrl): String? =
+        Regex("^/webtoon/([^/]+)\\.html$").find(u.encodedPath)?.groupValues?.get(1)
+
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         tabRules.apply(filters)
+        // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
+        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
         fun pick(param: String) = filters.filterIsInstance<IntPick>().firstOrNull { it.param == param }?.value() ?: -1
         return browse(
             page,

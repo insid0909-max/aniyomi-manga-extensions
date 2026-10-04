@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.5",
+    "version": "0.3.6",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -47,6 +47,27 @@ const TAB_RULE_OPTIONS = [
     "두 탭 모두 기본값으로 복원"
 ];
 
+// ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
+// 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
+let lastSiteRequest = 0;
+async function siteWait(url) {
+    const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
+    if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
+    const wait = lastSiteRequest + 350 - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastSiteRequest = Date.now();
+}
+
+// 검색창에 사이트 작품(또는 회차) 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
+async function openByUrl(ext, query, toLink) {
+    const m = /^https?:\/\/([^/?#]+)(\/[^#]*)?/.exec(String(query || "").trim());
+    if (!m || !AUTO_HOST.test(m[1])) return null;
+    const link = toLink(m[2] || "/");
+    if (!link) return null;
+    const d = await ext.getDetail(link);
+    return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
+}
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -82,6 +103,7 @@ class DefaultExtension extends MProvider {
 
     /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
     async req(url, headers, post, body) {
+        await siteWait(url);
         const base = this.base;
         const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
         let failed = null;
@@ -585,6 +607,8 @@ class DefaultExtension extends MProvider {
     }
 
     async search(query, page, filters) {
+        const byUrl = await openByUrl(this, query, (p) => { const m = /^\/webtoon\/([^/?#]+)\.html/.exec(p); return m ? `/webtoon/${m[1]}.html` : null; });
+        if (byUrl) return byUrl;
         await statusRefresh(this.client);
         // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
         const list = withParams(filters, this.tabFilterList());
