@@ -1,0 +1,52 @@
+{
+ "items": {
+  "newxtoon": {
+   "origin": "https://newxtoon1.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:29.836Z",
+   "ok": true,
+   "msg": "목록 23개, 회차 624개, 이미지 214장, 연재",
+   "checkedAt": "2026-10-04T02:24:13.731Z"
+  },
+  "goodtoon": {
+   "origin": "https://www.goodtoon006.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:30.290Z",
+   "ok": true,
+   "msg": "목록 63개, 회차 220개, 이미지 155장, 연재",
+   "checkedAt": "2026-10-04T02:24:14.892Z"
+  },
+  "jjaptoon": {
+   "origin": "https://www.jjaptoon008.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:30.454Z",
+   "ok": true,
+   "msg": "목록 36개, 회차 202개, 이미지 69장, 완결",
+   "checkedAt": "2026-10-04T02:24:18.991Z"
+  },
+  "blacktoon": {
+   "origin": "https://blacktoon423.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:30.613Z",
+   "ok": true,
+   "msg": "목록 24개, 회차 221개, 이미지 16장, 완결",
+   "checkedAt": "2026-10-04T02:24:19.863Z"
+  },
+  "toon11": {
+   "origin": "https://11toon2.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:31.362Z",
+   "ok": true,
+   "msg": "목록 30개, 회차 1269개, 이미지 12장, 완결",
+   "checkedAt": "2026-10-04T02:24:22.523Z"
+  },
+  "wolftoon": {
+   "origin": "https://wfwf510.com",
+   "domain": "alive",
+   "domainSince": "2026-10-03T17:30:31.711Z",
+   "ok": true,
+   "msg": "목록 36개, 회차 124개, 이미지 54장, 연재",
+   "checkedAt": "2026-10-04T02:24:23.185Z"
+  }
+ }
+}
