@@ -50,6 +50,14 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     }
     private val sp: SharedPreferences by lazy { app.getSharedPreferences("source_$id", 0) }
 
+    // 설정에 직접 넣은 값이 있으면 그것, 없으면 기본(데스크톱 크롬) — 다른 웹툰 확장과 같은 설정 항목
+    private val userAgent: String
+        get() = try {
+            sp.getString(KEY_UA, "")?.trim().orEmpty()
+        } catch (e: Throwable) {
+            ""
+        }.ifEmpty { USER_AGENT }
+
     override val baseUrl: String
         get() {
             val v = try {
@@ -75,7 +83,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     }
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .set("User-Agent", USER_AGENT)
+        .set("User-Agent", userAgent)
         .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
 
     // 주소 번호가 바뀌면 자동으로 찾아 연결 + 이미지 서버 요청에 Referer/Origin 추가
@@ -181,7 +189,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             .build()
 
         fun fetch(url: String): Pair<String, String>? = try {
-            val r = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+            val r = Request.Builder().url(url).header("User-Agent", userAgent).build()
             plain.newCall(r).execute().use { res ->
                 if (res.code != 200) null else res.request.url.host to (res.body?.string() ?: "")
             }
@@ -233,6 +241,14 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             title = "도메인 자동 찾기"
             summary = "주소 번호가 바뀌어 접속이 안 되면 blacktoonurl.net / 다음 번호 주소에서 새 주소로 자동 변경"
             setDefaultValue(true)
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = KEY_UA
+            title = "User-Agent (고급)"
+            summary = "비워두면 기본값(데스크톱 크롬) 사용. 변경 후 앱 재시작 필요"
+            dialogTitle = "User-Agent"
+            setDefaultValue("")
         }.also(screen::addPreference)
     }
 
@@ -669,6 +685,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     companion object {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
+        private const val KEY_UA = "pref_user_agent"
         private const val DEFAULT = "https://blacktoon423.com"
         private const val GUIDE_URL = "https://blacktoonurl.net/"
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
