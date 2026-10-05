@@ -2,19 +2,19 @@
  "items": {
   "newxtoon": {
    "origin": "https://newxtoon1.com",
-   "domain": "alive",
-   "domainSince": "2026-10-03T17:30:29.836Z",
-   "ok": true,
-   "msg": "목록 23개, 회차 624개, 이미지 214장, 연재",
-   "checkedAt": "2026-10-04T04:02:43.871Z"
+   "domain": "dead",
+   "domainSince": "2026-10-05T02:24:01.412Z",
+   "ok": false,
+   "msg": "목록: 작품 0개",
+   "checkedAt": "2026-10-05T02:24:06.297Z"
   },
   "goodtoon": {
    "origin": "https://www.goodtoon006.com",
    "domain": "alive",
    "domainSince": "2026-10-03T17:30:30.290Z",
    "ok": true,
-   "msg": "목록 63개, 회차 220개, 이미지 155장, 연재",
-   "checkedAt": "2026-10-04T04:02:44.965Z"
+   "msg": "목록 63개, 회차 191개, 이미지 113장, 연재",
+   "checkedAt": "2026-10-05T02:24:07.778Z"
   },
   "jjaptoon": {
    "origin": "https://www.jjaptoon008.com",
@@ -22,7 +22,7 @@
    "domainSince": "2026-10-03T17:30:30.454Z",
    "ok": true,
    "msg": "목록 36개, 회차 202개, 이미지 69장, 완결",
-   "checkedAt": "2026-10-04T04:02:49.359Z"
+   "checkedAt": "2026-10-05T02:24:12.199Z"
   },
   "blacktoon": {
    "origin": "https://blacktoon423.com",
@@ -30,15 +30,15 @@
    "domainSince": "2026-10-03T17:30:30.613Z",
    "ok": true,
    "msg": "목록 24개, 회차 221개, 이미지 16장, 완결",
-   "checkedAt": "2026-10-04T04:02:51.216Z"
+   "checkedAt": "2026-10-05T02:24:13.669Z"
   },
   "toon11": {
    "origin": "https://11toon2.com",
    "domain": "alive",
    "domainSince": "2026-10-03T17:30:31.362Z",
    "ok": true,
-   "msg": "목록 30개, 회차 1269개, 이미지 12장, 완결",
-   "checkedAt": "2026-10-04T04:02:53.311Z"
+   "msg": "목록 30개, 회차 330개, 이미지 23장, 완결",
+   "checkedAt": "2026-10-05T02:24:15.490Z"
   },
   "wolftoon": {
    "origin": "https://wfwf510.com",
@@ -46,12 +46,15 @@
    "domainSince": "2026-10-03T17:30:31.711Z",
    "ok": true,
    "msg": "목록 36개, 회차 124개, 이미지 54장, 연재",
-   "checkedAt": "2026-10-04T04:02:54.138Z"
+   "checkedAt": "2026-10-05T02:24:16.846Z"
   },
   "bookkor": {
+   "origin": "https://002.bookkor.com",
+   "domain": "alive",
+   "domainSince": "2026-10-05T02:24:05.972Z",
    "ok": true,
    "msg": "목록 10개, 회차 1945개, 본문 5328자, 연재",
-   "checkedAt": "2026-10-04T04:02:59.790Z"
+   "checkedAt": "2026-10-05T02:24:24.961Z"
   }
  }
 }
