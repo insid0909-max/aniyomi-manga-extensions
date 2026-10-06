@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.3",
+    "version": "0.3.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -36,6 +36,21 @@ const T11_SEARCH_ROW = 20;
 // ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
 // 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
 let lastSiteRequest = 0;
+const TAB_RULE_NAME = "Popular/Latest 규칙";
+const TAB_KEY_POPULAR = "tab_rule_popular";
+const TAB_KEY_LATEST = "tab_rule_latest";
+const TAB_RULE_OPTIONS = [
+    "저장하지 않음 (필터 결과만 보기)",
+    "현재 조건을 Popular 탭에 저장",
+    "현재 조건을 Latest 탭에 저장",
+    "Popular 탭을 기본값으로 복원",
+    "Latest 탭을 기본값으로 복원",
+    "두 탭 모두 기본값으로 복원"
+];
+// 사이트 "만화분류"의 장르 (번호 = SType, 0 = 전체)
+const T11_GENRES = ["전체", "SF", "TS", "개그", "드라마", "러브코미디", "먹방", "백합", "붕탁", "순정", "스릴러",
+    "스포츠", "시대", "액션", "인기", "일상 + 치유", "추리", "판타지", "학원", "호러", "BL"];
+
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
     if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
@@ -346,18 +361,52 @@ class DefaultExtension extends MProvider {
 
     async getPopular(page) {
         await statusRefresh(this.client);
+        const s = this.tabLoad(TAB_KEY_POPULAR);
+        if (s) return this.categoryList(page, this.tabRestore(s));
         return (await this.ranking(T11_TOP, page)) || this.mainPage(page);
     }
 
     async getLatestUpdates(page) {
         await statusRefresh(this.client);
+        const s = this.tabLoad(TAB_KEY_LATEST);
+        if (s) return this.categoryList(page, this.tabRestore(s));
         return (await this.ranking(T11_NEW, page)) || this.mainPage(page);
     }
 
-    // 검색: 검색 페이지를 연 뒤(토큰) POST /mb/top_search → {"data":[...],"total":N}
+    /** 사이트 "만화분류"와 같은 목록 (/iapi/t2: 장르 SType, 국가 SCountry, 연재 SEnd) */
+    async categoryList(page, filters) {
+        const val = (param) => {
+            const f = (filters || []).find((x) => x && x.param === param);
+            return f && f.values && f.values[f.state] ? f.values[f.state].value : "0";
+        };
+        const sType = val("SType"), sCountry = val("SCountry"), sEnd = val("SEnd");
+        const referer = `${this.base}/mb/search/content?page=toon&SType=${sType}&SCountry=${sCountry}&SEnd=${sEnd}`;
+        const json = await this.api("/iapi/t2", {
+            Page: page, Pagerow: T11_ROW, SType: sType, SCountry: sCountry, SEnd: sEnd, SzA_Z: 0, MenuCode: 1000
+        }, referer);
+        if (!json) return { list: [], hasNextPage: false };
+        const items = [];
+        this.collect(this.sucData(json), items);
+        const list = this.toList(items);
+        const total = json.data && json.data.SucAllCnt ? Number(json.data.SucAllCnt) : -1;
+        return { list, hasNextPage: items.length >= T11_ROW && (total < 0 || page * T11_ROW < total) };
+    }
+
+    // 검색: 검색어가 없으면 필터(만화분류) 목록, 있으면 검색 페이지를 연 뒤(토큰) POST /mb/top_search → {"data":[...],"total":N}
     async search(query, page, filters) {
         const byUrl = await openByUrl(this, query, (p) => { const m = /\/content\/info\/(\d+)/.exec(p); return m ? this.mangaUrl(m[1]) : null; });
         if (byUrl) return byUrl;
+        // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
+        const flist = withParams(filters, this.tabFilterList());
+        const rule = flist.find((f) => f && f.name === TAB_RULE_NAME);
+        const r = rule ? Number(rule.state) || 0 : 0;
+        if (r === 1 || r === 2) {
+            const states = flist.map((f) => (!f || f.name === TAB_RULE_NAME || f.state === undefined || typeof f.state === "object") ? null : f.state);
+            this.tabStore(r === 1 ? TAB_KEY_POPULAR : TAB_KEY_LATEST, states);
+        }
+        if (r === 3 || r === 5) this.tabStore(TAB_KEY_POPULAR, null);
+        if (r === 4 || r === 5) this.tabStore(TAB_KEY_LATEST, null);
+        if (!String(query || "").trim()) return this.categoryList(page, flist);
         const q = (query || "").trim();
         const pageUrl = `${this.base}/mb/top_search?subject=${encodeURIComponent(q)}`;
         try {
@@ -500,7 +549,74 @@ class DefaultExtension extends MProvider {
     }
 
     getFilterList() {
-        return statusFilters("toon11", this.statusBase(), this.statusAuto());
+        return statusFilters("toon11", this.statusBase(), this.statusAuto()).concat(this.tabFilterList());
+    }
+
+    baseFilterList() {
+        const sel = (name, param, pairs) => ({
+            type_name: "SelectFilter", name, param, state: 0,
+            values: pairs.map(p => ({ type_name: "SelectOption", name: p[0], value: p[1] }))
+        });
+        return [
+            { type_name: "HeaderFilter", name: "검색어를 입력하면 필터는 무시됩니다" },
+            sel("장르", "SType", T11_GENRES.map((n, i) => [n, String(i)])),
+            sel("국가", "SCountry", [["전체", "0"], ["일본만화", "2"]]),
+            sel("연재", "SEnd", [["전체", "0"], ["연재만화", "1"], ["완결만화", "2"]])
+        ];
+    }
+
+    // ---------- Popular/Latest 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
+    tabLoad(key) {
+        try {
+            const v = JSON.parse(new SharedPreferences().getString(key, "") || "null");
+            return Array.isArray(v) ? v : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    tabStore(key, value) {
+        try {
+            new SharedPreferences().setString(key, value === null ? "" : JSON.stringify(value));
+        } catch (e) {
+            // 저장 실패는 무시
+        }
+    }
+
+    /** 저장된 상태값을 새 필터 목록에 채움 (필터 구성이 바뀐 항목은 기본값 유지) */
+    tabRestore(states) {
+        const list = this.tabFilterList();
+        list.forEach((f, i) => {
+            const s = states[i];
+            if (s === null || s === undefined || !f || f.name === TAB_RULE_NAME) return;
+            if (f.type_name === "SelectFilter" && typeof s === "number" && s >= 0 && s < f.values.length) f.state = s;
+        });
+        return list;
+    }
+
+    tabDescribe(key, base, fallback) {
+        const states = this.tabLoad(key);
+        if (!states) return fallback;
+        const parts = [];
+        base.forEach((f, i) => {
+            const s = states[i];
+            if (!f || f.name === TAB_RULE_NAME || s === null || s === undefined) return;
+            if (f.type_name === "SelectFilter" && f.values[s] && s > 0) parts.push(`${f.name} ${f.values[s].name}`);
+        });
+        return parts.join(" / ") || "전체";
+    }
+
+    tabFilterList() {
+        const base = this.baseFilterList();
+        return base.concat([
+            { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
+            { type_name: "HeaderFilter", name: `현재 Popular: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (사이트 인기 목록)")}` },
+            { type_name: "HeaderFilter", name: `현재 Latest: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (사이트 최신 목록)")}` },
+            {
+                type_name: "SelectFilter", name: TAB_RULE_NAME, state: 0,
+                values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))
+            }
+        ]);
     }
 
     getSourcePreferences() {
@@ -522,6 +638,21 @@ class DefaultExtension extends MProvider {
             }
         }];
     }
+}
+
+// 필터 목록에서 맨 위 상태 줄을 빼고, 앱이 넘겨준 필터에 빠진 param 을 원래 목록에서 채움
+const STATUS_LINE = /^(?:📡|🩺|❌|🛡)/;
+function withParams(list, base) {
+    const out = [];
+    for (const f of list || []) {
+        if (!f || f._status || (f.type_name === "HeaderFilter" && STATUS_LINE.test(String(f.name || "")))) continue;
+        if (!f.param) {
+            const b = (base || []).find((x) => x && x.name === f.name && x.type_name === f.type_name);
+            if (b && b.param) f.param = b.param;
+        }
+        out.push(f);
+    }
+    return out;
 }
 
 // ---------- 앱 기본 User-Agent 사용 ----------
