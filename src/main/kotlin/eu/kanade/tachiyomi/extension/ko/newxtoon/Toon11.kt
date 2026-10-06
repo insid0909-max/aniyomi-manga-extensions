@@ -7,6 +7,7 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -285,14 +286,17 @@ class Toon11 : HttpSource(), ConfigurableSource {
 
     // ---------- 목록 ----------
     // 인기: 랭킹 API(t4, menucode=TopCoce 400) → 실패하면 메인(/mb) 목록
-    override fun fetchPopularManga(page: Int): Observable<MangasPage> = Observable.fromCallable {
-        rankingPage(TOP_CODE, page) ?: mainPage(page)
-    }
+    // 필터 조건을 인기/최신 탭에 저장해 두었으면 그 조건으로
+    private val tabRules by lazy { TabRules(id) }
+
+    override fun fetchPopularManga(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: Observable.fromCallable { rankingPage(TOP_CODE, page) ?: mainPage(page) }
 
     // 최신: t4 (menucode=NewCoce 100) → 실패하면 메인(/mb) 목록
-    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> = Observable.fromCallable {
-        rankingPage(NEW_CODE, page) ?: mainPage(page)
-    }
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
+        tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
+            ?: Observable.fromCallable { rankingPage(NEW_CODE, page) ?: mainPage(page) }
 
     private fun mainPage(page: Int): MangasPage =
         if (page == 1) client.newCall(GET("$baseUrl/mb", headers)).execute().use { parseHtmlList(it) } else MangasPage(emptyList(), false)
@@ -306,7 +310,30 @@ class Toon11 : HttpSource(), ConfigurableSource {
             .addQueryParameter("pagerow", PAGE_ROW.toString())
             .addQueryParameter("type", "0")
             .build().toString()
-        val json = getJson(api, "$baseUrl/mb") ?: return null
+        return apiListPage(api, "$baseUrl/mb", page)
+    }
+
+    /** 사이트 "만화분류" 화면과 같은 목록 (/iapi/t2: 장르 SType, 국가 SCountry, 연재 SEnd) */
+    private fun categoryPage(filters: FilterList, page: Int): MangasPage {
+        fun sel(f: Filter.Select<String>?) = f?.state ?: 0
+        val genre = sel(filters.filterIsInstance<GenreFilter>().firstOrNull())
+        val country = COUNTRIES.getOrNull(sel(filters.filterIsInstance<CountryFilter>().firstOrNull()))?.second ?: 0
+        val end = sel(filters.filterIsInstance<EndFilter>().firstOrNull())
+        val api = "$baseUrl/iapi/t2".toHttpUrl().newBuilder()
+            .addQueryParameter("Page", page.toString())
+            .addQueryParameter("Pagerow", PAGE_ROW.toString())
+            .addQueryParameter("SType", genre.toString())
+            .addQueryParameter("SCountry", country.toString())
+            .addQueryParameter("SEnd", end.toString())
+            .addQueryParameter("SzA_Z", "0")
+            .addQueryParameter("MenuCode", "1000")
+            .build().toString()
+        val referer = "$baseUrl/mb/search/content?page=toon&SType=$genre&SCountry=$country&SEnd=$end"
+        return apiListPage(api, referer, page) ?: MangasPage(emptyList(), false)
+    }
+
+    private fun apiListPage(api: String, referer: String, page: Int): MangasPage? {
+        val json = getJson(api, referer) ?: return null
         val items = ArrayList<JSONObject>()
         collectItems(sucData(json).opt("SucData") ?: json.optJSONObject("data")?.opt("SucData") ?: json, items)
         val mangas = items.mapNotNull { o ->
@@ -333,9 +360,13 @@ class Toon11 : HttpSource(), ConfigurableSource {
     private fun urlToManga(u: okhttp3.HttpUrl): String? =
         mangaId(u.toString())?.let { mangaUrl(it) }
 
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        tabRules.apply(filters)
         // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌
-        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails) ?: Observable.fromCallable {
+        UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
+        // 검색어가 없으면 필터(만화분류) 목록
+        if (query.isBlank()) return Observable.fromCallable { categoryPage(filters, page) }
+        return Observable.fromCallable {
             val q = query.trim()
             val pageUrl = "$baseUrl/mb/top_search".toHttpUrl().newBuilder()
                 .addQueryParameter("subject", q).build().toString()
@@ -375,6 +406,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
                 }.filter { it.title.isNotEmpty() }.distinctBy { it.url }
             MangasPage(mangas, items.size >= SEARCH_ROW)
         }
+    }
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
         throw UnsupportedOperationException()
@@ -594,9 +626,24 @@ class Toon11 : HttpSource(), ConfigurableSource {
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
-    // fetchPopularManga 에서 직접 처리
-    // 필터는 없고, 맨 위에 현재 상태만 표시
-    override fun getFilterList() = ExtStatus.prepend("toon11", baseUrl, autoDomain(), FilterList())
+    // ---------- 필터 (사이트 "만화분류"와 같음, 검색어가 없을 때 사용) ----------
+    private class GenreFilter : Filter.Select<String>("장르", GENRES)
+    private class CountryFilter : Filter.Select<String>("국가", COUNTRIES.map { it.first }.toTypedArray())
+    private class EndFilter : Filter.Select<String>("연재", arrayOf("전체", "연재만화", "완결만화"))
+
+    override fun getFilterList() = ExtStatus.prepend(
+        "toon11",
+        baseUrl,
+        autoDomain(),
+        tabRules.attach(
+            FilterList(
+                Filter.Header("검색어를 입력하면 필터는 무시됩니다"),
+                GenreFilter(),
+                CountryFilter(),
+                EndFilter(),
+            ),
+        ),
+    )
 
     override fun popularMangaRequest(page: Int): Request = throw UnsupportedOperationException()
     override fun popularMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
@@ -615,5 +662,14 @@ class Toon11 : HttpSource(), ConfigurableSource {
         private const val NEW_CODE = "100"
         private const val SEARCH_ROW = 20
         private val HOST_REGEX = Regex("^(www\\.)?11toon\\d*\\.com$")
+
+        /** 장르 (번호 = 사이트 SType, 0 = 전체) */
+        private val GENRES = arrayOf(
+            "전체", "SF", "TS", "개그", "드라마", "러브코미디", "먹방", "백합", "붕탁", "순정", "스릴러",
+            "스포츠", "시대", "액션", "인기", "일상 + 치유", "추리", "판타지", "학원", "호러", "BL",
+        )
+
+        /** 국가 (사이트 SCountry) */
+        private val COUNTRIES = listOf("전체" to 0, "일본만화" to 2)
     }
 }
