@@ -100,7 +100,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/toon11.js",
   "apiUrl": "",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
