@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.3",
+    "version": "0.1.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -62,30 +62,36 @@ async function openByUrl(ext, query, toLink) {
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
 }
 
-// 회차 순서: 이름 앞부분(작품명·"매거진"·"특별편"·"스핀오프 …" 등)이 같은 것끼리 묶어 번호순으로 놓음 (결과는 최신 → 과거)
-// 회차가 가장 많은 묶음이 본편 → 맨 앞, 그다음 번호 없는 특별편(후기 등), 다른 묶음(처음 올라온 순), 번외, 외전
-// 앞부분이 다른 앞부분으로 끝나면 같은 묶음 ("스핀오프 - 식극의 상디" = "식극의 상디"), "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편, 프롤로그는 맨 앞
-function orderChapters(list) {
+// 회차 순서: 이름에서 숫자 앞부분(작품 제목 단어는 빼고)이 같은 것끼리 묶어 번호순으로 놓음 (결과는 최신 → 과거)
+// "(ONE PIECE)원피스 775화" 와 "1194화" 는 같은 묶음, "스핀오프 - 식극의 상디" 와 "식극의 상디" 도 같은 묶음
+// 회차가 가장 많은 묶음이 본편 → 맨 앞, 그다음 번호 없는 특별편(후기 등), 다른 묶음(처음 올라온 순), 번외, 외전. 프롤로그는 맨 앞
+// "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편
+// 망가요미는 이름 맨 앞 숫자로 회차 번호를 정하므로, 본편이 아닌 회차는 이름 앞에 본편 마지막 번호 다음 순번을 붙임
+// ("1195 · 원피스 매거진 1호") → "화 번호별" 정렬도 본편 1화 ~ 끝 → 나머지 순서
+function orderChapters(list, title) {
     if (!list || list.length < 2) return list;
     const PRO = "\u0000prologue";
+    const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
+    const titleWords = (String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+        .filter((w) => w.length >= 2).sort((a, b) => b.length - a.length);
     const keys = list.map((c, i) => {
         const name = String(c.name || "").trim();
         const index = list.length - 1 - i;
         const m = /(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/.exec(name) || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
-        if (!m) return { prefix: /프롤로그|prologue/i.test(name) ? PRO : "", num: /프롤로그|prologue/i.test(name) ? 0 : -1, index };
+        if (!m) return /프롤로그|prologue/i.test(name) ? { prefix: PRO, num: 0, index } : { prefix: "", num: -1, index };
         let num = parseInt(m[1], 10);
         if (m[3]) num = m[2] === "." ? parseFloat(`${m[1]}.${m[3]}`) : num + Math.min(parseInt(m[3], 10), 99) / 100;
-        const prefix = name.substring(0, m.index).replace(/[\s\-–—:.,·\[\](){}제第#]+$/, "").trim();
+        let prefix = norm(name.substring(0, m.index));
+        titleWords.forEach((w) => { prefix = prefix.split(w).join(""); });
         return { prefix, num, index };
     });
-    const norm = (p) => p.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-    const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
-    // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈 ("스핀오프 - 식극의 상디" = "식극의 상디"), 번외·외전끼리만 따로
-    const prefixes = [...new Set(keys.map((k) => k.prefix))].filter((p) => p !== PRO && norm(p).length >= 2)
-        .sort((a, b) => norm(a).length - norm(b).length);
+    // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈, 번외·외전끼리만 따로
+    const prefixes = [...new Set(keys.map((k) => k.prefix))].filter((p) => p !== PRO && p.length >= 2)
+        .sort((a, b) => a.length - b.length);
     const canon = {};
     prefixes.forEach((p, i) => {
-        const q = prefixes.slice(0, i).find((x) => norm(x).length < norm(p).length && norm(p).endsWith(norm(x)) && isExtra(x) === isExtra(p));
+        const q = prefixes.slice(0, i).find((x) => x.length < p.length && p.endsWith(x) && isExtra(x) === isExtra(p));
         canon[p] = q ? (canon[q] || q) : p;
     });
     keys.forEach((k) => { if (canon[k.prefix]) k.prefix = canon[k.prefix]; });
@@ -108,6 +114,10 @@ function orderChapters(list) {
     const order = list.map((_, i) => i).sort((a, b) => {
         const x = keys[a], y = keys[b];
         return rank(x) - rank(y) || firstOf(x) - firstOf(y) || x.num - y.num || x.index - y.index;
+    });
+    let next = Math.floor(Math.max(0, ...keys.filter((k) => k.prefix === main && k.num >= 0).map((k) => k.num)));
+    order.forEach((i) => {
+        if (rank(keys[i]) > 0) list[i] = Object.assign({}, list[i], { name: `${++next} · ${String(list[i].name || "").trim()}` });
     });
     return order.reverse().map((i) => list[i]);
 }
@@ -337,7 +347,7 @@ class DefaultExtension extends MProvider {
             // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨 (0 연재, 1 완결, 5 알 수 없음)
             status: { "/ing": 0, "/end": 1 }[(doc.selectFirst("a.nav-item.active")?.attr("href") || "").trim()] ?? 5,
             link: this.abs(detailPath),
-            chapters: orderChapters(chapters)
+            chapters: orderChapters(chapters, (doc.selectFirst("h1.w-title")?.text || "").trim())
         };
     }
 

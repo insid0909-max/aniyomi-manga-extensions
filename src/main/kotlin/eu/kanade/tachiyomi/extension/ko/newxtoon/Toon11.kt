@@ -512,7 +512,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
 
     // 회차 순서: 본편 → 번외 → 외전 (앱의 회차 번호 정렬도 이 순서)
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
-        super.fetchChapterList(manga).map { ChapterOrder.sort(it) }
+        super.fetchChapterList(manga).map { ChapterOrder.sort(it, manga.title) }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val doc = response.asDoc()
