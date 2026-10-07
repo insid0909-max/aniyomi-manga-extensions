@@ -293,6 +293,10 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         timeZone = TimeZone.getTimeZone("Asia/Seoul")
     }
 
+    // 회차 순서: 본편 → 번외 → 외전 (앱의 회차 번호 정렬도 이 순서)
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
+        super.fetchChapterList(manga).map { ChapterOrder.sort(it) }
+
     override fun chapterListParse(response: Response): List<SChapter> {
         val first = response.asDoc()
         val detailPath = pathOf(first.location())
