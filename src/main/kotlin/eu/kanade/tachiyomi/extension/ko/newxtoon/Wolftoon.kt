@@ -27,11 +27,11 @@ import java.util.TimeZone
 import rx.Observable
 
 /** 늑대닷컴 (wfwf###.com) - 페이지가 euc-kr 이라 직접 CP949 로 풀고, 검색어·장르도 CP949 로 보냄 */
-class Wolftoon : HttpSource(), ConfigurableSource {
+class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableSource {
 
-    override val name = "늑대닷컴 웹툰"
+    override val name = if (comic) "늑대닷컴 만화" else "늑대닷컴 웹툰"
 
-    override val id: Long = uniqueSourceId("newxtoon.wolftoon/ko/1")
+    override val id: Long = uniqueSourceId(if (comic) "newxtoon.wolftoon/ko/2" else BASE_KEY)
     override val lang = "ko"
     override val supportsLatest = true
 
@@ -39,7 +39,7 @@ class Wolftoon : HttpSource(), ConfigurableSource {
         Class.forName("android.app.ActivityThread")
             .getMethod("currentApplication").invoke(null) as Application
     }
-    private val sp: SharedPreferences by lazy { app.getSharedPreferences("source_$id", 0) }
+    private val sp: SharedPreferences by lazy { app.getSharedPreferences("source_${uniqueSourceId(BASE_KEY)}", 0) }
 
     private val userAgent: String
         get() {
@@ -165,6 +165,8 @@ class Wolftoon : HttpSource(), ConfigurableSource {
         super.headersBuilder().set("User-Agent", userAgent).set("Referer", "$baseUrl/")
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        // 만화 소스는 웹툰 소스와 설정을 같이 씀 (설정 화면은 웹툰 소스에만)
+        if (comic) return
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
             title = "도메인 주소"
@@ -209,12 +211,14 @@ class Wolftoon : HttpSource(), ConfigurableSource {
         return GET(url, headers)
     }
 
-    override fun popularMangaRequest(page: Int) = listReq("/ing", page, mapOf("o" to "f"))
-    override fun latestUpdatesRequest(page: Int) = listReq("/ing", page, mapOf("o" to "n"))
+    private val homePath get() = if (comic) "/cm" else "/ing"
+
+    override fun popularMangaRequest(page: Int) = listReq(homePath, page, mapOf("o" to "f"))
+    override fun latestUpdatesRequest(page: Int) = listReq(homePath, page, mapOf("o" to "n"))
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (query.isNotBlank()) return listReq("/sh", page, mapOf("q" to query.trim()))
-        var path = "/ing"
+        var path = homePath
         val params = LinkedHashMap<String, String>()
         filters.forEach { f ->
             when (f) {
@@ -386,16 +390,24 @@ class Wolftoon : HttpSource(), ConfigurableSource {
         baseUrl,
         autoDomain(),
         tabRules.attach(
-            FilterList(
-                Filter.Header("검색어가 없을 때만 적용"),
-                Pick("목록", "list", LISTS),
-                Pick("정렬", "o", SORTS),
-                Pick("분류 (웹툰)", "t2", TYPES),
-                Pick("요일 (웹툰)", "t1", DAYS),
-                Pick("장르", "t3", GENRES),
-                Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
-                Text("장르 직접 입력", "t3"),
-            ),
+            if (comic) {
+                FilterList(
+                    Filter.Header("검색어가 없을 때만 적용"),
+                    Pick("정렬", "o", COMIC_SORTS),
+                    Pick("장르", "t3", COMIC_GENRES),
+                )
+            } else {
+                FilterList(
+                    Filter.Header("검색어가 없을 때만 적용"),
+                    Pick("목록", "list", LISTS),
+                    Pick("정렬", "o", SORTS),
+                    Pick("분류 (웹툰)", "t2", TYPES),
+                    Pick("요일 (웹툰)", "t1", DAYS),
+                    Pick("장르", "t3", GENRES),
+                    Filter.Header("만화책 장르는 아래에 직접 입력 (예: 이세계, 러브코미디)"),
+                    Text("장르 직접 입력", "t3"),
+                )
+            },
         ),
     )
 
@@ -432,6 +444,20 @@ class Wolftoon : HttpSource(), ConfigurableSource {
             } ?: Charsets.UTF_8
 
         private val LISTS = listOf("연재" to "/ing", "완결" to "/end", "만화책" to "/cm")
+        private const val BASE_KEY = "newxtoon.wolftoon/ko/1"
+
+        /** 만화책(/cm) 목록: 정렬은 최신·인기만, 장르(t3)는 사이트 만화책 분류 그대로 */
+        private val COMIC_SORTS = listOf("최신순" to "n", "인기순" to "f")
+        private val COMIC_GENRES = listOf(
+            "전체" to "", "액션" to "액션", "판타지" to "판타지", "로맨스" to "로맨스", "드라마" to "드라마",
+            "이세계" to "이세계", "전생" to "전생", "무협" to "무협", "일상" to "일상", "일상+치유" to "일상 치유",
+            "순정" to "순정", "러브코미디" to "러브코미디", "개그" to "개그", "학원" to "학원", "스포츠" to "스포츠",
+            "미스터리" to "미스터리", "추리" to "추리", "스릴러" to "스릴러", "공포" to "공포", "호러" to "호러",
+            "도박" to "도박", "역사" to "역사", "시대" to "시대", "게임" to "게임", "SF" to "sf", "요리" to "요리",
+            "먹방" to "먹방", "음악" to "음악", "라노벨" to "라노벨", "애니화" to "애니화", "BL" to "bl",
+            "백합" to "백합", "성인" to "성인", "붕탁" to "붕탁", "TS" to "ts", "여장" to "여장", "17" to "17",
+        )
+
         private val SORTS = listOf("최신순" to "n", "인기순" to "f", "신작순" to "r")
         private val TYPES = listOf("전체" to "", "일반" to "1", "BL" to "2", "성인" to "3")
         private val DAYS = listOf(
