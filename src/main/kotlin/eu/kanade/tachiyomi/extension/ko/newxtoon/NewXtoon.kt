@@ -634,6 +634,7 @@ class NewXtoonFactory : SourceFactory {
         }
         try {
             list.add(Wolftoon())
+            list.add(Wolftoon(comic = true))
         } catch (e: Throwable) {
             list.add(ErrorSource("늑대닷컴 오류", e))
         }
