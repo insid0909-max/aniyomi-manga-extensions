@@ -1,6 +1,6 @@
 const mangayomiSources = [{
-    "id": 870214006,
-    "name": "늑대닷컴 웹툰",
+    "id": 870214010,
+    "name": "늑대닷컴 만화",
     "lang": "ko",
     "baseUrl": "https://wfwf510.com",
     "apiUrl": "",
@@ -9,16 +9,16 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.7",
+    "version": "0.1.0",
     "dateFormat": "",
     "dateFormatLocale": "",
-    "pkgPath": "wolftoon.js"
+    "pkgPath": "wolftoon_comic.js"
 }];
 
 const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
 // true 이면 만화책(/cm) 전용 소스 (wolftoon_comic.js 는 이 값만 다름)
-const COMIC = false;
+const COMIC = true;
 const HOME_PATH = COMIC ? "/cm" : "/ing";
 const COMIC_GENRES = [["전체", ""], ["액션", "액션"], ["판타지", "판타지"], ["로맨스", "로맨스"], ["드라마", "드라마"], ["이세계", "이세계"], ["전생", "전생"], ["무협", "무협"], ["일상", "일상"], ["일상+치유", "일상 치유"], ["순정", "순정"], ["러브코미디", "러브코미디"], ["개그", "개그"], ["학원", "학원"], ["스포츠", "스포츠"], ["미스터리", "미스터리"], ["추리", "추리"], ["스릴러", "스릴러"], ["공포", "공포"], ["호러", "호러"], ["도박", "도박"], ["역사", "역사"], ["시대", "시대"], ["게임", "게임"], ["SF", "sf"], ["요리", "요리"], ["먹방", "먹방"], ["음악", "음악"], ["라노벨", "라노벨"], ["애니화", "애니화"], ["BL", "bl"], ["백합", "백합"], ["성인", "성인"], ["붕탁", "붕탁"], ["TS", "ts"], ["여장", "여장"], ["17", "17"]];
 const AUTO_HOST = /^wfwf\d+\.com$/;
