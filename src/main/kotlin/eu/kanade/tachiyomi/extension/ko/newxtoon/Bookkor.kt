@@ -269,7 +269,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         if (keyword.isNotEmpty()) q.add("keyword=" + seg(keyword))
         genres.forEachIndexed { i, g -> q.add("genres%5B$i%5D=" + seg(g)) }
         if (status.isNotEmpty()) q.add("status=" + seg(status))
-        if (sort == "asc") q.add("sort=asc")
+        if (sort.isNotEmpty() && sort != "latest") q.add("sort=" + seg(sort))
         if (page > 1) q.add("page=$page")
         return "$baseUrl/" + (if (menu.isEmpty()) "" else seg(menu)) + if (q.isEmpty()) "" else "?" + q.joinToString("&")
     }
@@ -299,13 +299,13 @@ class Bookkor : HttpSource(), ConfigurableSource {
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/", headers)
     override fun popularMangaParse(response: Response) = parseComics(response.props())
 
-    override fun latestUpdatesRequest(page: Int) = GET(listUrl("", page, "", emptyList(), "", "desc"), headers)
+    override fun latestUpdatesRequest(page: Int) = GET(listUrl("", page, "", emptyList(), "", "latest"), headers)
     override fun latestUpdatesParse(response: Response) = parseComics(response.props())
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         var menu = ""
         var status = ""
-        var sort = "desc"
+        var sort = "latest"
         val genres = mutableListOf<String>()
         filters.forEach { f ->
             when (f) {
@@ -583,8 +583,10 @@ class Bookkor : HttpSource(), ConfigurableSource {
             "완결소설" to "완결소설",
         )
         private val STATUSES = listOf("전체" to "", "연재중" to "연재중", "완결" to "완결")
-        private val SORTS = listOf("최근 업데이트순" to "desc", "오래된순" to "asc")
-        private val GENRES = listOf("판타지", "무협", "현대", "로맨스", "로맨스 판타지", "라노벨", "19금", "BL", "기타")
+        private val SORTS = listOf("최신" to "latest", "북마크" to "bookmark", "조회수" to "views", "평점" to "rating")
+        private val GENRES = listOf(
+            "판타지", "무협", "19금", "현대", "로맨스", "로맨스 판타지", "BL", "라노벨", "드라마", "기타",
+        )
         private val FONT_SIZES = listOf(
             "아주 작게" to "32", "작게" to "38", "보통" to "44", "조금 크게" to "50",
             "크게" to "56", "아주 크게" to "64", "최대" to "74",
