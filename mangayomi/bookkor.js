@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.2",
+    "version": "0.1.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -21,9 +21,9 @@ const AUTO_HOST = /^\d+\.bookkor\.com$/;
 const AUTO_NUM = /\/\/(\d+)\.bookkor/;
 
 const LISTS = [["전체 (아래 장르·상태·정렬 적용)", ""], ["일반소설", "일반소설"], ["성인소설", "성인소설"], ["BL/GL", "BLGL"], ["완결소설", "완결소설"]];
-const GENRES = ["판타지", "무협", "현대", "로맨스", "로맨스 판타지", "라노벨", "19금", "BL", "기타"];
+const GENRES = ["판타지", "무협", "19금", "현대", "로맨스", "로맨스 판타지", "BL", "라노벨", "드라마", "기타"];
 const STATUSES = [["전체", ""], ["연재중", "연재중"], ["완결", "완결"]];
-const SORTS = [["최근 업데이트순", "desc"], ["오래된순", "asc"]];
+const SORTS = [["최신", "latest"], ["북마크", "bookmark"], ["조회수", "views"], ["평점", "rating"]];
 
 // 북코 (###.bookkor.com) - Laravel + Inertia 사이트라 페이지마다 <script data-page="app"> 에 화면 데이터(JSON)가 통째로 들어 있음.
 // 목록·작품·회차 목록·본문 모두 이 JSON 에서 읽는다.
@@ -187,7 +187,7 @@ class DefaultExtension extends MProvider {
         if (params.keyword) parts.push(`keyword=${encodeURIComponent(params.keyword)}`);
         (params.genres || []).forEach((g, i) => parts.push(`genres%5B${i}%5D=${encodeURIComponent(g)}`));
         if (params.status) parts.push(`status=${encodeURIComponent(params.status)}`);
-        if (params.sort && params.sort !== "desc") parts.push(`sort=${params.sort}`);
+        if (params.sort && params.sort !== "latest") parts.push(`sort=${params.sort}`);
         if (page > 1) parts.push(`page=${page}`);
         return this.base + "/" + (menu ? this.seg(menu) : "") + (parts.length ? "?" + parts.join("&") : "");
     }
