@@ -59,6 +59,7 @@ internal object UrlOpen {
 
 /**
  * 회차 순서 정리: 이름에서 숫자 앞부분(작품 제목은 빼고)이 같은 것끼리 묶어서 번호순으로 놓음.
+ * - 단위가 다르면 다른 묶음 ("원피스 1화" 와 "원피스 1권"), 단 번호가 본편과 안 겹치면 본편 ("12화" 와 "13")
  * - "(ONE PIECE)원피스 775화" 와 "1194화" 처럼 제목만 다른 것은 같은 묶음 (작품 제목 단어를 지우고 비교)
  * - 앞부분이 다른 앞부분으로 끝나면 같은 묶음 ("스핀오프 - 식극의 상디 3화" 와 "식극의 상디 2-1화")
  * - 회차가 가장 많은 묶음이 본편 → 맨 앞 (번호 그대로: "N화"/"N권"/"N호", "6-1화"는 6.01, "1.5화"는 1.5)
@@ -73,7 +74,9 @@ internal object ChapterOrder {
     private val WORD = Regex("""[\p{L}\p{N}]+""")
     private const val PROLOGUE_KEY = "\u0000prologue"
 
-    private class Key(var prefix: String, val num: Double, val index: Int)
+    private class Key(var prefix: String, val unit: String, val num: Double, val index: Int) {
+        var group = ""
+    }
 
     private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
@@ -87,16 +90,29 @@ internal object ChapterOrder {
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords) }
         mergePrefixes(keys)
-        val numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.prefix }
+        // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
+        keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }
+        var numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.group }
         val main = numbered.entries
             .filter { !isExtra(it.key) }
             .maxWithOrNull(compareBy<Map.Entry<String, List<Key>>>({ it.value.size }, { -it.value.minOf { k -> k.index } }))
             ?.key
+        // 앞부분이 같고 번호가 본편과 안 겹치면 단위만 빠진 본편 ("12화" 와 "13") → 본편에 합침
+        if (main != null) {
+            val mainPrefix = numbered.getValue(main).first().prefix
+            val mainNums = numbered.getValue(main).map { it.num }.toHashSet()
+            numbered.forEach { (g, ks) ->
+                if (g != main && ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) {
+                    ks.forEach { it.group = main }
+                }
+            }
+            numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.group }
+        }
         val firstSeen = numbered.mapValues { e -> e.value.minOf { it.index } }
         fun rank(k: Key): Int = when {
             k.prefix == PROLOGUE_KEY -> -1
             k.num < 0 -> 1
-            k.prefix == main -> 0
+            k.group == main -> 0
             k.prefix.contains("번외") -> 3
             k.prefix.contains("외전") -> 4
             else -> 2
@@ -104,12 +120,12 @@ internal object ChapterOrder {
         val sorted = list.indices.sortedWith(
             compareBy<Int>(
                 { rank(keys[it]) },
-                { if (rank(keys[it]) in 2..4) firstSeen[keys[it].prefix] ?: 0 else 0 },
+                { if (rank(keys[it]) in 2..4) firstSeen[keys[it].group] ?: 0 else 0 },
                 { keys[it].num },
                 { keys[it].index },
             ),
         )
-        val base = keys.filter { it.prefix == main && it.num >= 0 }.maxOfOrNull { it.num } ?: 0.0
+        val base = keys.filter { it.group == main && it.num >= 0 }.maxOfOrNull { it.num } ?: 0.0
         var extra = 0
         sorted.forEach { i ->
             val k = keys[i]
@@ -140,7 +156,7 @@ internal object ChapterOrder {
         val name = rawName.trim()
         val m = UNIT_NUM.find(name) ?: ANY_NUM.find(name)
         if (m == null) {
-            return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, 0.0, index) else Key("", -1.0, index)
+            return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
         }
         val whole = m.groupValues[1].toDouble()
         val sub = m.groupValues[3]
@@ -152,6 +168,6 @@ internal object ChapterOrder {
         }
         var prefix = norm(name.substring(0, m.range.first))
         titleWords.forEach { prefix = prefix.replace(it, "") }
-        return Key(prefix, num, index)
+        return Key(prefix, m.groupValues.getOrNull(4).orEmpty(), num, index)
     }
 }
