@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214006,
     "name": "늑대닷컴 웹툰",
     "lang": "ko",
-    "baseUrl": "https://wfwf510.com",
+    "baseUrl": "https://wfwf512.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.12",
+    "version": "0.1.13",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -156,7 +156,10 @@ class DefaultExtension extends MProvider {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get("domain"));
             if (manual && manual !== this.source.baseUrl) return manual;
-            return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+            // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
+            const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
+            const n = (u) => parseInt((String(u).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+            return auto && n(auto) >= n(this.source.baseUrl) ? auto : this.source.baseUrl;
         } catch (e) {
             return this.source.baseUrl;
         }
@@ -180,6 +183,27 @@ class DefaultExtension extends MProvider {
         let error = null;
         try {
             const res = await this.client.get(url, headers || {});
+            if (ours && res.statusCode === 200) {
+                // 옛 주소가 끊기지 않고 "접속 주소 안내" 페이지(새 주소 링크만 있는 작은 페이지)를 보여 주는 경우
+                const body = String(res.body || "");
+                const cur = parseInt((base.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+                const nums = (body.match(/wfwf\d+\.com/g) || []).map((x) => parseInt(x.match(/\d+/)[0], 10)).filter((x) => x > cur);
+                if (nums.length && body.length < 30000 && body.indexOf("t-card") < 0 && body.indexOf("ep-item") < 0) {
+                    const next = `https://wfwf${Math.max(...nums)}.com`;
+                    let found = null;
+                    try {
+                        const r = await this.client.get(next + "/", { "User-Agent": MOBILE_UA });
+                        if (r.statusCode === 200 && String(r.body || "").indexOf("t-card") >= 0) found = next;
+                    } catch (e) {}
+                    found = found || await this.discover(base);
+                    if (found) {
+                        new SharedPreferences().setString("auto_domain", found);
+                        const h = {};
+                        for (const k in headers || {}) h[k] = String(headers[k]).split(base).join(found);
+                        return await this.client.get(found + url.substring(base.length), h);
+                    }
+                }
+            }
             if (!ours || !(res.statusCode >= 500)) return res;
             failed = res;
         } catch (e) {
