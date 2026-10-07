@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -205,7 +205,7 @@ class DefaultExtension extends MProvider {
             const name = (a.selectFirst("h3")?.text || item.attr("alt") || "").trim();
             if (!name) continue;
             const img = item.selectFirst(".section-item-photo img");
-            list.push({ name, imageUrl: img ? this.abs(img.attr("src")) : "", link });
+            list.push({ name, imageUrl: this.imgUrl(img), link });
         }
         // 다음 쪽: 지금 쪽보다 큰 wpage 링크가 있으면
         let maxPg = 0;
@@ -240,6 +240,14 @@ class DefaultExtension extends MProvider {
     }
 
     // ---------- 상세 + 회차 (최신순, 한 페이지) ----------
+    // 늦게 불러오는 카드는 src 가 빈 그림(data:)이고 진짜 주소는 data-src 에 있음
+    imgUrl(img) {
+        if (!img) return "";
+        const raw = [img.attr("data-src"), img.attr("data-original"), img.attr("src")]
+            .map((x) => (x || "").trim()).find((x) => x && !x.startsWith("data:"));
+        return raw ? this.abs(raw) : "";
+    }
+
     async getDetail(url) {
         const detailPath = this.path(url);
         const doc = new Document(await this.get(this.url(detailPath)));
@@ -278,7 +286,7 @@ class DefaultExtension extends MProvider {
         const total = field("총편수");
         return {
             name: (doc.selectFirst("td.bt_title")?.text || "").trim(),
-            imageUrl: img ? this.abs(img.attr("src")) : "",
+            imageUrl: this.imgUrl(img),
             author: field("작가"),
             description: [over, total].filter((x) => x).join("\n\n"),
             genre: field("장르").split("/").map((g) => g.trim()).filter((g) => g),
