@@ -154,7 +154,8 @@
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
   "mangayomi/bookkor.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
-  "mangayomi/toonkor.js"
+  "mangayomi/toonkor.js",
+  "mangayomi/wolftoon_comic.js"
  ],
  "indexFiles": [],
  "health": [
@@ -205,6 +206,12 @@
    "file": "mangayomi/toonkor.js",
    "depth": "pages",
    "key": "toonkor"
+  },
+  {
+   "name": "늑대닷컴 만화 (망가요미)",
+   "file": "mangayomi/wolftoon_comic.js",
+   "depth": "pages",
+   "key": "wolftoon_comic"
   }
  ]
 }
