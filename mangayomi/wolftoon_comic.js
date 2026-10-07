@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.2",
+    "version": "0.1.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -64,7 +64,7 @@ async function openByUrl(ext, query, toLink) {
 
 // 회차 순서: 이름 앞부분(작품명·"매거진"·"특별편"·"스핀오프 …" 등)이 같은 것끼리 묶어 번호순으로 놓음 (결과는 최신 → 과거)
 // 회차가 가장 많은 묶음이 본편 → 맨 앞, 그다음 번호 없는 특별편(후기 등), 다른 묶음(처음 올라온 순), 번외, 외전
-// "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편, 프롤로그는 맨 앞
+// 앞부분이 다른 앞부분으로 끝나면 같은 묶음 ("스핀오프 - 식극의 상디" = "식극의 상디"), "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편, 프롤로그는 맨 앞
 function orderChapters(list) {
     if (!list || list.length < 2) return list;
     const PRO = "\u0000prologue";
@@ -78,6 +78,17 @@ function orderChapters(list) {
         const prefix = name.substring(0, m.index).replace(/[\s\-–—:.,·\[\](){}제第#]+$/, "").trim();
         return { prefix, num, index };
     });
+    const norm = (p) => p.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
+    // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈 ("스핀오프 - 식극의 상디" = "식극의 상디"), 번외·외전끼리만 따로
+    const prefixes = [...new Set(keys.map((k) => k.prefix))].filter((p) => p !== PRO && norm(p).length >= 2)
+        .sort((a, b) => norm(a).length - norm(b).length);
+    const canon = {};
+    prefixes.forEach((p, i) => {
+        const q = prefixes.slice(0, i).find((x) => norm(x).length < norm(p).length && norm(p).endsWith(norm(x)) && isExtra(x) === isExtra(p));
+        canon[p] = q ? (canon[q] || q) : p;
+    });
+    keys.forEach((k) => { if (canon[k.prefix]) k.prefix = canon[k.prefix]; });
     const groups = {};
     keys.forEach((k) => {
         if (k.num < 0 || k.prefix === PRO) return;
@@ -85,7 +96,6 @@ function orderChapters(list) {
         g.count++;
         g.first = Math.min(g.first, k.index);
     });
-    const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
     let main = null;
     for (const p of Object.keys(groups)) {
         if (isExtra(p)) continue;
