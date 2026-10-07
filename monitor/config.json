@@ -119,6 +119,23 @@
     30
    ],
    "key": "bookkor"
+  },
+  {
+   "name": "툰코",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+    "regex": "DEFAULT = \"(https://toonkor\\d+\\.org)\""
+   },
+   "pattern": "^https://toonkor(\\d+)\\.org$",
+   "format": "https://toonkor{n}.org",
+   "pad": 0,
+   "probe": "/",
+   "marker": "툰코",
+   "range": [
+    -1,
+    30
+   ],
+   "key": "toonkor"
   }
  ],
  "replaceIn": [
@@ -135,7 +152,9 @@
   "mangayomi/toon11.js",
   "mangayomi/wolftoon.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
-  "mangayomi/bookkor.js"
+  "mangayomi/bookkor.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+  "mangayomi/toonkor.js"
  ],
  "indexFiles": [],
  "health": [
@@ -180,6 +199,12 @@
    "file": "mangayomi/bookkor.js",
    "depth": "text",
    "key": "bookkor"
+  },
+  {
+   "name": "툰코 (망가요미)",
+   "file": "mangayomi/toonkor.js",
+   "depth": "pages",
+   "key": "toonkor"
   }
  ]
 }
