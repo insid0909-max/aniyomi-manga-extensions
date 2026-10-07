@@ -80,7 +80,7 @@ class NewXtoon(
             } catch (e: Throwable) {
                 ""
             }
-            return if (DOMAIN_REGEX.matches(v)) v else DEFAULT_BASE_URL
+            return if (DOMAIN_REGEX.matches(v)) DomainGuard.preferDefault(v, DEFAULT_BASE_URL) else DEFAULT_BASE_URL
         }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -115,6 +115,7 @@ class NewXtoon(
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
+        .addInterceptor(NoticeFollow(HOST_REGEX, "/comics/"))
         .build()
 
     private fun autoDomain(): Boolean = try {

@@ -65,7 +65,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             } catch (e: Throwable) {
                 ""
             }
-            return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
+            return if (Regex("^https?://[^\\s/]+$").matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
         }
 
     private fun autoDomain(): Boolean = try {
@@ -86,6 +86,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
+        .addInterceptor(NoticeFollow(HOST_REGEX, "/manga/gt-"))
         .build()
 
     private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
@@ -156,7 +157,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
                                 val fh = res.request.url.host
                                 if (!HOST_REGEX.matches(fh)) return@use null
                                 val ok = res.code == 200 &&
-                                    (res.body?.string() ?: "").contains("GoodToon", ignoreCase = true)
+                                    (res.body?.string() ?: "").contains("/manga/gt-")
                                 if (ok) fh else null
                             }
                         } catch (e: Exception) {

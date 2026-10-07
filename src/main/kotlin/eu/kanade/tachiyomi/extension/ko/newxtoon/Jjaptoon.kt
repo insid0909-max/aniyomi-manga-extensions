@@ -69,7 +69,7 @@ class Jjaptoon : HttpSource(), ConfigurableSource {
             } catch (e: Throwable) {
                 ""
             }
-            return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
+            return if (Regex("^https?://[^\\s/]+$").matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
         }
 
     private fun autoDomain(): Boolean = try {
@@ -90,6 +90,7 @@ class Jjaptoon : HttpSource(), ConfigurableSource {
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
+        .addInterceptor(NoticeFollow(HOST_REGEX, "/comics/"))
         .build()
 
     private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
@@ -168,7 +169,7 @@ class Jjaptoon : HttpSource(), ConfigurableSource {
                 .map { host ->
                     pool.submit<String?> {
                         val hit = fetch("https://$host/") ?: return@submit null
-                        if (HOST_REGEX.matches(hit.first) && hit.second.contains("짭툰")) hit.first else null
+                        if (HOST_REGEX.matches(hit.first) && hit.second.contains("/comics/")) hit.first else null
                     }
                 }
             futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
