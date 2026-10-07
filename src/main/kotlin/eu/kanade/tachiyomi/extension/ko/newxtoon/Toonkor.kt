@@ -233,6 +233,11 @@ class Toonkor : HttpSource(), ConfigurableSource {
     override fun searchMangaParse(response: Response) = parseList(response)
 
     /** 목록·검색 공통 카드 (.section-item-inner) */
+    /** 그림 주소: 늦게 불러오는 카드는 src 가 빈 그림(data:)이고 진짜 주소는 data-src 에 있음 */
+    private fun imgUrl(img: org.jsoup.nodes.Element): String? =
+        listOf("data-src", "data-original", "src").map { img.absUrl(it) }
+            .firstOrNull { it.isNotEmpty() && !it.startsWith("data:") }
+
     private fun parseList(response: Response): MangasPage {
         val doc = response.asDoc()
         val seen = HashSet<String>()
@@ -243,7 +248,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
             SManga.create().apply {
                 url = path
                 title = a.selectFirst("h3")?.text()?.trim()?.ifEmpty { null } ?: item.attr("alt").trim()
-                thumbnail_url = item.selectFirst(".section-item-photo img")?.absUrl("src")?.ifEmpty { null }
+                thumbnail_url = item.selectFirst(".section-item-photo img")?.let(::imgUrl)
                 description = item.selectFirst(".toon-summary")?.text()?.trim()?.ifEmpty { null }
                 genre = item.selectFirst(".toon_gen")?.text()?.trim()?.replace("/", ", ")?.ifEmpty { null }
             }
@@ -266,7 +271,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
         val latest = d.selectFirst("td.episode__index")?.text()?.trim()?.let(::dateOf) ?: 0L
         return SManga.create().apply {
             title = d.selectFirst("td.bt_title")?.text()?.trim().orEmpty()
-            thumbnail_url = d.selectFirst("td.bt_thumb img")?.absUrl("src")?.ifEmpty { null }
+            thumbnail_url = d.selectFirst("td.bt_thumb img")?.let(::imgUrl)
                 ?: d.selectFirst("meta[property=og:image]")?.attr("content")
             author = field("작가")
             genre = field("장르")?.replace("/", ", ")
