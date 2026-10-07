@@ -69,7 +69,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
             } catch (e: Throwable) {
                 ""
             }
-            return if (DOMAIN_REGEX.matches(v)) v else DEFAULT
+            return if (DOMAIN_REGEX.matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
         }
 
     private fun autoDomain(): Boolean = try {
@@ -90,6 +90,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> domainIntercept(chain) }
+        .addInterceptor(NoticeFollow(HOST_REGEX, "section-item"))
         .build()
 
     private fun domainIntercept(chain: okhttp3.Interceptor.Chain): Response {
@@ -153,7 +154,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
                             plain.newCall(r).execute().use { res ->
                                 val fh = res.request.url.host
                                 if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
-                                if (res.peekBody(300_000).string().contains(SITE_MARKER)) fh else null
+                                if (res.peekBody(300_000).string().contains("section-item")) fh else null
                             }
                         } catch (e: Exception) {
                             null
@@ -413,7 +414,6 @@ class Toonkor : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private const val DEFAULT = "https://toonkor2.org"
-        private const val SITE_MARKER = "툰코"
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
