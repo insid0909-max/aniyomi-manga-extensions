@@ -62,6 +62,7 @@ internal object UrlOpen {
  * - 회차가 가장 많은 묶음이 본편 → 맨 앞 (번호 그대로: "N화"/"N권"/"N호", "6-1화"는 6.01)
  * - 그다음 번호 없는 특별편(후기 등), 다른 묶음들(처음 올라온 순서), 번외 묶음, 외전 묶음 순
  * - 본편 뒤 회차 번호는 본편 마지막 번호 + 0.001씩 (앱의 "회차 번호 기준" 정렬도 이 순서, 추적 사이트 회차 수도 크게 안 튐)
+ * 앞부분이 다른 앞부분으로 끝나면 같은 묶음 ("스핀오프 - 식극의 상디 3화" 와 "식극의 상디 2-1화").
  * "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편. 같은 번호끼리는 사이트 순서 유지. 결과는 최신 → 과거 순.
  */
 internal object ChapterOrder {
@@ -70,12 +71,28 @@ internal object ChapterOrder {
     private val PROLOGUE = Regex("""프롤로그|prologue""", RegexOption.IGNORE_CASE)
     private val TRIM = Regex("""[\s\-–—:.,·\[\](){}제第#]+$""")
 
-    private class Key(val prefix: String, val num: Double, val index: Int)
+    private class Key(var prefix: String, val num: Double, val index: Int)
+
+    /** 앞부분이 다른 앞부분으로 끝나면 같은 시리즈 ("스핀오프 - 식극의 상디" = "식극의 상디"). 번외·외전끼리만 따로 */
+    private fun mergePrefixes(keys: List<Key>) {
+        fun norm(p: String) = p.lowercase().filter { it.isLetterOrDigit() }
+        val prefixes = keys.map { it.prefix }.filter { norm(it).length >= 2 && it != PROLOGUE_KEY }
+            .distinct().sortedBy { norm(it).length }
+        val canon = HashMap<String, String>()
+        for ((i, p) in prefixes.withIndex()) {
+            val shorter = prefixes.subList(0, i).firstOrNull { q ->
+                norm(q).length < norm(p).length && norm(p).endsWith(norm(q)) && isExtra(p) == isExtra(q)
+            }
+            canon[p] = shorter?.let { canon[it] ?: it } ?: p
+        }
+        keys.forEach { k -> canon[k.prefix]?.let { k.prefix = it } }
+    }
 
     fun sort(list: List<SChapter>): List<SChapter> {
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i) }
+        mergePrefixes(keys)
         val numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.prefix }
         val main = numbered.entries
             .filter { !isExtra(it.key) }
