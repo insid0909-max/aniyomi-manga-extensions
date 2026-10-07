@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.1",
+    "version": "0.1.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -57,6 +57,30 @@ async function openByUrl(ext, query, toLink) {
     if (!link) return null;
     const d = await ext.getDetail(link);
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
+}
+
+// 회차 순서: 본편(1화 ~ 끝) → 번외 → 외전. 사이트 순번이 섞여 있어도 이름으로 정리 (결과는 최신 → 과거)
+// "153화 외전 …" 처럼 화 번호로 시작하면 본편, 번호 없는 특별편은 본편 끝 뒤, 프롤로그는 맨 앞
+function orderChapters(list) {
+    if (!list || list.length < 2) return list;
+    const keys = list.map((c, i) => {
+        const name = String(c.name || "").trim();
+        const index = list.length - 1 - i;
+        const ep = /(\d+(?:\.\d+)?)\s*화/.exec(name);
+        const extra = /(번외|외전)\s*(?:편)?\s*(\d+)?/.exec(name);
+        if (extra && (!ep || extra.index < ep.index)) {
+            const rest = /\d+(?:\.\d+)?/.exec(name.substring(extra.index + extra[0].length));
+            const n = extra[2] ? parseFloat(extra[2]) : rest ? parseFloat(rest[0]) : index;
+            return { group: extra[1] === "번외" ? 2 : 3, num: n, index };
+        }
+        const any = /\d+(?:\.\d+)?/.exec(name);
+        if (ep || any) return { group: 0, num: parseFloat(ep ? ep[1] : any[0]), index };
+        if (/프롤로그|prologue/i.test(name)) return { group: 0, num: 0, index };
+        return { group: 1, num: index, index };
+    });
+    const order = list.map((_, i) => i).sort((a, b) =>
+        keys[a].group - keys[b].group || keys[a].num - keys[b].num || keys[a].index - keys[b].index);
+    return order.reverse().map((i) => list[i]);
 }
 
 class DefaultExtension extends MProvider {
@@ -292,7 +316,7 @@ class DefaultExtension extends MProvider {
             genre: field("장르").split("/").map((g) => g.trim()).filter((g) => g),
             status,
             link: this.url(detailPath),
-            chapters
+            chapters: orderChapters(chapters)
         };
     }
 

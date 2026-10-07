@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.ko.newxtoon
 
 import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -53,5 +54,61 @@ internal object UrlOpen {
             val title = runCatching { d.title }.getOrNull()
             MangasPage(if (title.isNullOrEmpty()) emptyList() else listOf(d), false)
         }
+    }
+}
+
+/**
+ * 회차 순서 정리: 본편(1화 ~ 끝) → 번외(1 ~ 끝) → 외전(1 ~ 끝).
+ * 사이트 순번 대신 회차 이름으로 번호를 매겨서 앱의 "회차 번호 기준" 정렬과 "소스 기준" 순서가 모두 이 순서가 되게 함.
+ * - 본편: 이름의 "N화" (없으면 첫 숫자) → N
+ * - 번호 없는 특별편(공지·후기 등): 본편 끝 바로 뒤, 프롤로그는 0
+ * - 번외 k: 본편 끝 + 0.1 + k/1000, 외전 k: 본편 끝 + 0.5 + k/1000 (추적 사이트의 회차 수가 크게 튀지 않게 소수로)
+ * 이름이 "153화 외전 …" 처럼 화 번호로 시작하면 본편으로 봄. 같은 번호끼리는 사이트 순서 유지. 결과는 최신 → 과거 순.
+ */
+internal object ChapterOrder {
+    private val EP_NUM = Regex("""(\d+(?:\.\d+)?)\s*화""")
+    private val ANY_NUM = Regex("""\d+(?:\.\d+)?""")
+    private val EXTRA = Regex("""(번외|외전)\s*(?:편)?\s*(\d+)?""")
+    private val PROLOGUE = Regex("""프롤로그|prologue""", RegexOption.IGNORE_CASE)
+
+    private class Key(val group: Int, val num: Double, val index: Int)
+
+    fun sort(list: List<SChapter>): List<SChapter> {
+        if (list.size < 2) return list
+        // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
+        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i) }
+        val mainMax = keys.filter { it.group == 0 }.maxOfOrNull { it.num } ?: 0.0
+        val base = kotlin.math.floor(mainMax)
+        val sorted = list.indices.sortedWith(
+            compareBy<Int>({ keys[it].group }, { keys[it].num }, { keys[it].index }),
+        )
+        var etc = 0
+        sorted.forEach { i ->
+            val k = keys[i]
+            list[i].chapter_number = when (k.group) {
+                0 -> k.num
+                1 -> base + (++etc) * 0.001
+                2 -> base + 0.1 + k.num * 0.001
+                else -> base + 0.5 + k.num * 0.001
+            }.toFloat()
+        }
+        return sorted.reversed().map { list[it] }
+    }
+
+    private fun keyOf(rawName: String, index: Int): Key {
+        val name = rawName.trim()
+        val ep = EP_NUM.find(name)
+        val extra = EXTRA.find(name)
+        if (extra != null && (ep == null || extra.range.first < ep.range.first)) {
+            val group = if (extra.groupValues[1] == "번외") 2 else 3
+            val n = extra.groupValues[2].toDoubleOrNull()
+                ?: ANY_NUM.find(name, extra.range.last + 1)?.value?.toDoubleOrNull()
+                ?: index.toDouble()
+            return Key(group, n, index)
+        }
+        val n = ep?.groupValues?.get(1)?.toDoubleOrNull() ?: ANY_NUM.find(name)?.value?.toDoubleOrNull()
+        if (n != null) return Key(0, n, index)
+        if (PROLOGUE.containsMatchIn(name)) return Key(0, 0.0, index)
+        return Key(1, index.toDouble(), index)
     }
 }
