@@ -584,7 +584,9 @@ class Bookkor : HttpSource(), ConfigurableSource {
         )
         private val STATUSES = listOf("전체" to "", "연재중" to "연재중", "완결" to "완결")
         private val SORTS = listOf("최신" to "latest", "북마크" to "bookmark", "조회수" to "views", "평점" to "rating")
-        private val GENRES = listOf("판타지", "무협", "19금", "현대", "로맨스", "로맨스 판타지", "BL", "라노벨", "드라마", "기타")
+        private val GENRES = listOf(
+            "판타지", "무협", "19금", "현대", "로맨스", "로맨스 판타지", "BL", "라노벨", "드라마", "기타",
+        )
         private val FONT_SIZES = listOf(
             "아주 작게" to "32", "작게" to "38", "보통" to "44", "조금 크게" to "50",
             "크게" to "56", "아주 크게" to "64", "최대" to "74",
