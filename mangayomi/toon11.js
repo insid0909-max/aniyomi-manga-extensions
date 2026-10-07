@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.5",
+    "version": "0.3.6",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -69,27 +69,43 @@ async function openByUrl(ext, query, toLink) {
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
 }
 
-// 회차 순서: 본편(1화 ~ 끝) → 번외 → 외전. 사이트 순번이 섞여 있어도 이름으로 정리 (결과는 최신 → 과거)
-// "153화 외전 …" 처럼 화 번호로 시작하면 본편, 번호 없는 특별편은 본편 끝 뒤, 프롤로그는 맨 앞
+// 회차 순서: 이름 앞부분(작품명·"매거진"·"특별편"·"스핀오프 …" 등)이 같은 것끼리 묶어 번호순으로 놓음 (결과는 최신 → 과거)
+// 회차가 가장 많은 묶음이 본편 → 맨 앞, 그다음 번호 없는 특별편(후기 등), 다른 묶음(처음 올라온 순), 번외, 외전
+// "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편, 프롤로그는 맨 앞
 function orderChapters(list) {
     if (!list || list.length < 2) return list;
+    const PRO = "\u0000prologue";
     const keys = list.map((c, i) => {
         const name = String(c.name || "").trim();
         const index = list.length - 1 - i;
-        const ep = /(\d+(?:\.\d+)?)\s*화/.exec(name);
-        const extra = /(번외|외전)\s*(?:편)?\s*(\d+)?/.exec(name);
-        if (extra && (!ep || extra.index < ep.index)) {
-            const rest = /\d+(?:\.\d+)?/.exec(name.substring(extra.index + extra[0].length));
-            const n = extra[2] ? parseFloat(extra[2]) : rest ? parseFloat(rest[0]) : index;
-            return { group: extra[1] === "번외" ? 2 : 3, num: n, index };
-        }
-        const any = /\d+(?:\.\d+)?/.exec(name);
-        if (ep || any) return { group: 0, num: parseFloat(ep ? ep[1] : any[0]), index };
-        if (/프롤로그|prologue/i.test(name)) return { group: 0, num: 0, index };
-        return { group: 1, num: index, index };
+        const m = /(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/.exec(name) || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
+        if (!m) return { prefix: /프롤로그|prologue/i.test(name) ? PRO : "", num: /프롤로그|prologue/i.test(name) ? 0 : -1, index };
+        let num = parseInt(m[1], 10);
+        if (m[3]) num = m[2] === "." ? parseFloat(`${m[1]}.${m[3]}`) : num + Math.min(parseInt(m[3], 10), 99) / 100;
+        const prefix = name.substring(0, m.index).replace(/[\s\-–—:.,·\[\](){}제第#]+$/, "").trim();
+        return { prefix, num, index };
     });
-    const order = list.map((_, i) => i).sort((a, b) =>
-        keys[a].group - keys[b].group || keys[a].num - keys[b].num || keys[a].index - keys[b].index);
+    const groups = {};
+    keys.forEach((k) => {
+        if (k.num < 0 || k.prefix === PRO) return;
+        const g = groups[k.prefix] || (groups[k.prefix] = { count: 0, first: k.index });
+        g.count++;
+        g.first = Math.min(g.first, k.index);
+    });
+    const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
+    let main = null;
+    for (const p of Object.keys(groups)) {
+        if (isExtra(p)) continue;
+        if (main === null || groups[p].count > groups[main].count ||
+            (groups[p].count === groups[main].count && groups[p].first < groups[main].first)) main = p;
+    }
+    const rank = (k) => k.prefix === PRO ? -1 : k.num < 0 ? 1 : k.prefix === main ? 0
+        : k.prefix.indexOf("번외") >= 0 ? 3 : k.prefix.indexOf("외전") >= 0 ? 4 : 2;
+    const firstOf = (k) => (rank(k) >= 2 ? groups[k.prefix].first : 0);
+    const order = list.map((_, i) => i).sort((a, b) => {
+        const x = keys[a], y = keys[b];
+        return rank(x) - rank(y) || firstOf(x) - firstOf(y) || x.num - y.num || x.index - y.index;
+    });
     return order.reverse().map((i) => list[i]);
 }
 
