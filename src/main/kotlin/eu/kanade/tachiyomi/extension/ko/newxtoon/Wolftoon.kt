@@ -64,7 +64,9 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             } catch (e: Throwable) {
                 ""
             }
-            return if (DOMAIN_REGEX.matches(v)) v else DEFAULT
+            if (!DOMAIN_REGEX.matches(v)) return DEFAULT
+            // 저장된 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
+            return if (hostNumber(v) in 1 until hostNumber(DEFAULT)) DEFAULT else v
         }
 
     private fun autoDomain(): Boolean = try {
@@ -112,7 +114,38 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
+        // 옛 주소가 끊기지 않고 "접속 주소 안내" 페이지(새 주소 링크만 있는 작은 페이지)를 보여 주는 경우
+        if (ours && req.method == "GET" && res.code == 200) {
+            val peek = try {
+                String(res.peekBody(NOTICE_MAX_BYTES).bytes(), Charsets.ISO_8859_1)
+            } catch (e: Exception) {
+                ""
+            }
+            val cur = hostNumber(baseHost!!)
+            val announced = Regex("""wfwf(\d+)\.com""").findAll(peek)
+                .mapNotNull { it.groupValues[1].toIntOrNull() }.filter { it > cur }.maxOrNull()
+            if (announced != null && peek.length < NOTICE_MAX_BYTES && !peek.contains("t-card") && !peek.contains("ep-item")) {
+                val found = if (isRealSite("wfwf$announced.com")) "wfwf$announced.com" else discoverDomain(baseHost)
+                if (found != null) {
+                    res.close()
+                    saveDomain("https://$found")
+                    return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+                }
+            }
+        }
         return res
+    }
+
+    /** 주소가 진짜 늑대닷컴 목록 페이지를 보여 주는지 (안내 페이지는 아님) */
+    private fun isRealSite(host: String): Boolean = try {
+        val r = Request.Builder().url("https://$host/").header("User-Agent", userAgent).build()
+        network.client.newBuilder().callTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+            .newCall(r).execute().use { res ->
+                HOST_REGEX.matches(res.request.url.host) && res.code == 200 &&
+                    res.body?.bytes()?.let { decode(it) }.orEmpty().contains("t-card")
+            }
+    } catch (e: Exception) {
+        false
     }
 
     private val discoverLock = Any()
@@ -148,7 +181,8 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
                                 val fh = res.request.url.host
                                 if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
                                 val body = res.body?.bytes()?.let { decode(it) }.orEmpty()
-                                if (body.contains("t-card") || body.contains("늑대")) fh else null
+                                // 안내 페이지("늑대닷컴 접속 주소 안내")는 제외하고 진짜 목록이 있는 주소만
+                                if (body.contains("t-card")) fh else null
                             }
                         } catch (e: Exception) {
                             null
@@ -165,32 +199,52 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         super.headersBuilder().set("User-Agent", userAgent).set("Referer", "$baseUrl/")
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        // 만화 소스는 웹툰 소스와 설정을 같이 씀 (설정 화면은 웹툰 소스에만)
-        if (comic) return
+        // 만화 소스 설정 화면에서 바꿔도 웹툰 소스와 같은 저장소(sp)에 써서 두 소스가 같이 씀
+        fun share(key: String, v: Any?) {
+            try {
+                when (v) {
+                    is String -> sp.edit().putString(key, v).apply()
+                    is Boolean -> sp.edit().putBoolean(key, v).apply()
+                }
+            } catch (e: Throwable) {
+                // 저장 실패는 무시
+            }
+        }
+        val same = if (comic) " (웹툰 소스와 같이 씀)" else ""
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
-            title = "도메인 주소"
-            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT)"
+            title = "도메인 주소$same"
+            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT)\n현재 주소: $baseUrl"
             dialogTitle = "도메인 주소"
-            setDefaultValue(DEFAULT)
+            setDefaultValue(if (comic) baseUrl else DEFAULT)
             setOnPreferenceChangeListener { _, v ->
-                DOMAIN_REGEX.matches((v as String).trim().trimEnd('/'))
+                val ok = DOMAIN_REGEX.matches((v as String).trim().trimEnd('/'))
+                if (ok && comic) share(KEY_DOMAIN, v.trim().trimEnd('/'))
+                ok
             }
         }.also(screen::addPreference)
 
         androidx.preference.SwitchPreferenceCompat(screen.context).apply {
             key = KEY_AUTO
-            title = "도메인 자동 찾기"
-            summary = "주소 번호가 바뀌어 접속이 안 되면 wfwf###.com 중 열리는 주소로 자동 변경"
-            setDefaultValue(true)
+            title = "도메인 자동 찾기$same"
+            summary = "주소가 바뀌어 접속이 안 되거나 옛 주소가 \"주소 안내\" 페이지만 보여 주면 wfwf###.com 중 열리는 주소로 자동 변경"
+            setDefaultValue(if (comic) autoDomain() else true)
+            setOnPreferenceChangeListener { _, v ->
+                if (comic) share(KEY_AUTO, v)
+                true
+            }
         }.also(screen::addPreference)
 
         EditTextPreference(screen.context).apply {
             key = KEY_UA
-            title = "User-Agent (고급)"
+            title = "User-Agent (고급)$same"
             summary = "비워두면 폰 WebView 기준으로 자동 설정. 변경 후 앱 재시작 필요"
             dialogTitle = "User-Agent"
             setDefaultValue("")
+            setOnPreferenceChangeListener { _, v ->
+                if (comic) share(KEY_UA, v)
+                true
+            }
         }.also(screen::addPreference)
     }
 
@@ -427,7 +481,8 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://wfwf510.com"
+        private const val DEFAULT = "https://wfwf512.com"
+        private const val NOTICE_MAX_BYTES = 30_000L
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
