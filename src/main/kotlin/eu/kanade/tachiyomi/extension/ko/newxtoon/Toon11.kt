@@ -70,7 +70,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             } catch (e: Throwable) {
                 ""
             }
-            return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
+            return if (Regex("^https?://[^\\s/]+$").matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
         }
 
     private fun autoDomain(): Boolean = try {
@@ -116,6 +116,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
+        .addInterceptor(NoticeFollow(HOST_REGEX, "content/info/"))
         .build()
 
     private fun smartIntercept(chain: okhttp3.Interceptor.Chain): Response {
