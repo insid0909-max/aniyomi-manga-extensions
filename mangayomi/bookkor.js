@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.3",
+    "version": "0.1.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -61,6 +61,36 @@ async function openByUrl(ext, query, toLink) {
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
 }
 
+// 옛 주소가 끊기지 않고 "접속 주소 안내" 페이지(새 주소 링크만 있는 작은 페이지)를 보여 주면,
+// 거기 적힌 더 큰 번호의 같은 사이트 주소 중 진짜 사이트(marker 가 보임)를 돌려줌
+async function noticeTarget(ext, body, base, marker) {
+    body = String(body || "");
+    if (!body || body.length >= 30000 || body.indexOf(marker) >= 0) return null;
+    const host = base.replace(/^https?:\/\//, "");
+    const h = host.replace(/^www\./, "");
+    const head = h.substring(0, h.lastIndexOf("."));
+    const m = /(\d+)(?!.*\d)/.exec(head);
+    if (!m) return null;
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?:www\\.)?${esc(head.substring(0, m.index))}\\d+${esc(head.substring(m.index + m[1].length))}\\.[a-z]{2,6}`, "gi");
+    const num = (s) => {
+        const x = /(\d+)(?!.*\d)/.exec(s.replace(/^www\./, "").replace(/\.[a-z]{2,6}$/i, ""));
+        return x ? parseInt(x[1], 10) : 0;
+    };
+    const cur = parseInt(m[1], 10);
+    const cands = [...new Set((body.match(re) || []).map((x) => x.toLowerCase()))]
+        .filter((x) => AUTO_HOST.test(x) && num(x) > cur).sort((a, b) => num(b) - num(a));
+    for (const c of cands) {
+        for (const hh of host.startsWith("www.") && !c.startsWith("www.") ? [c, "www." + c] : [c]) {
+            try {
+                const r = await ext.client.get(`https://${hh}/`, { "User-Agent": MOBILE_UA });
+                if (r.statusCode === 200 && String(r.body || "").indexOf(marker) >= 0) return `https://${hh}`;
+            } catch (e) {}
+        }
+    }
+    return null;
+}
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -78,7 +108,10 @@ class DefaultExtension extends MProvider {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get("domain"));
             if (manual && manual !== this.source.baseUrl) return manual;
-            return this.cleanUrl(prefs.getString("auto_domain", "")) || this.source.baseUrl;
+            // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
+            const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
+            const n = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
+            return auto && n(auto) >= n(this.source.baseUrl) ? auto : this.source.baseUrl;
         } catch (e) {
             return this.source.baseUrl;
         }
@@ -100,15 +133,18 @@ class DefaultExtension extends MProvider {
         const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
         let failed = null;
         let error = null;
+        let notice = null;
         try {
             const res = await this.client.get(url, headers || {});
-            if (!ours || !(res.statusCode >= 500)) return res;
+            if (ours && res.statusCode === 200) notice = await noticeTarget(this, res.body, base, "data-page=");
+            if (!notice && (!ours || !(res.statusCode >= 500))) return res;
             failed = res;
         } catch (e) {
             if (!ours) throw e;
             error = e;
         }
-        const found = await this.discover(base);
+        const found = notice || await this.discover(base);
+        if (notice) new SharedPreferences().setString("auto_domain", notice);
         if (!found) {
             if (error) throw error;
             return failed;
