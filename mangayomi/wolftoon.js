@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.7",
+    "version": "0.1.8",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -60,6 +60,30 @@ async function openByUrl(ext, query, toLink) {
     if (!link) return null;
     const d = await ext.getDetail(link);
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
+}
+
+// 회차 순서: 본편(1화 ~ 끝) → 번외 → 외전. 사이트 순번이 섞여 있어도 이름으로 정리 (결과는 최신 → 과거)
+// "153화 외전 …" 처럼 화 번호로 시작하면 본편, 번호 없는 특별편은 본편 끝 뒤, 프롤로그는 맨 앞
+function orderChapters(list) {
+    if (!list || list.length < 2) return list;
+    const keys = list.map((c, i) => {
+        const name = String(c.name || "").trim();
+        const index = list.length - 1 - i;
+        const ep = /(\d+(?:\.\d+)?)\s*화/.exec(name);
+        const extra = /(번외|외전)\s*(?:편)?\s*(\d+)?/.exec(name);
+        if (extra && (!ep || extra.index < ep.index)) {
+            const rest = /\d+(?:\.\d+)?/.exec(name.substring(extra.index + extra[0].length));
+            const n = extra[2] ? parseFloat(extra[2]) : rest ? parseFloat(rest[0]) : index;
+            return { group: extra[1] === "번외" ? 2 : 3, num: n, index };
+        }
+        const any = /\d+(?:\.\d+)?/.exec(name);
+        if (ep || any) return { group: 0, num: parseFloat(ep ? ep[1] : any[0]), index };
+        if (/프롤로그|prologue/i.test(name)) return { group: 0, num: 0, index };
+        return { group: 1, num: index, index };
+    });
+    const order = list.map((_, i) => i).sort((a, b) =>
+        keys[a].group - keys[b].group || keys[a].num - keys[b].num || keys[a].index - keys[b].index);
+    return order.reverse().map((i) => list[i]);
 }
 
 class DefaultExtension extends MProvider {
@@ -287,7 +311,7 @@ class DefaultExtension extends MProvider {
             // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨 (0 연재, 1 완결, 5 알 수 없음)
             status: { "/ing": 0, "/end": 1 }[(doc.selectFirst("a.nav-item.active")?.attr("href") || "").trim()] ?? 5,
             link: this.abs(detailPath),
-            chapters
+            chapters: orderChapters(chapters)
         };
     }
 
