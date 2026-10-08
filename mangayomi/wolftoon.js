@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.14",
+    "version": "0.1.15",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -137,6 +137,21 @@ function orderChapters(list, title) {
         if (rank(keys[i]) > 0) list[i] = Object.assign({}, list[i], { name: `${++next} · ${String(list[i].name || "").trim()}` });
     });
     return order.reverse().map((i) => list[i]);
+}
+
+// 회차 이름 끝에 위치와 남은 화 수를 붙임 ("51화 · 51/153 (남은 102)", 마지막 화는 "(마지막)"). list: 최신 → 과거
+// 읽는 화면 제목에도 보여서 몇 화 남았는지 알 수 있음. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+function chapterPosition(list) {
+    try {
+        const v = new SharedPreferences().get("chapter_position");
+        if (v === false || v === "false") return list;
+    } catch (e) {}
+    const total = list.length;
+    return list.map((c, i) => {
+        const pos = total - i;
+        const tail = pos === total ? " (마지막)" : ` (남은 ${total - pos})`;
+        return Object.assign({}, c, { name: `${String(c.name || "").trim()} · ${pos}/${total}${tail}` });
+    });
 }
 
 class DefaultExtension extends MProvider {
@@ -398,7 +413,7 @@ class DefaultExtension extends MProvider {
             // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨 (0 연재, 1 완결, 5 알 수 없음)
             status: { "/ing": 0, "/end": 1 }[(doc.selectFirst("a.nav-item.active")?.attr("href") || "").trim()] ?? 5,
             link: this.abs(detailPath),
-            chapters: orderChapters(chapters, (doc.selectFirst("h1.w-title")?.text || "").trim())
+            chapters: chapterPosition(orderChapters(chapters, (doc.selectFirst("h1.w-title")?.text || "").trim()))
         };
     }
 
@@ -564,6 +579,13 @@ class DefaultExtension extends MProvider {
 
     getSourcePreferences() {
         return [{
+            key: "chapter_position",
+            switchPreferenceCompat: {
+                title: "회차 이름에 남은 화 표시",
+                summary: "예: 51화 · 51/153 (남은 102). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
+                value: true
+            }
+        }, {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
