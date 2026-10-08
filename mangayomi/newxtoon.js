@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.17",
+    "version": "0.3.18",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -532,7 +532,7 @@ class DefaultExtension extends MProvider {
             if (u && urls.indexOf(u) < 0) urls.push(u);
         }
         if (!urls.length) throw new Error("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)");
-        return urls.map(u => ({ url: u, headers: { "Referer": this.base + "/" } }));
+        return urls.map(u => ({ url: u, headers: { "Referer": this.base + "/", "User-Agent": MOBILE_UA } }));
     }
 
     baseFilterList() {

@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.16",
+    "version": "0.3.17",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -705,7 +705,7 @@ class DefaultExtension extends MProvider {
             }
         }
         if (!urls.length) throw new Error("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)");
-        return urls.filter((u, i) => urls.indexOf(u) === i).map(u => ({ url: u, headers: { "Referer": pageUrl } }));
+        return urls.filter((u, i) => urls.indexOf(u) === i).map(u => ({ url: u, headers: { "Referer": pageUrl, "User-Agent": MOBILE_UA } }));
     }
 
     // ---------- 상태 표시 ----------
