@@ -269,7 +269,7 @@ internal class NoticeFollow(private val hostRegex: Regex, private val marker: St
 }
 
 /**
- * 회차 이름 끝에 위치와 남은 화 수를 붙임: "51화 · 51/153 (남은 102)", 마지막 화는 "(마지막)".
+ * 회차 이름 끝에 남은 화 수를 붙임: "51화 · 남은 102", 마지막 화는 "51화 · 마지막".
  * 읽는 화면 위쪽 제목에도 보여서 읽는 중에 몇 화 남았는지 알 수 있음. 설정에서 끌 수 있음
  * (다운로드한 회차는 이름으로 찾기 때문에, 새 화가 올라와 전체 수가 바뀌면 다운로드가 안 된 것처럼 보일 수 있음).
  */
@@ -282,12 +282,24 @@ internal object ChapterPosition {
         true
     }
 
-    /** list: 최신 → 과거 순서 */
-    fun label(list: List<SChapter>): List<SChapter> {
-        val total = list.size
-        list.forEachIndexed { i, c ->
-            val pos = total - i
-            c.name = c.name.trim() + " · $pos/$total" + if (pos == total) " (마지막)" else " (남은 ${total - pos})"
+    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+
+    /** 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목을 뺌 */
+    fun shorten(name: String, title: String): String {
+        var n = name.trim().replace(LEADING_SEQ, "")
+        val t = title.trim()
+        if (t.isNotEmpty() && n.startsWith(t)) {
+            val rest = n.substring(t.length).trimStart(' ', '-', '–', ':', '·', '.')
+            if (rest.isNotEmpty()) n = rest
+        }
+        return n
+    }
+
+    /** list: 최신 → 과거 순서. "112화 · 남은 26", 마지막 화는 "112화 · 마지막" */
+    fun label(list: List<SChapter>, title: String = ""): List<SChapter> {
+        // 최신 화부터라서 순서 번호가 곧 그 뒤에 남은 화 수
+        list.forEachIndexed { left, c ->
+            c.name = shorten(c.name, title) + if (left == 0) " · 마지막" else " · 남은 $left"
         }
         return list
     }
@@ -296,7 +308,7 @@ internal object ChapterPosition {
         SwitchPreferenceCompat(screen.context).apply {
             key = KEY
             title = "회차 이름에 남은 화 표시"
-            summary = "예: 51화 · 51/153 (남은 102). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)"
+            summary = "예: 51화 · 남은 102 (사이트 순번·작품 제목은 빼고 짧게). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)"
             setDefaultValue(true)
             if (onChange != null) {
                 setOnPreferenceChangeListener { _, v ->

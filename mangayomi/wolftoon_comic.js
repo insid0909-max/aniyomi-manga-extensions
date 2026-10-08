@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.9",
+    "version": "0.1.10",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -143,18 +143,21 @@ function orderChapters(list, title) {
     return order.reverse().map((i) => list[i]);
 }
 
-// 회차 이름 끝에 위치와 남은 화 수를 붙임 ("51화 · 51/153 (남은 102)", 마지막 화는 "(마지막)"). list: 최신 → 과거
-// 읽는 화면 제목에도 보여서 몇 화 남았는지 알 수 있음. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
-function chapterPosition(list) {
+// 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
+// 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+function chapterPosition(list, title) {
     try {
         const v = new SharedPreferences().get("chapter_position");
         if (v === false || v === "false") return list;
     } catch (e) {}
-    const total = list.length;
+    const t = String(title || "").trim();
     return list.map((c, i) => {
-        const pos = total - i;
-        const tail = pos === total ? " (마지막)" : ` (남은 ${total - pos})`;
-        return Object.assign({}, c, { name: `${String(c.name || "").trim()} · ${pos}/${total}${tail}` });
+        let n = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        if (t && n.startsWith(t)) {
+            const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
+            if (rest) n = rest;
+        }
+        return Object.assign({}, c, { name: n + (i === 0 ? " · 마지막" : ` · 남은 ${i}`) });
     });
 }
 
@@ -417,7 +420,7 @@ class DefaultExtension extends MProvider {
             // 상세 페이지 상단 메뉴에서 현재 칸(연재/완결)이 강조됨 (0 연재, 1 완결, 5 알 수 없음)
             status: { "/ing": 0, "/end": 1 }[(doc.selectFirst("a.nav-item.active")?.attr("href") || "").trim()] ?? 5,
             link: this.abs(detailPath),
-            chapters: chapterPosition(orderChapters(chapters, (doc.selectFirst("h1.w-title")?.text || "").trim()))
+            chapters: chapterPosition(orderChapters(chapters, (doc.selectFirst("h1.w-title")?.text || "").trim()), (doc.selectFirst("h1.w-title")?.text || "").trim())
         };
     }
 
@@ -586,7 +589,7 @@ class DefaultExtension extends MProvider {
             key: "chapter_position",
             switchPreferenceCompat: {
                 title: "회차 이름에 남은 화 표시",
-                summary: "예: 51화 · 51/153 (남은 102). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
+                summary: "예: 51화 · 남은 102 (사이트 순번·작품 제목은 빼고 짧게). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
                 value: true
             }
         }, {
