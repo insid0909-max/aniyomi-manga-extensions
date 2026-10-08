@@ -84,6 +84,9 @@ class Goodtoon : HttpSource(), ConfigurableSource {
 
     // 주소 번호가 바뀌면 자동으로 찾아 연결 + 회차 요청 실패 시 실제 응답을 오류로 표시
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
+        .apply { interceptors().add(0, FriendlyErrors) }
+        .apply { interceptors().add(1, ImageRetry) }
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
         .addInterceptor(NoticeFollow(HOST_REGEX, "/manga/gt-"))

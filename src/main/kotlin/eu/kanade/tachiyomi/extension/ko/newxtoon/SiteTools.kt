@@ -319,3 +319,122 @@ internal object ChapterPosition {
         }.also(screen::addPreference)
     }
 }
+
+/**
+ * 그림이 한 장씩 실패해 빈칸으로 남는 것을 줄임: 그림 요청이 끊기거나(오류) 4xx·5xx·웹페이지로 오면
+ * 잠깐 쉬고 한 번 더 받음 (404 는 그림이 정말 없는 것이라 다시 받지 않음)
+ */
+internal object ImageRetry : Interceptor {
+    private val IMAGE_PATH = Regex("""\.(?:jpe?g|png|webp|gif|avif|bmp)$""", RegexOption.IGNORE_CASE)
+
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val req = chain.request()
+        val isImage = req.method == "GET" &&
+            (IMAGE_PATH.containsMatchIn(req.url.encodedPath) || req.header("Accept").orEmpty().startsWith("image"))
+        if (!isImage) return chain.proceed(req)
+        val first = try {
+            chain.proceed(req)
+        } catch (e: java.io.IOException) {
+            Thread.sleep(800)
+            return chain.proceed(req)
+        }
+        val bad = (first.code >= 400 && first.code != 404) ||
+            (first.isSuccessful && first.header("Content-Type").orEmpty().contains("html", ignoreCase = true))
+        if (!bad) return first
+        first.close()
+        Thread.sleep(800)
+        return chain.proceed(req)
+    }
+}
+
+/**
+ * 오류를 쉬운 말로: 연결·시간 초과·주소 오류와 HTTP 403·429·5xx 를 무엇을 하면 되는지 알려 주는 한국어 문장으로 바꿈.
+ * 맨 바깥에 끼워야 함 (client 만들 때 interceptors().add(0, FriendlyErrors)).
+ * Cloudflare 확인은 앱이 "Resolve Cloudflare challenge" 버튼을 띄우므로 그대로 둠.
+ */
+internal object FriendlyErrors : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val res = try {
+            chain.proceed(chain.request())
+        } catch (e: java.io.IOException) {
+            throw friendly(e)
+        }
+        val msg = when (res.code) {
+            403 -> "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요."
+            429 -> "요청이 너무 많아 사이트가 잠시 막았어요 (HTTP 429). 1~2분 뒤 다시 시도해 주세요."
+            in 500..599 -> "사이트가 지금 응답하지 않아요 (HTTP ${res.code}). 잠시 뒤 다시 시도해 주세요."
+            else -> return res
+        }
+        res.close()
+        throw java.io.IOException(msg)
+    }
+
+    private fun friendly(e: java.io.IOException): java.io.IOException {
+        val m = e.message.orEmpty()
+        if (m.contains("Cloudflare", ignoreCase = true)) return e
+        val text = when (e) {
+            is java.net.UnknownHostException ->
+                "사이트 주소에 접속할 수 없어요. 주소가 바뀌었을 수 있어요 — 설정에서 '도메인 자동 찾기'를 켜 두거나 새 주소를 넣어 주세요."
+            is java.net.SocketTimeoutException, is java.io.InterruptedIOException ->
+                "사이트 응답이 너무 늦어요 (시간 초과). 잠시 뒤 다시 시도해 주세요."
+            is java.net.ConnectException, is javax.net.ssl.SSLException ->
+                "사이트에 연결하지 못했어요. 인터넷 연결을 확인하거나 잠시 뒤 다시 시도해 주세요."
+            else -> return e
+        }
+        return java.io.IOException(text, e)
+    }
+}
+
+/**
+ * 회차가 아주 많은 작품(여러 쪽으로 나뉜 회차 목록)을 다시 열 때 빠르게: 지난번 전체 목록을 폰에 저장해 두고,
+ * 첫 쪽만 받아서 예전 목록과 이어지면(첫 쪽의 가장 오래된 회차가 예전 목록에 있고, 합친 개수가 사이트의 총 화수와 같으면)
+ * 나머지 쪽은 받지 않음. 안 맞으면 예전처럼 전부 받음.
+ */
+internal object ChapterListCache {
+    private fun file(ctx: android.content.Context, key: String): java.io.File {
+        val hash = java.security.MessageDigest.getInstance("MD5").digest(key.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return java.io.File(java.io.File(ctx.cacheDir, "chapter_list_cache").apply { mkdirs() }, "$hash.json")
+    }
+
+    fun load(ctx: android.content.Context, key: String): List<SChapter>? = try {
+        val arr = org.json.JSONArray(file(ctx, key).readText())
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            SChapter.create().apply {
+                url = o.getString("u")
+                name = o.getString("n")
+                chapter_number = o.optDouble("c", -1.0).toFloat()
+                date_upload = o.optLong("d", 0L)
+            }
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    fun save(ctx: android.content.Context, key: String, list: List<SChapter>) {
+        try {
+            val arr = org.json.JSONArray()
+            list.forEach { c ->
+                arr.put(
+                    org.json.JSONObject().put("u", c.url).put("n", c.name)
+                        .put("c", c.chapter_number.toDouble()).put("d", c.date_upload),
+                )
+            }
+            file(ctx, key).writeText(arr.toString())
+        } catch (e: Exception) {
+            // 저장 실패는 무시 (다음에 전부 받으면 됨)
+        }
+    }
+
+    /** firstPage: 사이트 첫 쪽(최신 → 과거), total: 사이트가 알려 준 총 화수 → 이어 붙일 수 있으면 전체 목록 */
+    fun merge(cached: List<SChapter>?, firstPage: List<SChapter>, total: Int): List<SChapter>? {
+        if (cached == null || total <= 0 || firstPage.isEmpty()) return null
+        val oldestOnPage = firstPage.last().url
+        val at = cached.indexOfFirst { it.url == oldestOnPage }
+        if (at < 0) return null
+        val seen = firstPage.map { it.url }.toHashSet()
+        val merged = firstPage + cached.drop(at + 1).filter { seen.add(it.url) }
+        return merged.takeIf { it.size == total }
+    }
+}

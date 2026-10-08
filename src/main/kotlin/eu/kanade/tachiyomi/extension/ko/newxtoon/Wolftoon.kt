@@ -85,6 +85,9 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
 
     // 주소 번호가 바뀌어 접속이 안 되면 자동으로 새 주소를 찾아 다시 요청
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
+        .apply { interceptors().add(0, FriendlyErrors) }
+        .apply { interceptors().add(1, ImageRetry) }
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> domainIntercept(chain) }
         .build()
@@ -367,6 +370,14 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         val seen = HashSet<String>()
         val out = ArrayList<SChapter>()
         parseChapters(first, seen, out)
+        // 지난번 목록과 이어지면 나머지 쪽은 받지 않음 (회차 많은 작품 빨리 열기)
+        val cacheKey = "wolftoon:" + detailPath.replace(Regex("&(s|pg)=[^&]*"), "")
+        if (pages > 1) {
+            ChapterListCache.merge(ChapterListCache.load(app, cacheKey), out, total)?.let {
+                ChapterListCache.save(app, cacheKey, it)
+                return it
+            }
+        }
         for (p in 2..pages) {
             val doc = try {
                 client.newCall(GET(chapterPageUrl(detailPath, p), headers)).execute().asDoc()
@@ -377,6 +388,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             parseChapters(doc, seen, out)
             if (out.size == before) break
         }
+        if (pages > 1) ChapterListCache.save(app, cacheKey, out)
         return out
     }
 
