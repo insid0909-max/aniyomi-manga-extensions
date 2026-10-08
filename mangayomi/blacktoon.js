@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.18",
+    "version": "0.3.19",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -707,7 +707,7 @@ class DefaultExtension extends MProvider {
             urls.push(s);
         }
         if (!urls.length) throw new Error("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)");
-        return urls.map(u => ({ url: u, headers: { "Referer": pageUrl, "Origin": this.base } }));
+        return urls.map(u => ({ url: u, headers: { "Referer": pageUrl, "Origin": this.base, "User-Agent": MOBILE_UA } }));
     }
 
     baseFilterList() {
