@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.14",
+    "version": "0.3.15",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -181,7 +181,7 @@ async function noticeTarget(ext, body, base, marker) {
     return null;
 }
 
-// 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
+// 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
 // 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
 function chapterPosition(list, title) {
     try {
@@ -195,7 +195,7 @@ function chapterPosition(list, title) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
         }
-        return Object.assign({}, c, { name: n + (i === 0 ? " · 마지막" : ` · 남은 ${i}`) });
+        return Object.assign({}, c, { name: n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
     });
 }
 
@@ -770,7 +770,7 @@ class DefaultExtension extends MProvider {
             key: "chapter_position",
             switchPreferenceCompat: {
                 title: "회차 이름에 남은 화 표시",
-                summary: "예: 51화 · 남은 102 (사이트 순번·작품 제목은 빼고 짧게). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
+                summary: "예: 51화 · 남은 102화 (사이트 순번·작품 제목은 빼고 짧게). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
                 value: true
             }
         }, {
