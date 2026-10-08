@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.12",
+    "version": "0.3.13",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -84,7 +84,8 @@ function orderChapters(list, title) {
     const titleWords = (String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2).sort((a, b) => b.length - a.length);
     const keys = list.map((c, i) => {
-        const name = String(c.name || "").trim();
+        // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
+        const name = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
         const index = list.length - 1 - i;
         const m = /(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/.exec(name) || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
         if (!m) return /프롤로그|prologue/i.test(name) ? { prefix: PRO, unit: "", num: 0, index } : { prefix: "", unit: "", num: -1, index };
@@ -127,7 +128,10 @@ function orderChapters(list, title) {
     if (main !== null) {
         const mg = groups[main];
         for (const g of Object.keys(groups)) {
-            if (g === main || groups[g].prefix !== mg.prefix || [...groups[g].nums].some((n) => mg.nums.has(n))) continue;
+            // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면 본편
+            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.min(...mg.nums));
+            const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
+            if (g === main || !(sameUnitless || before)) continue;
             keys.forEach((k) => { if (k.group === g) k.group = main; });
         }
         groups = collect();
