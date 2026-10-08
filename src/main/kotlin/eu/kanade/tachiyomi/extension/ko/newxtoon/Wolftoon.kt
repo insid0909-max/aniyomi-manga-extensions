@@ -373,8 +373,8 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         // 지난번 목록과 이어지면 나머지 쪽은 받지 않음 (회차 많은 작품 빨리 열기)
         val cacheKey = "wolftoon:" + detailPath.replace(Regex("&(s|pg)=[^&]*"), "")
         if (pages > 1) {
-            ChapterListCache.merge(ChapterListCache.load(app, cacheKey), out, total)?.let {
-                ChapterListCache.save(app, cacheKey, it)
+            ChapterListCache.merge(ChapterListCache.load(cacheKey), out, total)?.let {
+                ChapterListCache.save(cacheKey, it)
                 return it
             }
         }
@@ -388,7 +388,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             parseChapters(doc, seen, out)
             if (out.size == before) break
         }
-        if (pages > 1) ChapterListCache.save(app, cacheKey, out)
+        if (pages > 1) ChapterListCache.save(cacheKey, out)
         return out
     }
 
