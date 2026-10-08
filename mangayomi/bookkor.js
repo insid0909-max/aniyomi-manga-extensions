@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.8",
+    "version": "0.1.9",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -110,6 +110,27 @@ function chapterPosition(list, title) {
     });
 }
 
+// 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
+function friendlyHttp(code) {
+    if (code === 403) return "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.";
+    if (code === 429) return "요청이 너무 많아 사이트가 잠시 막았어요 (HTTP 429). 1~2분 뒤 다시 시도해 주세요.";
+    if (code >= 500 && code <= 599) return `사이트가 지금 응답하지 않아요 (HTTP ${code}). 잠시 뒤 다시 시도해 주세요.`;
+    return null;
+}
+
+function friendlyError(e) {
+    const m = String((e && e.message) || e || "");
+    if (/cloudflare/i.test(m)) return m;
+    if (/host lookup|UnknownHost|No address associated|nodename nor servname/i.test(m)) {
+        return "사이트 주소에 접속할 수 없어요. 주소가 바뀌었을 수 있어요 — 설정에서 '도메인 자동 찾기'를 켜 두거나 새 주소를 넣어 주세요.";
+    }
+    if (/timed? ?out|timeout/i.test(m)) return "사이트 응답이 너무 늦어요 (시간 초과). 잠시 뒤 다시 시도해 주세요.";
+    if (/Connection (refused|reset|closed|failed)|HandshakeException|SocketException|CERTIFICATE/i.test(m)) {
+        return "사이트에 연결하지 못했어요. 인터넷 연결을 확인하거나 잠시 뒤 다시 시도해 주세요.";
+    }
+    return m;
+}
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -147,7 +168,20 @@ class DefaultExtension extends MProvider {
     }
 
     /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
-    async req(url, headers) {
+    // 요청 + 오류를 쉬운 말로 (연결 오류, HTTP 403·429·5xx)
+    async req(...args) {
+        let res;
+        try {
+            res = await this.reqRaw(...args);
+        } catch (e) {
+            throw new Error(friendlyError(e));
+        }
+        const msg = friendlyHttp(res && Number(res.statusCode));
+        if (msg) throw new Error(msg);
+        return res;
+    }
+
+    async reqRaw(url, headers) {
         await siteWait(url);
         const base = this.base;
         const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
