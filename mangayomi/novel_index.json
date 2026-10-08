@@ -12,7 +12,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/bookkor.js",
   "apiUrl": "",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "isManga": false,
   "itemType": 2,
   "isFullData": false,
