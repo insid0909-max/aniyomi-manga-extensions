@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.6",
+    "version": "0.1.7",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -155,7 +155,8 @@ class DefaultExtension extends MProvider {
         try {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get("domain"));
-            if (manual && manual !== this.source.baseUrl) return manual;
+            // 직접 넣은 주소는 기본 주소와 같아도 그대로 씀 (설정 기본값은 빈 칸)
+            if (manual) return manual;
             // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
             const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
             const n = (u) => parseInt((String(u).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
@@ -183,12 +184,21 @@ class DefaultExtension extends MProvider {
         let error = null;
         try {
             const res = await this.client.get(url, headers || {});
+            // 자동으로 찾은 주소가 막히면(403) 자동 주소를 지우고 기본 주소로 다시 요청
+            if (ours && res.statusCode === 403 && base !== this.source.baseUrl && !this.cleanUrl(new SharedPreferences().get("domain"))) {
+                new SharedPreferences().setString("auto_domain", "");
+                const fb = this.source.baseUrl;
+                const h = {};
+                for (const k in headers || {}) h[k] = String(headers[k]).split(base).join(fb);
+                const r2 = await this.client.get(fb + url.substring(base.length), h);
+                if (r2.statusCode < 400) return r2;
+            }
             if (ours && res.statusCode === 200) {
                 // 옛 주소가 끊기지 않고 "접속 주소 안내" 페이지(새 주소 링크만 있는 작은 페이지)를 보여 주는 경우
                 const body = String(res.body || "");
                 const cur = parseInt((base.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
                 const nums = (body.match(/wfwf\d+\.com/g) || []).map((x) => parseInt(x.match(/\d+/)[0], 10)).filter((x) => x > cur);
-                if (nums.length && body.length < 30000 && body.indexOf("t-card") < 0 && body.indexOf("ep-item") < 0) {
+                if (nums.length && body.length < 30000 && /<html|<!doctype/i.test(body.substring(0, 3000)) && body.indexOf("t-card") < 0 && body.indexOf("ep-item") < 0) {
                     const next = `https://wfwf${Math.max(...nums)}.com`;
                     let found = null;
                     try {
