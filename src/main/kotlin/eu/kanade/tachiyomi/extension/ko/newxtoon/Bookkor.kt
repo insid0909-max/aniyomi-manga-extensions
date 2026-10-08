@@ -357,7 +357,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    // 회차 이름 끝에 남은 화 수 ("51화 · 남은 102")
+    // 회차 이름 끝에 남은 화 수 ("51화 · 남은 102화")
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
         super.fetchChapterList(manga).map { if (ChapterPosition.enabled(sp)) ChapterPosition.label(it.sortedByDescending { c -> c.chapter_number }, manga.title) else it }
 
