@@ -391,14 +391,17 @@ internal object FriendlyErrors : Interceptor {
  * 나머지 쪽은 받지 않음. 안 맞으면 예전처럼 전부 받음.
  */
 internal object ChapterListCache {
-    private fun file(ctx: android.content.Context, key: String): java.io.File {
+    // 안드로이드에서 java.io.tmpdir 는 앱의 캐시 폴더 (앱 정보에서 캐시 지우기로 함께 지워짐)
+    private fun file(key: String): java.io.File {
         val hash = java.security.MessageDigest.getInstance("MD5").digest(key.toByteArray())
             .joinToString("") { "%02x".format(it) }
-        return java.io.File(java.io.File(ctx.cacheDir, "chapter_list_cache").apply { mkdirs() }, "$hash.json")
+        val dir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "chapter_list_cache")
+        dir.mkdirs()
+        return java.io.File(dir, "$hash.json")
     }
 
-    fun load(ctx: android.content.Context, key: String): List<SChapter>? = try {
-        val arr = org.json.JSONArray(file(ctx, key).readText())
+    fun load(key: String): List<SChapter>? = try {
+        val arr = org.json.JSONArray(file(key).readText())
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
             SChapter.create().apply {
@@ -412,7 +415,7 @@ internal object ChapterListCache {
         null
     }
 
-    fun save(ctx: android.content.Context, key: String, list: List<SChapter>) {
+    fun save(key: String, list: List<SChapter>) {
         try {
             val arr = org.json.JSONArray()
             list.forEach { c ->
@@ -421,7 +424,7 @@ internal object ChapterListCache {
                         .put("c", c.chapter_number.toDouble()).put("d", c.date_upload),
                 )
             }
-            file(ctx, key).writeText(arr.toString())
+            file(key).writeText(arr.toString())
         } catch (e: Exception) {
             // 저장 실패는 무시 (다음에 전부 받으면 됨)
         }
