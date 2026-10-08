@@ -88,6 +88,9 @@ class Blacktoon : HttpSource(), ConfigurableSource {
 
     // 주소 번호가 바뀌면 자동으로 찾아 연결 + 이미지 서버 요청에 Referer/Origin 추가
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
+        .apply { interceptors().add(0, FriendlyErrors) }
+        .apply { interceptors().add(1, ImageRetry) }
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> smartIntercept(chain) }
         .addInterceptor(NoticeFollow(HOST_REGEX, "webtoon_"))

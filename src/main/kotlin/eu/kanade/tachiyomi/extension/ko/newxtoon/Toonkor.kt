@@ -88,6 +88,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
 
     // 주소 번호가 바뀌어 접속이 안 되면 자동으로 새 주소를 찾아 다시 요청
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
+        .apply { interceptors().add(0, FriendlyErrors) }
+        .apply { interceptors().add(1, ImageRetry) }
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> domainIntercept(chain) }
         .addInterceptor(NoticeFollow(HOST_REGEX, "section-item"))
