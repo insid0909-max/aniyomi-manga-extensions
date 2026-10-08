@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.8",
+    "version": "0.1.9",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -165,6 +165,21 @@ async function noticeTarget(ext, body, base, marker) {
         }
     }
     return null;
+}
+
+// 회차 이름 끝에 위치와 남은 화 수를 붙임 ("51화 · 51/153 (남은 102)", 마지막 화는 "(마지막)"). list: 최신 → 과거
+// 읽는 화면 제목에도 보여서 몇 화 남았는지 알 수 있음. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+function chapterPosition(list) {
+    try {
+        const v = new SharedPreferences().get("chapter_position");
+        if (v === false || v === "false") return list;
+    } catch (e) {}
+    const total = list.length;
+    return list.map((c, i) => {
+        const pos = total - i;
+        const tail = pos === total ? " (마지막)" : ` (남은 ${total - pos})`;
+        return Object.assign({}, c, { name: `${String(c.name || "").trim()} · ${pos}/${total}${tail}` });
+    });
 }
 
 class DefaultExtension extends MProvider {
@@ -416,7 +431,7 @@ class DefaultExtension extends MProvider {
             genre: field("장르").split("/").map((g) => g.trim()).filter((g) => g),
             status,
             link: this.url(detailPath),
-            chapters: orderChapters(chapters, (doc.selectFirst("td.bt_title")?.text || "").trim())
+            chapters: chapterPosition(orderChapters(chapters, (doc.selectFirst("td.bt_title")?.text || "").trim()))
         };
     }
 
@@ -572,6 +587,13 @@ class DefaultExtension extends MProvider {
 
     getSourcePreferences() {
         return [{
+            key: "chapter_position",
+            switchPreferenceCompat: {
+                title: "회차 이름에 남은 화 표시",
+                summary: "예: 51화 · 51/153 (남은 102). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)",
+                value: true
+            }
+        }, {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
