@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.11",
+    "version": "0.1.12",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -161,6 +161,55 @@ function chapterPosition(list, title) {
     });
 }
 
+// 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
+function friendlyHttp(code) {
+    if (code === 403) return "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.";
+    if (code === 429) return "요청이 너무 많아 사이트가 잠시 막았어요 (HTTP 429). 1~2분 뒤 다시 시도해 주세요.";
+    if (code >= 500 && code <= 599) return `사이트가 지금 응답하지 않아요 (HTTP ${code}). 잠시 뒤 다시 시도해 주세요.`;
+    return null;
+}
+
+function friendlyError(e) {
+    const m = String((e && e.message) || e || "");
+    if (/cloudflare/i.test(m)) return m;
+    if (/host lookup|UnknownHost|No address associated|nodename nor servname/i.test(m)) {
+        return "사이트 주소에 접속할 수 없어요. 주소가 바뀌었을 수 있어요 — 설정에서 '도메인 자동 찾기'를 켜 두거나 새 주소를 넣어 주세요.";
+    }
+    if (/timed? ?out|timeout/i.test(m)) return "사이트 응답이 너무 늦어요 (시간 초과). 잠시 뒤 다시 시도해 주세요.";
+    if (/Connection (refused|reset|closed|failed)|HandshakeException|SocketException|CERTIFICATE/i.test(m)) {
+        return "사이트에 연결하지 못했어요. 인터넷 연결을 확인하거나 잠시 뒤 다시 시도해 주세요.";
+    }
+    return m;
+}
+
+// 회차 많은 작품 빨리 열기: 지난번 전체 회차 목록을 저장해 두고, 첫 쪽의 가장 오래된 회차가 그 안에 있고
+// 합친 개수가 사이트의 총 화수와 같으면 나머지 쪽은 받지 않음 (안 맞으면 예전처럼 전부 받음)
+function loadChapterCache(key) {
+    try {
+        const v = new SharedPreferences().getString(key, "");
+        return v ? JSON.parse(v) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveChapterCache(key, list) {
+    try {
+        new SharedPreferences().setString(key, JSON.stringify(list.map((c) => ({ name: c.name, url: c.url, dateUpload: c.dateUpload }))));
+    } catch (e) {}
+}
+
+function mergeChapterCache(cached, firstPage, total) {
+    if (!cached || !cached.length || !total || !firstPage.length) return null;
+    const oldest = firstPage[firstPage.length - 1].url;
+    const at = cached.findIndex((c) => c.url === oldest);
+    if (at < 0) return null;
+    const seen = {};
+    firstPage.forEach((c) => { seen[c.url] = true; });
+    const merged = firstPage.concat(cached.slice(at + 1).filter((c) => !seen[c.url] && (seen[c.url] = true)));
+    return merged.length === total ? merged : null;
+}
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -198,7 +247,20 @@ class DefaultExtension extends MProvider {
     }
 
     /** 요청 실패(접속 불가 / 5xx) 시 새 주소를 찾아 저장하고 같은 요청을 다시 보냄 */
-    async req(url, headers) {
+    // 요청 + 오류를 쉬운 말로 (연결 오류, HTTP 403·429·5xx)
+    async req(...args) {
+        let res;
+        try {
+            res = await this.reqRaw(...args);
+        } catch (e) {
+            throw new Error(friendlyError(e));
+        }
+        const msg = friendlyHttp(res && Number(res.statusCode));
+        if (msg) throw new Error(msg);
+        return res;
+    }
+
+    async reqRaw(url, headers) {
         await siteWait(url);
         const base = this.base;
         const ours = this.autoOn() && url.startsWith(base) && AUTO_HOST.test(base.replace(/^https?:\/\//, ""));
@@ -397,9 +459,13 @@ class DefaultExtension extends MProvider {
         const pages = Math.min(100, Math.max(linkPages, Math.ceil(total / 100), 1));
 
         const seen = {};
-        const chapters = [];
+        let chapters = [];
         this.parseChapters(doc, seen, chapters);
-        for (let p = 2; p <= pages; p++) {
+        // 회차 많은 작품: 지난번 전체 목록과 첫 쪽이 이어지면 나머지 쪽은 받지 않음
+        const cacheKey = "chcache:" + detailPath.replace(/&(s|pg)=[^&]*/g, "");
+        const merged = pages > 1 ? mergeChapterCache(loadChapterCache(cacheKey), chapters, total) : null;
+        if (merged) chapters = merged;
+        for (let p = 2; p <= pages && !merged; p++) {
             let html;
             try {
                 html = await this.get(this.chapterPageUrl(detailPath, p));
@@ -410,6 +476,7 @@ class DefaultExtension extends MProvider {
             this.parseChapters(new Document(html), seen, chapters);
             if (chapters.length === before) break;
         }
+        if (pages > 1) saveChapterCache(cacheKey, chapters);
 
         const img = doc.selectFirst(".title-sec .thumb-wrap img");
         return {
