@@ -95,6 +95,9 @@ class Bookkor : HttpSource(), ConfigurableSource {
     }
 
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
+        // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
+        .apply { interceptors().add(0, FriendlyErrors) }
+        .apply { interceptors().add(1, ImageRetry) }
         .addInterceptor(SiteRateLimit(HOST_REGEX))
         .addInterceptor { chain -> renderIntercept(chain) ?: domainIntercept(chain) }
         .addInterceptor(NoticeFollow(HOST_REGEX, "data-page="))
