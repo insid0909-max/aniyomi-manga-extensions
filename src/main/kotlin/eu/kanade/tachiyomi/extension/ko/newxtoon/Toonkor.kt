@@ -306,7 +306,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
     // 회차 순서: 본편 → 번외 → 외전 (앱의 회차 번호 정렬도 이 순서)
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
         super.fetchChapterList(manga).map {
-            ChapterOrder.sort(it, manga.title).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l) else l }
+            ChapterOrder.sort(it, manga.title).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l, manga.title) else l }
         }
 
     override fun chapterListParse(response: Response): List<SChapter> {
