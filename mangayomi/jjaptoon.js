@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.11",
+    "version": "0.3.12",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "jjaptoon.js"
@@ -140,6 +140,7 @@ function orderChapters(list, title) {
 async function noticeTarget(ext, body, base, marker) {
     body = String(body || "");
     if (!body || body.length >= 30000 || body.indexOf(marker) >= 0) return null;
+    if (!/<html|<!doctype/i.test(body.substring(0, 3000))) return null; // JSON·API 응답은 제외
     const host = base.replace(/^https?:\/\//, "");
     const h = host.replace(/^www\./, "");
     const head = h.substring(0, h.lastIndexOf("."));
@@ -182,7 +183,8 @@ class DefaultExtension extends MProvider {
         try {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get("domain"));
-            if (manual && manual !== this.source.baseUrl) return manual;
+            // 직접 넣은 주소는 기본 주소와 같아도 그대로 씀 (설정 기본값은 빈 칸)
+            if (manual) return manual;
             // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
             const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
             const n = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
@@ -211,6 +213,15 @@ class DefaultExtension extends MProvider {
         let notice = null;
         try {
             const res = post ? await this.client.post(url, headers || {}, body) : await this.client.get(url, headers || {});
+            // 자동으로 찾은 주소가 막히면(403) 자동 주소를 지우고 기본 주소로 다시 요청
+            if (ours && res.statusCode === 403 && base !== this.source.baseUrl && !this.cleanUrl(new SharedPreferences().get("domain"))) {
+                new SharedPreferences().setString("auto_domain", "");
+                const fb = this.source.baseUrl;
+                const h = {};
+                for (const k in headers || {}) h[k] = String(headers[k]).split(base).join(fb);
+                const r2 = (post ? await this.client.post(fb + url.substring(base.length), h, body) : await this.client.get(fb + url.substring(base.length), h));
+                if (r2.statusCode < 400) return r2;
+            }
             if (ours && !post && res.statusCode === 200) notice = await noticeTarget(this, res.body, base, "/comics/");
             if (!notice && (!ours || !(res.statusCode >= 500))) return res;
             failed = res;
