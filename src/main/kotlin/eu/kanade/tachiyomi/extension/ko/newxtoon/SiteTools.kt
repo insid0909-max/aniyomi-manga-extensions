@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.extension.ko.newxtoon
 
+import android.content.SharedPreferences
+import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
@@ -255,5 +258,45 @@ internal class NoticeFollow(private val hostRegex: Regex, private val marker: St
     private companion object {
         const val MAX_BYTES = 30_000L
         val IMAGE_PATH = Regex("""\.(?:jpe?g|png|webp|gif|avif|bmp)$""", RegexOption.IGNORE_CASE)
+    }
+}
+
+/**
+ * 회차 이름 끝에 위치와 남은 화 수를 붙임: "51화 · 51/153 (남은 102)", 마지막 화는 "(마지막)".
+ * 읽는 화면 위쪽 제목에도 보여서 읽는 중에 몇 화 남았는지 알 수 있음. 설정에서 끌 수 있음
+ * (다운로드한 회차는 이름으로 찾기 때문에, 새 화가 올라와 전체 수가 바뀌면 다운로드가 안 된 것처럼 보일 수 있음).
+ */
+internal object ChapterPosition {
+    const val KEY = "pref_chapter_position"
+
+    fun enabled(sp: SharedPreferences?): Boolean = try {
+        sp?.getBoolean(KEY, true) ?: true
+    } catch (e: Throwable) {
+        true
+    }
+
+    /** list: 최신 → 과거 순서 */
+    fun label(list: List<SChapter>): List<SChapter> {
+        val total = list.size
+        list.forEachIndexed { i, c ->
+            val pos = total - i
+            c.name = c.name.trim() + " · $pos/$total" + if (pos == total) " (마지막)" else " (남은 ${total - pos})"
+        }
+        return list
+    }
+
+    fun addPref(screen: PreferenceScreen, onChange: ((Boolean) -> Unit)? = null) {
+        SwitchPreferenceCompat(screen.context).apply {
+            key = KEY
+            title = "회차 이름에 남은 화 표시"
+            summary = "예: 51화 · 51/153 (남은 102). 끄면 원래 이름만 표시 (새 화가 올라오면 이름이 바뀌어, 다운로드한 회차가 안 받은 것처럼 보일 수 있음)"
+            setDefaultValue(true)
+            if (onChange != null) {
+                setOnPreferenceChangeListener { _, v ->
+                    onChange(v as Boolean)
+                    true
+                }
+            }
+        }.also(screen::addPreference)
     }
 }
