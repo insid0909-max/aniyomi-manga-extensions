@@ -178,6 +178,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         super.headersBuilder().set("User-Agent", userAgent).set("Referer", "$baseUrl/")
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        ChapterPosition.addPref(screen)
         ListPreference(screen.context).apply {
             key = KEY_FONT
             title = "글자 크기"
@@ -355,6 +356,10 @@ class Bookkor : HttpSource(), ConfigurableSource {
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
+
+    // 회차 이름 끝에 위치와 남은 화 수 ("51화 · 51/153 (남은 102)")
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
+        super.fetchChapterList(manga).map { if (ChapterPosition.enabled(sp)) ChapterPosition.label(it.sortedByDescending { c -> c.chapter_number }) else it }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val path = response.request.url.encodedPath
