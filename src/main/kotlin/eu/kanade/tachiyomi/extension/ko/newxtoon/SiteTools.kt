@@ -104,8 +104,12 @@ internal object ChapterOrder {
         if (main != null) {
             val mainPrefix = numbered.getValue(main).first().prefix
             val mainNums = numbered.getValue(main).map { it.num }.toHashSet()
+            val mainMin = mainNums.minOrNull() ?: 0.0
             numbered.forEach { (g, ks) ->
-                if (g != main && ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) {
+                // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면
+                // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다른 경우) 본편
+                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMin }
+                if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before)) {
                     ks.forEach { it.group = main }
                 }
             }
@@ -155,8 +159,11 @@ internal object ChapterOrder {
         keys.forEach { k -> canon[k.prefix]?.let { k.prefix = it } }
     }
 
+    // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
+    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
-        val name = rawName.trim()
+        val name = rawName.trim().replace(LEADING_SEQ, "")
         val m = UNIT_NUM.find(name) ?: ANY_NUM.find(name)
         if (m == null) {
             return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
