@@ -78,7 +78,7 @@
   "hasCloudflare": false,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/naverwebtoon.js",
   "apiUrl": "",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
