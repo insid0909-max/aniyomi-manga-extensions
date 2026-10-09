@@ -419,7 +419,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://toonkor2.org"
+        private const val DEFAULT = "https://toonkor3.org"
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"

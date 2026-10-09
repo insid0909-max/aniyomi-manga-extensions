@@ -412,7 +412,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private val HOST_REGEX = Regex("^(www\\.)?goodtoon\\d+\\.com$")
-        private const val DEFAULT = "https://www.goodtoon006.com"
+        private const val DEFAULT = "https://www.goodtoon007.com"
         private val LISTS = listOf(
             "전체(최신)" to "/",
             "인기순" to "/recommend/",

@@ -572,7 +572,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         private const val KEY_THEME = "pref_theme"
         private const val KEY_GAP = "pref_paragraph_gap"
         private const val KEY_LINE = "pref_line_spacing"
-        private const val DEFAULT = "https://002.bookkor.com"
+        private const val DEFAULT = "https://003.bookkor.com"
         private const val RENDER_HOST = "bookkor-render.local"
         private const val PAGE_W = 1080
         private const val PAGE_H = 1800
