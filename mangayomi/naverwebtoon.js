@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -119,6 +119,11 @@ class DefaultExtension extends MProvider {
         } catch (e) {
             return false;
         }
+    }
+
+    // 목록 그림(표지) 요청에 앱이 붙이는 헤더 (네이버 그림 서버는 Referer 가 있어야 그림을 줌)
+    getHeaders(url) {
+        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/" };
     }
 
     headers(referer) {
