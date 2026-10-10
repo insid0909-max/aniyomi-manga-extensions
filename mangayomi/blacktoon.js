@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.19",
+    "version": "0.3.20",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -75,11 +75,13 @@ async function openByUrl(ext, query, toLink) {
 // "6-1화" 는 6.01, "1.5화" 는 1.5, "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편
 // 망가요미는 이름 맨 앞 숫자로 회차 번호를 정하므로, 본편이 아닌 회차는 이름 앞에 본편 마지막 번호 다음 순번을 붙임
 // ("1195 · 원피스 매거진 1호") → "화 번호별" 정렬도 본편 1화 ~ 끝 → 나머지 순서
+// "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → …, 본편은 시즌1 안에서 고름
 function orderChapters(list, title) {
     if (!list || list.length < 2) return list;
     const PRO = "\u0000prologue";
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
+    const seasonOf = (p) => { const m = /(?:시즌|season)(\d+)$/.exec(p || ""); return m ? parseInt(m[1], 10) : 1; };
     const titleWords = (String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2).sort((a, b) => b.length - a.length);
     const keys = list.map((c, i) => {
@@ -117,9 +119,12 @@ function orderChapters(list, title) {
         return groups;
     };
     let groups = collect();
+    // 시즌 표시가 있으면 본편은 가장 앞 시즌(보통 표시 없는 시즌1) 묶음 중에서 고름
+    const plain = Object.keys(groups).filter((g) => !isExtra(groups[g].prefix));
+    const firstSeason = plain.length ? Math.min(...plain.map((g) => seasonOf(groups[g].prefix))) : 1;
     let main = null;
     for (const g of Object.keys(groups)) {
-        if (isExtra(groups[g].prefix)) continue;
+        if (isExtra(groups[g].prefix) || seasonOf(groups[g].prefix) !== firstSeason) continue;
         if (main === null || groups[g].count > groups[main].count ||
             (groups[g].count === groups[main].count && groups[g].first < groups[main].first)) main = g;
     }
@@ -128,7 +133,8 @@ function orderChapters(list, title) {
         const mg = groups[main];
         for (const g of Object.keys(groups)) {
             // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면 본편
-            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.min(...mg.nums));
+            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.min(...mg.nums)) &&
+                seasonOf(groups[g].prefix) === seasonOf(mg.prefix);
             const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
             if (g === main || !(sameUnitless || before)) continue;
             keys.forEach((k) => { if (k.group === g) k.group = main; });
@@ -138,9 +144,12 @@ function orderChapters(list, title) {
     const rank = (k) => k.prefix === PRO ? -1 : k.num < 0 ? 1 : k.group === main ? 0
         : k.prefix.indexOf("번외") >= 0 ? 3 : k.prefix.indexOf("외전") >= 0 ? 4 : 2;
     const firstOf = (k) => (rank(k) >= 2 ? groups[k.group].first : 0);
+    // 시즌 순서 (프롤로그는 맨 앞, 번외·외전은 모든 시즌 뒤)
+    const seasons = keys.some((k) => k.num >= 0 && !isExtra(k.prefix) && seasonOf(k.prefix) > firstSeason);
+    const season = (k) => rank(k) === -1 ? -1e9 : rank(k) >= 3 ? 1e9 : !seasons ? 0 : seasonOf(k.prefix);
     const order = list.map((_, i) => i).sort((a, b) => {
         const x = keys[a], y = keys[b];
-        return rank(x) - rank(y) || firstOf(x) - firstOf(y) || x.num - y.num || x.index - y.index;
+        return season(x) - season(y) || rank(x) - rank(y) || firstOf(x) - firstOf(y) || x.num - y.num || x.index - y.index;
     });
     let next = Math.floor(Math.max(0, ...keys.filter((k) => k.group === main && k.num >= 0).map((k) => k.num)));
     order.forEach((i) => {
