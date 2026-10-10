@@ -69,6 +69,7 @@ internal object UrlOpen {
  * - 그다음 번호 없는 특별편(후기 등), 다른 묶음들(처음 올라온 순서), 번외 묶음, 외전 묶음 순. 프롤로그는 맨 앞
  * - 본편 뒤 회차 번호는 본편 마지막 번호 + 0.001씩 (앱의 "회차 번호 기준" 정렬도 이 순서, 추적 사이트 회차 수도 크게 안 튐)
  * "153화 외전 …" 처럼 화 번호 앞에 다른 말이 없으면 본편. 같은 번호끼리는 사이트 순서 유지. 결과는 최신 → 과거 순.
+ * - "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → 시즌3 …, 본편은 시즌1 안에서 고름
  */
 internal object ChapterOrder {
     private val UNIT_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)""")
@@ -76,6 +77,10 @@ internal object ChapterOrder {
     private val PROLOGUE = Regex("""프롤로그|prologue""", RegexOption.IGNORE_CASE)
     private val WORD = Regex("""[\p{L}\p{N}]+""")
     private const val PROLOGUE_KEY = "\u0000prologue"
+    private val SEASON = Regex("""(?:시즌|season)(\d+)$""")
+
+    /** 앞부분 끝의 "시즌N" → N (없으면 1) */
+    private fun seasonOf(prefix: String): Int = SEASON.find(prefix)?.groupValues?.get(1)?.toIntOrNull() ?: 1
 
     private class Key(var prefix: String, val unit: String, val num: Double, val index: Int) {
         var group = ""
@@ -96,8 +101,10 @@ internal object ChapterOrder {
         // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
         keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }
         var numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.group }
+        // 시즌 표시가 있으면 본편은 가장 앞 시즌(보통 표시 없는 시즌1) 묶음 중에서 고름
+        val firstSeason = numbered.values.filter { !isExtra(it.first().prefix) }.minOfOrNull { seasonOf(it.first().prefix) } ?: 1
         val main = numbered.entries
-            .filter { !isExtra(it.key) }
+            .filter { !isExtra(it.key) && seasonOf(it.value.first().prefix) == firstSeason }
             .maxWithOrNull(compareBy<Map.Entry<String, List<Key>>>({ it.value.size }, { -it.value.minOf { k -> k.index } }))
             ?.key
         // 앞부분이 같고 번호가 본편과 안 겹치면 단위만 빠진 본편 ("12화" 와 "13") → 본편에 합침
@@ -108,7 +115,8 @@ internal object ChapterOrder {
             numbered.forEach { (g, ks) ->
                 // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면
                 // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다른 경우) 본편
-                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMin }
+                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMin } &&
+                    seasonOf(ks.first().prefix) == seasonOf(mainPrefix)
                 if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before)) {
                     ks.forEach { it.group = main }
                 }
@@ -124,8 +132,18 @@ internal object ChapterOrder {
             k.prefix.contains("외전") -> 4
             else -> 2
         }
+        val seasons = keys.any { it.num >= 0 && !isExtra(it.prefix) && seasonOf(it.prefix) > firstSeason }
+
+        // 시즌 순서 (프롤로그는 맨 앞, 번외·외전은 모든 시즌 뒤)
+        fun season(k: Key): Int = when {
+            rank(k) == -1 -> Int.MIN_VALUE
+            rank(k) >= 3 -> Int.MAX_VALUE
+            !seasons -> 0
+            else -> seasonOf(k.prefix)
+        }
         val sorted = list.indices.sortedWith(
             compareBy<Int>(
+                { season(keys[it]) },
                 { rank(keys[it]) },
                 { if (rank(keys[it]) in 2..4) firstSeen[keys[it].group] ?: 0 else 0 },
                 { keys[it].num },
