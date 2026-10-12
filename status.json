@@ -6,15 +6,15 @@
    "domainSince": "2026-10-05T02:24:01.412Z",
    "ok": false,
    "msg": "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.",
-   "checkedAt": "2026-10-11T02:11:48.471Z"
+   "checkedAt": "2026-10-12T02:39:03.609Z"
   },
   "goodtoon": {
    "origin": "https://www.goodtoon007.com",
    "domain": "alive",
    "domainSince": "2026-10-09T03:04:28.431Z",
    "ok": true,
-   "msg": "목록 63개, 회차 117개, 이미지 150장, 연재",
-   "checkedAt": "2026-10-11T02:11:49.794Z"
+   "msg": "목록 63개, 회차 136개, 이미지 102장, 연재",
+   "checkedAt": "2026-10-12T02:39:04.978Z"
   },
   "jjaptoon": {
    "origin": "https://www.jjaptoon008.com",
@@ -22,7 +22,7 @@
    "domainSince": "2026-10-03T17:30:30.454Z",
    "ok": true,
    "msg": "목록 36개, 회차 202개, 이미지 69장, 완결",
-   "checkedAt": "2026-10-11T02:11:53.328Z"
+   "checkedAt": "2026-10-12T02:39:08.361Z"
   },
   "blacktoon": {
    "origin": "https://blacktoon423.com",
@@ -30,15 +30,15 @@
    "domainSince": "2026-10-03T17:30:30.613Z",
    "ok": true,
    "msg": "목록 24개, 회차 221개, 이미지 16장, 완결",
-   "checkedAt": "2026-10-11T02:11:55.751Z"
+   "checkedAt": "2026-10-12T02:39:10.482Z"
   },
   "toon11": {
    "origin": "https://11toon2.com",
-   "domain": "dead",
-   "domainSince": "2026-10-11T02:11:47.094Z",
+   "domain": "alive",
+   "domainSince": "2026-10-12T02:39:02.113Z",
    "ok": true,
    "msg": "목록 30개, 회차 330개, 이미지 25장, 완결",
-   "checkedAt": "2026-10-11T02:11:57.680Z"
+   "checkedAt": "2026-10-12T02:39:13.054Z"
   },
   "wolftoon": {
    "origin": "https://wfwf512.com",
@@ -46,7 +46,7 @@
    "domainSince": "2026-10-03T17:30:31.711Z",
    "ok": true,
    "msg": "목록 36개, 회차 125개, 이미지 56장, 연재",
-   "checkedAt": "2026-10-11T02:11:58.645Z"
+   "checkedAt": "2026-10-12T02:39:14.067Z"
   },
   "bookkor": {
    "origin": "https://003.bookkor.com",
@@ -54,20 +54,20 @@
    "domainSince": "2026-10-09T03:04:31.634Z",
    "ok": true,
    "msg": "목록 10개, 회차 1945개, 본문 5328자, 연재",
-   "checkedAt": "2026-10-11T02:12:06.650Z"
+   "checkedAt": "2026-10-12T02:39:23.851Z"
   },
   "toonkor": {
    "origin": "https://toonkor3.org",
    "domain": "alive",
    "domainSince": "2026-10-09T03:04:32.266Z",
    "ok": true,
-   "msg": "목록 30개, 회차 189개, 이미지 27장, 완결",
-   "checkedAt": "2026-10-11T02:12:07.797Z"
+   "msg": "목록 30개, 회차 302개, 이미지 89장, 연재",
+   "checkedAt": "2026-10-12T02:39:25.222Z"
   },
   "wolftoon_comic": {
    "ok": true,
    "msg": "목록 36개, 회차 1200개, 이미지 33장, 상태 미확인",
-   "checkedAt": "2026-10-11T02:12:09.122Z"
+   "checkedAt": "2026-10-12T02:39:26.263Z"
   }
  }
 }
