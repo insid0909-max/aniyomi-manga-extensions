@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.20",
+    "version": "0.3.21",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -183,6 +183,24 @@ async function noticeTarget(ext, body, base, marker) {
 
 // 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
 // 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+// 회차 이름의 숫자가 사이트 순서(과거 → 최신)대로 자꾸 줄거나 겹치면 이름 번호를 믿을 수 없는 작품
+// ("제40장. … (1)·(2)·(3)" 과 "290화" 가 섞인 나노마신 등). list: 사이트 순서 (최신 → 과거)
+function siteIndexNeeded(list, title) {
+    if (!list || list.length < 10) return false;
+    const t = String(title || "").trim();
+    let prev = -Infinity, breaks = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+        let n = String(list[i].name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        if (t && n.startsWith(t)) n = n.substring(t.length);
+        const m = /\d+/.exec(n);
+        if (!m) continue;
+        const v = parseInt(m[0], 10);
+        if (v <= prev) breaks++;
+        prev = v;
+    }
+    return breaks >= Math.max(3, Math.floor(list.length / 20));
+}
+
 function chapterPosition(list, title) {
     try {
         const v = new SharedPreferences().get("chapter_position");
@@ -530,7 +548,10 @@ class DefaultExtension extends MProvider {
             author: (doc.selectFirst("a[href*='/search?q=']")?.text || "").trim(),
             genre,
             status,
-            chapters: chapterPosition(orderChapters(chapters, h1 ? h1.text.trim() : ""), h1 ? h1.text.trim() : "")
+            chapters: siteIndexNeeded(chapters, h1 ? h1.text.trim() : "")
+                // 이름 번호가 뒤엉킨 작품(나노마신 등)은 사이트 순서 그대로, 이름 앞에 사이트 일련번호 ("107. 제40장. …")
+                ? chapterPosition(chapters, h1 ? h1.text.trim() : "").map((c, i, a) => Object.assign({}, c, { name: `${a.length - i}. ${c.name}` }))
+                : chapterPosition(orderChapters(chapters, h1 ? h1.text.trim() : ""), h1 ? h1.text.trim() : "")
         };
     }
 
