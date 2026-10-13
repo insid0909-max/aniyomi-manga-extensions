@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.22",
+    "version": "0.3.23",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -600,7 +600,10 @@ class DefaultExtension extends MProvider {
             (sel.status === -1 || s.listIndex === sel.status) &&
             (sel.platform === -1 || s.platform === sel.platform) &&
             (sel.day === -1 || s.day === sel.day) &&
-            (sel.tag === -1 || s.tags.indexOf(sel.tag) >= 0));
+            (sel.tag === -1 || s.tags.indexOf(sel.tag) >= 0) &&
+            // 분류: 사이트에 따로 없어서 작품 태그로 나눔 (BL/백합 = 6, 성인 = 16, 일반 = 둘 다 아님)
+            (sel.kind === undefined || sel.kind === -1 ||
+                (sel.kind === 0 ? s.tags.indexOf(6) < 0 && s.tags.indexOf(16) < 0 : s.tags.indexOf(sel.kind) >= 0)));
         const start = (page - 1) * BT_PAGE;
         return {
             list: filtered.slice(start, start + BT_PAGE).map(s => this.toManga(s)),
@@ -734,7 +737,9 @@ class DefaultExtension extends MProvider {
             sel("상태", "status", [[-1, "전체"], [1, "연재"], [0, "완결"]]),
             sel("플랫폼", "platform", withAll(BT_PLATFORMS)),
             sel("요일", "day", withAll(BT_DAYS)),
-            sel("장르", "tag", withAll(BT_TAGS))
+            sel("장르", "tag", withAll(BT_TAGS)),
+            // 맨 뒤에 둠 (이미 저장된 인기/최신 탭 규칙의 순서가 밀리지 않게)
+            sel("분류", "kind", [[-1, "전체"], [0, "일반"], [6, "BL/백합"], [16, "성인"]])
         ];
     }
 
