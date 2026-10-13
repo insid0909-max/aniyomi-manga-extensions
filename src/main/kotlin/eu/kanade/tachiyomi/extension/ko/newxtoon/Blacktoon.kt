@@ -402,7 +402,8 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                 (sel.status == -1 || s.listIndex == sel.status) &&
                 (sel.platform == -1 || s.platform == sel.platform) &&
                 (sel.day == -1 || s.day == sel.day) &&
-                (sel.tag == -1 || sel.tag in s.tags)
+                (sel.tag == -1 || sel.tag in s.tags) &&
+                kindMatches(sel.kind, s.tags)
         }
         val start = ((page - 1) * PAGE_SIZE).coerceAtMost(filtered.size)
         val end = (start + PAGE_SIZE).coerceAtMost(filtered.size)
@@ -416,7 +417,15 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         val platform: Int = -1,
         val day: Int = -1,
         val tag: Int = -1,
+        val kind: Int = -1,
     )
+
+    /** 분류: 사이트에 따로 없어서 작품 태그로 나눔 (BL/백합 = 6, 성인 = 16, 일반 = 둘 다 아님) */
+    private fun kindMatches(kind: Int, tags: List<Int>): Boolean = when (kind) {
+        -1 -> true
+        0 -> TAG_BL !in tags && TAG_ADULT !in tags
+        else -> kind in tags
+    }
 
     override fun fetchPopularManga(page: Int): Observable<MangasPage> =
         tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
@@ -443,6 +452,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                 platform = pick("platform"),
                 day = pick("day"),
                 tag = pick("tag"),
+                kind = pick("kind"),
             ),
         )
     }
@@ -684,6 +694,8 @@ class Blacktoon : HttpSource(), ConfigurableSource {
                 IntPick("플랫폼", "platform", listOf(-1 to "전체") + PLATFORMS.toList()),
                 IntPick("요일", "day", listOf(-1 to "전체") + DAYS.toList()),
                 IntPick("장르", "tag", listOf(-1 to "전체") + TAGS.toList()),
+                // 맨 뒤에 둠 (이미 저장된 인기/최신 탭 규칙의 순서가 밀리지 않게)
+                IntPick("분류", "kind", listOf(-1 to "전체", 0 to "일반", TAG_BL to "BL/백합", TAG_ADULT to "성인")),
             ),
         ),
     )
@@ -731,6 +743,8 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             7 to "코미카", 8 to "배틀코믹", 9 to "코믹GT", 10 to "케이툰", 11 to "애니툰", 12 to "폭스툰",
             13 to "피너툰", 14 to "봄툰", 15 to "코미코", 16 to "무툰", 17 to "지존신마", 99 to "기타",
         )
+        private const val TAG_BL = 6
+        private const val TAG_ADULT = 16
         private val TAGS = mapOf(
             1 to "학원", 2 to "액션", 3 to "SF", 4 to "스토리", 5 to "판타지", 6 to "BL/백합",
             7 to "개그/코미디", 8 to "연애/순정", 9 to "드라마", 10 to "로맨스", 11 to "시대극",
