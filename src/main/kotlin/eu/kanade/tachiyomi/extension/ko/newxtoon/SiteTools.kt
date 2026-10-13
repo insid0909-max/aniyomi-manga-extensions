@@ -63,7 +63,7 @@ internal object UrlOpen {
 /**
  * 회차 순서 정리: 이름에서 숫자 앞부분(작품 제목은 빼고)이 같은 것끼리 묶어서 번호순으로 놓음.
  * - 단위가 다르면 다른 묶음 ("원피스 1화" 와 "원피스 1권"), 단 번호가 본편과 안 겹치면 본편 ("12화" 와 "13")
- * - "(ONE PIECE)원피스 775화" 와 "1194화" 처럼 제목만 다른 것은 같은 묶음 (작품 제목 단어를 지우고 비교)
+ * - "(ONE PIECE)원피스 775화" 와 "1194화" 처럼 제목만 다른 것은 같은 묶음 (작품 제목·제목 단어를 지우고 비교), "제62화" 의 "제" 도 무시
  * - 앞부분이 다른 앞부분으로 끝나면 같은 묶음 ("스핀오프 - 식극의 상디 3화" 와 "식극의 상디 2-1화")
  * - 회차가 가장 많은 묶음이 본편 → 맨 앞 (번호 그대로: "N화"/"N권"/"N호", "6-1화"는 6.01, "1.5화"는 1.5)
  * - 그다음 번호 없는 특별편(후기 등), 다른 묶음들(처음 올라온 순서), 번외 묶음, 외전 묶음 순. 프롤로그는 맨 앞
@@ -93,8 +93,9 @@ internal object ChapterOrder {
     fun sort(list: List<SChapter>, title: String = ""): List<SChapter> {
         if (list.size < 2) return list
         // 작품 제목 단어("원피스", "one", "piece")는 앞부분에서 지우고 비교
-        val titleWords = WORD.findAll(title.lowercase()).map { it.value }.filter { it.length >= 2 }
-            .sortedByDescending { it.length }.toList()
+        // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
+        val titleWords = (listOf(norm(title)) + WORD.findAll(title.lowercase()).map { it.value }.filter { it.length >= 2 })
+            .filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords) }
         mergePrefixes(keys)
@@ -196,6 +197,8 @@ internal object ChapterOrder {
         }
         var prefix = norm(name.substring(0, m.range.first))
         titleWords.forEach { prefix = prefix.replace(it, "") }
+        // "제62화" 의 "제" 는 번호 앞에 붙는 말 ("62화" 와 같은 묶음)
+        prefix = prefix.removeSuffix("제")
         return Key(prefix, m.groupValues.getOrNull(4).orEmpty(), num, index)
     }
 }

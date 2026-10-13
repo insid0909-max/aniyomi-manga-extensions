@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.13",
+    "version": "0.1.14",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -76,8 +76,9 @@ function orderChapters(list, title) {
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
     const seasonOf = (p) => { const m = /(?:시즌|season)(\d+)$/.exec(p || ""); return m ? parseInt(m[1], 10) : 1; };
-    const titleWords = (String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
-        .filter((w) => w.length >= 2).sort((a, b) => b.length - a.length);
+    // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
+    const titleWords = [...new Set([norm(title)].concat((String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+        .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
     const keys = list.map((c, i) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
         const name = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
@@ -88,6 +89,8 @@ function orderChapters(list, title) {
         if (m[3]) num = m[2] === "." ? parseFloat(`${m[1]}.${m[3]}`) : num + Math.min(parseInt(m[3], 10), 99) / 100;
         let prefix = norm(name.substring(0, m.index));
         titleWords.forEach((w) => { prefix = prefix.split(w).join(""); });
+        // "제62화" 의 "제" 는 번호 앞에 붙는 말 ("62화" 와 같은 묶음)
+        if (prefix.endsWith("제")) prefix = prefix.slice(0, -1);
         return { prefix, unit: m[4] || "", num, index };
     });
     // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈, 번외·외전끼리만 따로
