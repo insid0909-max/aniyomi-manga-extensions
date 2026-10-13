@@ -419,7 +419,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             "연재중" to "/ongoing/",
             "완결" to "/end/",
         )
-        private val CATS = listOf("전체" to "", "일반웹툰" to "webtoon", "BL/GL" to "bl-gl", "성인웹툰" to "adult")
+        private val CATS = listOf("기본 (일반웹툰)" to "", "일반웹툰" to "webtoon", "BL/GL" to "bl-gl", "성인웹툰" to "adult")
         private val DAYS = listOf(
             "전체" to "", "월" to "mon", "화" to "tue", "수" to "wed", "목" to "thu",
             "금" to "fri", "토" to "sat", "일" to "sun", "기타" to "etc",
