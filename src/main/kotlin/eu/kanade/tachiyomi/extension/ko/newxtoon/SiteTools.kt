@@ -294,6 +294,44 @@ internal class NoticeFollow(private val hostRegex: Regex, private val marker: St
  * 읽는 화면 위쪽 제목에도 보여서 읽는 중에 몇 화 남았는지 알 수 있음. 설정에서 끌 수 있음
  * (다운로드한 회차는 이름으로 찾기 때문에, 새 화가 올라와 전체 수가 바뀌면 다운로드가 안 된 것처럼 보일 수 있음).
  */
+/**
+ * 회차 이름의 번호가 믿을 수 없는 작품 ("제40장. … (1)·(2)·(3)" 과 "290화" 가 섞인 나노마신 등):
+ * 이름 숫자가 사이트 순서(과거 → 최신)대로 자꾸 줄거나 겹치면 사이트 순서를 그대로 쓰고,
+ * 사이트처럼 오래된 회차부터 1, 2, 3 … 번호를 매겨 이름 앞에 "107. " 으로 붙임 (두 앱 같은 이름)
+ */
+internal object SiteIndex {
+    private val NUM = Regex("""\d+""")
+    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+
+    /** list: 사이트 순서 (최신 → 과거) */
+    fun needed(list: List<SChapter>, title: String): Boolean {
+        if (list.size < 10) return false
+        val t = title.trim()
+        var prev = Double.NEGATIVE_INFINITY
+        var breaks = 0
+        for (c in list.asReversed()) {
+            var n = c.name.trim().replace(LEADING_SEQ, "")
+            if (t.isNotEmpty() && n.startsWith(t)) n = n.substring(t.length)
+            val v = NUM.find(n)?.value?.toDoubleOrNull() ?: continue
+            if (v <= prev) breaks++
+            prev = v
+        }
+        return breaks >= maxOf(3, list.size / 20)
+    }
+
+    /** 사이트 순서 그대로 번호를 매김 (최신 → 과거 순서 유지) */
+    fun number(list: List<SChapter>): List<SChapter> {
+        list.forEachIndexed { i, c -> c.chapter_number = (list.size - i).toFloat() }
+        return list
+    }
+
+    /** 이름 앞에 사이트 일련번호 ("107. 제40장. …") */
+    fun prefix(list: List<SChapter>): List<SChapter> {
+        list.forEachIndexed { i, c -> c.name = "${list.size - i}. ${c.name}" }
+        return list
+    }
+}
+
 internal object ChapterPosition {
     const val KEY = "pref_chapter_position"
 
