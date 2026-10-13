@@ -1,5 +1,31 @@
 {
- "changedFiles": [],
- "domainChanges": [],
+ "changedFiles": [
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+  "mangayomi/blacktoon.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+  "mangayomi/wolftoon.js",
+  "mangayomi/wolftoon_comic.js"
+ ],
+ "domainChanges": [
+  {
+   "name": "블랙툰",
+   "from": "https://blacktoon423.com",
+   "to": "https://blacktoon424.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+    "mangayomi/blacktoon.js"
+   ]
+  },
+  {
+   "name": "늑대닷컴",
+   "from": "https://wfwf512.com",
+   "to": "https://wfwf514.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+    "mangayomi/wolftoon.js",
+    "mangayomi/wolftoon_comic.js"
+   ]
+  }
+ ],
  "notes": []
 }
