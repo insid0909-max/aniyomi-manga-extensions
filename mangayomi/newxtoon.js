@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.25",
+    "version": "0.3.26",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -85,12 +85,19 @@ function orderChapters(list, title) {
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
     const keys = list.map((c, i) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
-        const name = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        const name = String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
         const index = list.length - 1 - i;
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
-        const units = [...name.matchAll(/(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/g)];
+        // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
+        const units = [...name.matchAll(/(\d+)(?:\s*([-.])\s*(\d+))?(?:\s*[~～]\s*\d+)?\s*(화|권|호|부|話)/g)];
         const m = units.find((u) => u[4] !== "부") || units[0] || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
         if (!m) return /프롤로그|prologue/i.test(name) ? { prefix: PRO, unit: "", num: 0, index } : { prefix: "", unit: "", num: -1, index };
+        // "2부 예고" 처럼 부 표시 뒤에 번호 없는 말만 있으면 그 부의 번호 없는 회차
+        if (m[4] === "부" && /\p{L}/u.test(name.substring(m.index + m[0].length))) {
+            let part = norm(name.substring(0, m.index + m[0].length));
+            titleWords.forEach((w) => { part = part.split(w).join(""); });
+            return { prefix: part, unit: "", num: -1, index };
+        }
         let num = parseInt(m[1], 10);
         if (m[3]) num = m[2] === "." ? parseFloat(`${m[1]}.${m[3]}`) : num + Math.min(parseInt(m[3], 10), 99) / 100;
         let prefix = norm(name.substring(0, m.index));
@@ -137,11 +144,13 @@ function orderChapters(list, title) {
         for (const g of Object.keys(groups)) {
             // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편의 빈 번호면 본편
             // ("화화화작품명 21화" 처럼 사이트가 잘못 적은 경우도)
-            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.max(...mg.nums) && !mg.nums.has(n)) &&
+            // 단위가 다르면("1부 01권" 과 "66화") 번호가 비어 있어도 다른 묶음
+            const sameUnit = g.split("|")[1] === main.split("|")[1];
+            const before = sameUnit && !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.max(...mg.nums) && !mg.nums.has(n)) &&
                 seasonOf(groups[g].prefix) === seasonOf(mg.prefix);
             const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
             // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
-            const after = !isExtra(groups[g].prefix) && seasonOf(groups[g].prefix) > seasonOf(mg.prefix) &&
+            const after = sameUnit && !isExtra(groups[g].prefix) && seasonOf(groups[g].prefix) > seasonOf(mg.prefix) &&
                 [...groups[g].nums].every((n) => n > Math.max(...mg.nums));
             if (g === main || !(sameUnitless || before || after)) continue;
             keys.forEach((k) => { if (k.group === g) k.group = main; });
@@ -225,7 +234,7 @@ function siteIndexNeeded(list, title) {
     const t = String(title || "").trim();
     let prev = -Infinity, breaks = 0;
     for (let i = list.length - 1; i >= 0; i--) {
-        let n = String(list[i].name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        let n = String(list[i].name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
         if (t && n.startsWith(t)) n = n.substring(t.length);
         const m = /\d+/.exec(n);
         if (!m) continue;
@@ -245,7 +254,7 @@ function chapterPosition(list, title) {
     return list.map((c, i) => {
         // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
         const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
-        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
         if (t && n.startsWith(t)) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
