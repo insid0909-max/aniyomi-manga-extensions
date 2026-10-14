@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.16",
+    "version": "0.1.17",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -158,6 +158,19 @@ async function noticeTarget(ext, body, base, marker) {
     body = String(body || "");
     if (!body || body.length >= 30000 || body.indexOf(marker) >= 0) return null;
     if (!/<html|<!doctype/i.test(body.substring(0, 3000))) return null; // JSON·API 응답은 제외
+    return familyTarget(ext, body, base, marker, false);
+}
+
+// 정상 사이트 화면에 지금보다 번호가 큰 같은 사이트 주소가 적혀 있으면(사이트 자기 주소·새 주소 안내),
+// 진짜 사이트인지 확인해 그 주소를 돌려줌 → 옛 주소가 새 주소로 넘겨 줘도 새 주소를 기억 (망가요미는 넘어간 주소를 알려 주지 않음)
+const FAMILY_TRIED = {};
+async function selfTarget(ext, body, base, marker) {
+    body = String(body || "");
+    if (!body || body.indexOf(marker) < 0) return null;
+    return familyTarget(ext, body, base, marker, true);
+}
+
+async function familyTarget(ext, body, base, marker, quiet) {
     const host = base.replace(/^https?:\/\//, "");
     const h = host.replace(/^www\./, "");
     const head = h.substring(0, h.lastIndexOf("."));
@@ -172,7 +185,10 @@ async function noticeTarget(ext, body, base, marker) {
     const cur = parseInt(m[1], 10);
     const cands = [...new Set((body.match(re) || []).map((x) => x.toLowerCase()))]
         .filter((x) => AUTO_HOST.test(x) && num(x) > cur).sort((a, b) => num(b) - num(a));
-    for (const c of cands) {
+    for (const c of cands.slice(0, 3)) {
+        // 확인에 실패한 주소는 30분 동안 다시 열어 보지 않음 (정상 화면마다 확인하므로)
+        if (quiet && Date.now() - (FAMILY_TRIED[c] || 0) < 30 * 60000) continue;
+        if (quiet) FAMILY_TRIED[c] = Date.now();
         for (const hh of host.startsWith("www.") && !c.startsWith("www.") ? [c, "www." + c] : [c]) {
             try {
                 const r = await ext.client.get(`https://${hh}/`, { "User-Agent": MOBILE_UA });
@@ -291,6 +307,11 @@ class DefaultExtension extends MProvider {
                 if (r2.statusCode < 400) return r2;
             }
             if (ours && res.statusCode === 200) notice = await noticeTarget(this, res.body, base, "section-item");
+            // 정상 화면에 적힌 더 새 주소(사이트가 새 주소로 넘겨 준 경우 포함)를 자동 주소로 기억
+            if (ours && !notice && res.statusCode === 200) {
+                const self = await selfTarget(this, res.body, base, "section-item");
+                if (self) new SharedPreferences().setString("auto_domain", self);
+            }
             if (!notice && (!ours || !(res.statusCode >= 500))) return res;
             failed = res;
         } catch (e) {
