@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.22",
+    "version": "0.1.23",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -222,6 +222,8 @@ function mergeChapterCache(cached, firstPage, total) {
     return merged.length === total ? merged : null;
 }
 
+const WOLF_TRIED = {};
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -307,6 +309,28 @@ class DefaultExtension extends MProvider {
                         const h = {};
                         for (const k in headers || {}) h[k] = String(headers[k]).split(base).join(found);
                         return await this.client.get(found + url.substring(base.length), h);
+                    }
+                }
+            }
+            // 정상 화면에 적힌 더 새 주소(사이트가 새 주소로 넘겨 준 경우 포함)를 자동 주소로 기억
+            // (망가요미는 넘어간 주소를 알려 주지 않음). 확인에 실패한 주소는 30분 동안 다시 열지 않음
+            if (ours && res.statusCode === 200) {
+                const body = String(res.body || "");
+                if (body.indexOf("t-card") >= 0 || body.indexOf("ep-item") >= 0) {
+                    const cur = parseInt((base.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+                    const nums = [...new Set((body.match(/wfwf\d+\.com/g) || []).map((x) => parseInt(x.match(/\d+/)[0], 10)))]
+                        .filter((x) => x > cur).sort((a, b) => b - a).slice(0, 3);
+                    for (const n of nums) {
+                        const next = `https://wfwf${n}.com`;
+                        if (Date.now() - (WOLF_TRIED[next] || 0) < 30 * 60000) continue;
+                        WOLF_TRIED[next] = Date.now();
+                        try {
+                            const r = await this.client.get(next + "/", { "User-Agent": MOBILE_UA });
+                            if (r.statusCode === 200 && String(r.body || "").indexOf("t-card") >= 0) {
+                                new SharedPreferences().setString("auto_domain", next);
+                                break;
+                            }
+                        } catch (e) {}
                     }
                 }
             }
