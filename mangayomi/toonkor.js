@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.17",
+    "version": "0.1.18",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -126,8 +126,9 @@ function orderChapters(list, title) {
     if (main !== null) {
         const mg = groups[main];
         for (const g of Object.keys(groups)) {
-            // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면 본편
-            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.min(...mg.nums)) &&
+            // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편의 빈 번호면 본편
+            // ("화화화작품명 21화" 처럼 사이트가 잘못 적은 경우도)
+            const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.max(...mg.nums) && !mg.nums.has(n)) &&
                 seasonOf(groups[g].prefix) === seasonOf(mg.prefix);
             const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
             if (g === main || !(sameUnitless || before)) continue;
