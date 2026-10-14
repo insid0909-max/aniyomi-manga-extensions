@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.25",
+    "version": "0.1.26",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -72,6 +72,15 @@ async function openByUrl(ext, query, toLink) {
 // "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → …, 본편은 시즌1 안에서 고름
 function orderChapters(list, title) {
     if (!list || list.length < 2) return list;
+    // 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만
+    const best = {};
+    list.forEach((c, i) => {
+        const k = String(c.name || "").trim().replace(/\s+/g, " ").toLowerCase();
+        if (best[k] === undefined || Number(c.dateUpload || 0) > Number(list[best[k]].dateUpload || 0)) best[k] = i;
+    });
+    const keep = new Set(Object.values(best));
+    if (keep.size < list.length) list = list.filter((_, i) => keep.has(i));
+    if (list.length < 2) return list;
     const PRO = "\u0000prologue";
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;

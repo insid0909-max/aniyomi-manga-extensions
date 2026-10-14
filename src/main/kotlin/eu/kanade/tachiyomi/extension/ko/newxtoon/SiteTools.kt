@@ -91,7 +91,23 @@ internal object ChapterOrder {
 
     private fun isExtra(prefix: String) = prefix.contains("번외") || prefix.contains("외전")
 
-    fun sort(list: List<SChapter>, title: String = ""): List<SChapter> {
+    private val SPACES = Regex("""\s+""")
+
+    /** 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 */
+    private fun dedupe(list: List<SChapter>): List<SChapter> {
+        val best = HashMap<String, Int>()
+        list.forEachIndexed { i, c ->
+            val k = c.name.trim().replace(SPACES, " ").lowercase()
+            val j = best[k]
+            if (j == null || c.date_upload > list[j].date_upload) best[k] = i
+        }
+        if (best.size == list.size) return list
+        val keep = best.values.toHashSet()
+        return list.filterIndexed { i, _ -> i in keep }
+    }
+
+    fun sort(input: List<SChapter>, title: String = ""): List<SChapter> {
+        val list = dedupe(input)
         if (list.size < 2) return list
         // 작품 제목 단어("원피스", "one", "piece")는 앞부분에서 지우고 비교
         // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
