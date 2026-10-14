@@ -42,6 +42,7 @@
 ## 지금까지 고친 것·배운 것 (다시 같은 실수 하지 않기)
 - 네이버웹툰(NaverWebtoon.kt / naverwebtoon.js): 공식 무료 회차만(미리보기·유료 `charge` 제외), 19세 기본 숨김(WebView 로그인 필요), 그림은 모바일 회차 화면 `img.toon_image` + Referer m.comic.naver.com, 도메인 자동 찾기 없음(공식 고정 주소).
 - 망가요미 목록 표지는 `getHeaders(url)`(UA + Referer)가 있어야 뜸 — 새 JS 소스에 반드시 넣기.
+- 망가요미는 넘어간(리다이렉트) 최종 주소를 알려 주지 않음 → 정상 화면에 적힌 더 큰 번호의 같은 사이트 주소를 확인해 `auto_domain`에 저장(`selfTarget`/`familyTarget`, 늑대닷컴은 `WOLF_TRIED`), 실패한 주소는 30분간 다시 안 염. 앱 웹뷰에서 간 주소는 확장이 알 수 없음(앱 한계).
 - 망가요미는 필터를 돌려줄 때 `_status` 표시를 지움 → 상태 줄은 글자로도 거를 것.
 - 늑대닷컴 검색어는 EUC-KR 인코딩. GitHub 러너에서 접속 가능(실제 목록 확인용). newxtoon·후후티비 등은 Cloudflare로 러너 차단.
 - 이미지가 늦게 뜨는 문의: 앱 설정(미리 불러올 페이지 수, 읽을 때 자동 다운로드)으로 안내, Custom hardware bitmap threshold는 속도와 무관.
