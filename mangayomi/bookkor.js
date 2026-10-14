@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.11",
+    "version": "0.1.12",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -117,12 +117,14 @@ function chapterPosition(list, title) {
     } catch (e) {}
     const t = String(title || "").trim();
     return list.map((c, i) => {
-        let n = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
+        const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
+        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
         if (t && n.startsWith(t)) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
         }
-        return Object.assign({}, c, { name: n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
+        return Object.assign({}, c, { name: lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
     });
 }
 
