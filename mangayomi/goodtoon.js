@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.23",
+    "version": "0.3.24",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -70,7 +70,7 @@ function orderChapters(list, title) {
     const PRO = "\u0000prologue";
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
-    const seasonOf = (p) => { const m = /(?:시즌|season)(\d+)$/.exec(p || ""); return m ? parseInt(m[1], 10) : 1; };
+    const seasonOf = (p) => { const m = /(?:시즌|season)(\d+)$|(\d+)부$/.exec(p || ""); return m ? parseInt(m[1] || m[2], 10) : 1; };
     // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
     const titleWords = [...new Set([norm(title)].concat((String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
@@ -78,7 +78,9 @@ function orderChapters(list, title) {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
         const name = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
         const index = list.length - 1 - i;
-        const m = /(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/.exec(name) || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
+        // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
+        const units = [...name.matchAll(/(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)/g)];
+        const m = units.find((u) => u[4] !== "부") || units[0] || /(\d+)(?:\s*([-.])\s*(\d+))?/.exec(name);
         if (!m) return /프롤로그|prologue/i.test(name) ? { prefix: PRO, unit: "", num: 0, index } : { prefix: "", unit: "", num: -1, index };
         let num = parseInt(m[1], 10);
         if (m[3]) num = m[2] === "." ? parseFloat(`${m[1]}.${m[3]}`) : num + Math.min(parseInt(m[3], 10), 99) / 100;
@@ -129,7 +131,10 @@ function orderChapters(list, title) {
             const before = !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.max(...mg.nums) && !mg.nums.has(n)) &&
                 seasonOf(groups[g].prefix) === seasonOf(mg.prefix);
             const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
-            if (g === main || !(sameUnitless || before)) continue;
+            // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
+            const after = !isExtra(groups[g].prefix) && seasonOf(groups[g].prefix) > seasonOf(mg.prefix) &&
+                [...groups[g].nums].every((n) => n > Math.max(...mg.nums));
+            if (g === main || !(sameUnitless || before || after)) continue;
             keys.forEach((k) => { if (k.group === g) k.group = main; });
         }
         groups = collect();
@@ -147,6 +152,10 @@ function orderChapters(list, title) {
     let next = Math.floor(Math.max(0, ...keys.filter((k) => k.group === main && k.num >= 0).map((k) => k.num)));
     order.forEach((i) => {
         if (rank(keys[i]) > 0) list[i] = Object.assign({}, list[i], { name: `${++next} · ${String(list[i].name || "").trim()}` });
+        // 본편인데 회차 번호 앞에 다른 숫자가 있으면 ("2부 172화") 망가요미가 그 숫자를 읽지 않게 번호를 앞에 붙임
+        else if (rank(keys[i]) === 0 && /\d/.test(keys[i].prefix)) {
+            list[i] = Object.assign({}, list[i], { name: `${keys[i].num} · ${String(list[i].name || "").trim()}` });
+        }
     });
     return order.reverse().map((i) => list[i]);
 }
@@ -207,12 +216,14 @@ function chapterPosition(list, title) {
     } catch (e) {}
     const t = String(title || "").trim();
     return list.map((c, i) => {
-        let n = String(c.name || "").trim().replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
+        // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
+        const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
+        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}\s*[-–.:)\]]\s*/, "");
         if (t && n.startsWith(t)) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
         }
-        return Object.assign({}, c, { name: n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
+        return Object.assign({}, c, { name: lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
     });
 }
 

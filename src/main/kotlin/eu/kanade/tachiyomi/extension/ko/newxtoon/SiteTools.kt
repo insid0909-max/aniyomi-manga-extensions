@@ -77,10 +77,11 @@ internal object ChapterOrder {
     private val PROLOGUE = Regex("""프롤로그|prologue""", RegexOption.IGNORE_CASE)
     private val WORD = Regex("""[\p{L}\p{N}]+""")
     private const val PROLOGUE_KEY = "\u0000prologue"
-    private val SEASON = Regex("""(?:시즌|season)(\d+)$""")
+    private val SEASON = Regex("""(?:시즌|season)(\d+)$|(\d+)부$""")
 
-    /** 앞부분 끝의 "시즌N" → N (없으면 1) */
-    private fun seasonOf(prefix: String): Int = SEASON.find(prefix)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+    /** 앞부분 끝의 "시즌N"·"N부" → N (없으면 1) */
+    private fun seasonOf(prefix: String): Int =
+        SEASON.find(prefix)?.groupValues?.let { it[1].ifEmpty { it[2] } }?.toIntOrNull() ?: 1
 
     private class Key(var prefix: String, val unit: String, val num: Double, val index: Int) {
         var group = ""
@@ -113,12 +114,15 @@ internal object ChapterOrder {
             val mainPrefix = numbered.getValue(main).first().prefix
             val mainNums = numbered.getValue(main).map { it.num }.toHashSet()
             val mainMax = mainNums.maxOrNull() ?: 0.0
+            val mainSeason = seasonOf(mainPrefix)
             numbered.forEach { (g, ks) ->
                 // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편의 빈 번호면 본편
                 // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다르거나, "화화화작품명 21화" 처럼 사이트가 잘못 적은 경우)
                 val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMax && it.num !in mainNums } &&
                     seasonOf(ks.first().prefix) == seasonOf(mainPrefix)
-                if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before)) {
+                // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
+                val after = !isExtra(ks.first().prefix) && seasonOf(ks.first().prefix) > mainSeason && ks.all { it.num > mainMax }
+                if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before || after)) {
                     ks.forEach { it.group = main }
                 }
             }
@@ -183,7 +187,9 @@ internal object ChapterOrder {
 
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
         val name = rawName.trim().replace(LEADING_SEQ, "")
-        val m = UNIT_NUM.find(name) ?: ANY_NUM.find(name)
+        // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
+        val units = UNIT_NUM.findAll(name).toList()
+        val m = units.firstOrNull { it.groupValues[4] != "부" } ?: units.firstOrNull() ?: ANY_NUM.find(name)
         if (m == null) {
             return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
         }
