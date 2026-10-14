@@ -112,11 +112,11 @@ internal object ChapterOrder {
         if (main != null) {
             val mainPrefix = numbered.getValue(main).first().prefix
             val mainNums = numbered.getValue(main).map { it.num }.toHashSet()
-            val mainMin = mainNums.minOrNull() ?: 0.0
+            val mainMax = mainNums.maxOrNull() ?: 0.0
             numbered.forEach { (g, ks) ->
-                // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편 첫 화보다 앞이면
-                // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다른 경우) 본편
-                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMin } &&
+                // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편의 빈 번호면 본편
+                // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다르거나, "화화화작품명 21화" 처럼 사이트가 잘못 적은 경우)
+                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMax && it.num !in mainNums } &&
                     seasonOf(ks.first().prefix) == seasonOf(mainPrefix)
                 if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before)) {
                     ks.forEach { it.group = main }
