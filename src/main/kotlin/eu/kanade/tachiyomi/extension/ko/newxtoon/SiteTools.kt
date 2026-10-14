@@ -72,7 +72,8 @@ internal object UrlOpen {
  * - "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → 시즌3 …, 본편은 시즌1 안에서 고름
  */
 internal object ChapterOrder {
-    private val UNIT_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?\s*(화|권|호|부|話)""")
+    // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
+    private val UNIT_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?(?:\s*[~～]\s*\d+)?\s*(화|권|호|부|話)""")
     private val ANY_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?""")
     private val PROLOGUE = Regex("""프롤로그|prologue""", RegexOption.IGNORE_CASE)
     private val WORD = Regex("""[\p{L}\p{N}]+""")
@@ -131,13 +132,17 @@ internal object ChapterOrder {
             val mainNums = numbered.getValue(main).map { it.num }.toHashSet()
             val mainMax = mainNums.maxOrNull() ?: 0.0
             val mainSeason = seasonOf(mainPrefix)
+            val mainUnit = numbered.getValue(main).first().unit
             numbered.forEach { (g, ks) ->
                 // 앞부분이 같고 번호가 안 겹치거나, 번외·외전이 아니면서 번호가 모두 본편의 빈 번호면 본편
                 // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다르거나, "화화화작품명 21화" 처럼 사이트가 잘못 적은 경우)
-                val before = !isExtra(ks.first().prefix) && ks.all { it.num < mainMax && it.num !in mainNums } &&
+                // 단위가 다르면("1부 01권" 과 "66화") 번호가 비어 있어도 다른 묶음
+                val sameUnit = ks.first().unit == mainUnit
+                val before = sameUnit && !isExtra(ks.first().prefix) && ks.all { it.num < mainMax && it.num !in mainNums } &&
                     seasonOf(ks.first().prefix) == seasonOf(mainPrefix)
                 // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
-                val after = !isExtra(ks.first().prefix) && seasonOf(ks.first().prefix) > mainSeason && ks.all { it.num > mainMax }
+                val after = sameUnit && !isExtra(ks.first().prefix) && seasonOf(ks.first().prefix) > mainSeason &&
+                    ks.all { it.num > mainMax }
                 if (g != main && ((ks.first().prefix == mainPrefix && ks.none { it.num in mainNums }) || before || after)) {
                     ks.forEach { it.group = main }
                 }
@@ -198,8 +203,9 @@ internal object ChapterOrder {
         keys.forEach { k -> canon[k.prefix]?.let { k.prefix = it } }
     }
 
-    // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
-    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+    // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌. 구분 기호 앞이나 뒤에 빈칸이 있어야 순번
+    // (빈칸 없는 "259.1화"·"262-2화" 는 회차 번호)
+    private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
 
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
         val name = rawName.trim().replace(LEADING_SEQ, "")
@@ -208,6 +214,12 @@ internal object ChapterOrder {
         val m = units.firstOrNull { it.groupValues[4] != "부" } ?: units.firstOrNull() ?: ANY_NUM.find(name)
         if (m == null) {
             return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
+        }
+        // "2부 예고" 처럼 부 표시 뒤에 번호 없는 말만 있으면 그 부의 번호 없는 회차
+        if (m.groupValues.getOrNull(4) == "부" && name.substring(m.range.last + 1).any { it.isLetter() }) {
+            var part = norm(name.substring(0, m.range.last + 1))
+            titleWords.forEach { part = part.replace(it, "") }
+            return Key(part, "", -1.0, index)
         }
         val whole = m.groupValues[1].toDouble()
         val sub = m.groupValues[3]
@@ -323,7 +335,7 @@ internal class NoticeFollow(private val hostRegex: Regex, private val marker: St
  */
 internal object SiteIndex {
     private val NUM = Regex("""\d+""")
-    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+    private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
 
     /** list: 사이트 순서 (최신 → 과거) */
     fun needed(list: List<SChapter>, title: String): Boolean {
@@ -363,7 +375,7 @@ internal object ChapterPosition {
         true
     }
 
-    private val LEADING_SEQ = Regex("""^\d{2,}\s*[-–.:)\]]\s*""")
+    private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
 
     /** 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목을 뺌 */
     fun shorten(name: String, title: String): String {
