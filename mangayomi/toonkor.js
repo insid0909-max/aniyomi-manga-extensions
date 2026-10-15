@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214009,
     "name": "툰코 웹툰",
     "lang": "ko",
-    "baseUrl": "https://toonkor3.org",
+    "baseUrl": "https://toonkor4.org",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.21",
+    "version": "0.1.22",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -701,7 +701,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://toonkor3.org)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://toonkor4.org)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
