@@ -206,13 +206,17 @@ internal object ChapterOrder {
     // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌. 구분 기호 앞이나 뒤에 빈칸이 있어야 순번
     // (빈칸 없는 "259.1화"·"262-2화" 는 회차 번호)
     private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
+    private val BRACKETS = Regex("""\([^)]*\)|\[[^\]]*]|（[^）]*）""")
 
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
         val name = rawName.trim().replace(LEADING_SEQ, "")
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
-        // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커)
-        val chapterUnits = units.filter { it.groupValues[4] != "부" }
+        // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커).
+        // 괄호 안 번호는 덧붙인 설명이라 빼고 봄 ("143화 (외전 2화)" 는 143화, 말단 병사에서 군주까지)
+        val brackets = BRACKETS.findAll(name).map { it.range }.toList()
+        val chapterUnits = units.filter { u -> u.groupValues[4] != "부" && brackets.none { u.range.first in it } }
+            .ifEmpty { units.filter { it.groupValues[4] != "부" } }
         val m = chapterUnits.lastOrNull { it.groupValues[4] == chapterUnits.first().groupValues[4] }
             ?: units.firstOrNull() ?: ANY_NUM.find(name)
         if (m == null) {
