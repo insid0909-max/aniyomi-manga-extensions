@@ -327,7 +327,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             if (!seen.add(path)) return@mapNotNull null
             SChapter.create().apply {
                 url = path
-                name = a.text().trim().removePrefix("UP").trim()
+                name = a.text().replace("&nbsp;", " ").trim().removePrefix("UP").trim()
                 date_upload = try {
                     dateFmt.parse(li.selectFirst(".chapter-release-date")?.text()?.trim().orEmpty())?.time ?: 0L
                 } catch (e: Exception) {
