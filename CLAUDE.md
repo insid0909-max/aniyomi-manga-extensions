@@ -43,6 +43,8 @@
 12. 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것)는 가장 최근 업로드 하나만 남김 — 11toon 주술회전 "1화"가 4번. 이름이 조금이라도 다르면 둘 다 둠.
 13. "1~5화" 처럼 묶은 회차는 첫 화 번호(1). 단위가 다른 묶음("바키 1부 01권" 과 "66화")은 번호가 비어 있어도 본편에 합치지 않음. "2부 예고" 처럼 부 표시 뒤에 번호 없는 말만 있으면 그 부의 번호 없는 회차 (11toon 바키도).
 14. 이름 맨 앞 사이트 순번은 구분 기호 앞이나 뒤에 빈칸이 있을 때만("0001 - ", "107. ") — 빈칸 없는 "259.1화"·"262-2화"·"129.5화" 는 회차 번호 (11toon 주술회전에서 "259.1화" 가 "1화" 로 보이던 문제).
+15. 같은 단위 번호가 여러 개면 마지막 것이 회차 ("두 번 사는 랭커 1화 222화" 는 222화, 굿툰). 굿툰 회차 이름의 글자 "&nbsp;" 는 빈칸으로.
+- 굿툰 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://www.goodtoon007.com/manga/gt-<번호>/ajax/chapters/?t=1|https://www.goodtoon007.com/manga/gt-<번호>/` (번호는 `/?q=검색어` 결과에서).
 - 11toon 실제 회차 목록 확인: anime 저장소 mangayomi_probe(fetch)로 `https://11toon2.com/iapi/t3?usercode=100&menucode=2001&parent=<작품번호>&ordertype=1|https://11toon2.com/mb/content/info/<작품번호>?page=toon` (작품번호는 /iapi/t2?Page=N&Pagerow=100&SType=0&SCountry=0&SEnd=0&SzA_Z=0&MenuCode=1000 목록에서 찾음).
 
 ## 지금까지 고친 것·배운 것 (다시 같은 실수 하지 않기)

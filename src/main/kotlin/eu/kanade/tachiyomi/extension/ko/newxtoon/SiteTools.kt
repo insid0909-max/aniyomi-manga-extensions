@@ -211,7 +211,10 @@ internal object ChapterOrder {
         val name = rawName.trim().replace(LEADING_SEQ, "")
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
-        val m = units.firstOrNull { it.groupValues[4] != "부" } ?: units.firstOrNull() ?: ANY_NUM.find(name)
+        // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커)
+        val chapterUnits = units.filter { it.groupValues[4] != "부" }
+        val m = chapterUnits.lastOrNull { it.groupValues[4] == chapterUnits.first().groupValues[4] }
+            ?: units.firstOrNull() ?: ANY_NUM.find(name)
         if (m == null) {
             return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
         }
