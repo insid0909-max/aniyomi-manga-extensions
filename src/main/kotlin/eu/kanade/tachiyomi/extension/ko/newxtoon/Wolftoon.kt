@@ -496,7 +496,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://wfwf514.com"
+        private const val DEFAULT = "https://wfwf517.com"
         private const val NOTICE_MAX_BYTES = 30_000L
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
