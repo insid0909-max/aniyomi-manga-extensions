@@ -11,6 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
 import rx.Observable
+import kotlin.math.abs
 
 /**
  * 사이트 주소(번호가 바뀌어도 같은 사이트)로 가는 요청 사이에 최소 간격을 둔다.
@@ -84,7 +85,7 @@ internal object ChapterOrder {
     private fun seasonOf(prefix: String): Int =
         SEASON.find(prefix)?.groupValues?.let { it[1].ifEmpty { it[2] } }?.toIntOrNull() ?: 1
 
-    private class Key(var prefix: String, val unit: String, val num: Double, val index: Int) {
+    private class Key(var prefix: String, val unit: String, var num: Double, val index: Int) {
         var group = ""
     }
 
@@ -94,28 +95,64 @@ internal object ChapterOrder {
 
     private val SPACES = Regex("""\s+""")
 
-    /** 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 */
-    private fun dedupe(list: List<SChapter>): List<SChapter> {
+    /** 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (keep 은 항상 남김) */
+    private fun dedupe(list: List<SChapter>, keep: Set<Int>): List<SChapter> {
         val best = HashMap<String, Int>()
         list.forEachIndexed { i, c ->
+            if (i in keep) return@forEachIndexed
             val k = c.name.trim().replace(SPACES, " ").lowercase()
             val j = best[k]
             if (j == null || c.date_upload > list[j].date_upload) best[k] = i
         }
-        if (best.size == list.size) return list
-        val keep = best.values.toHashSet()
-        return list.filterIndexed { i, _ -> i in keep }
+        val kept = best.values.toHashSet() + keep
+        if (kept.size == list.size) return list
+        return list.filterIndexed { i, _ -> i in kept }
+    }
+
+    /**
+     * 앞뒤 회차와 동떨어진 번호는 사이트가 잘못 적은 것 ("2화" 옆 "56화" 가 실제 1화, 늑대닷컴 무직전생):
+     * 앞뒤 번호가 서로 가깝고(2 이하) 이 회차 번호는 둘과 10 넘게 차이 나며, 그 사이(맨 끝이면 바로 옆)에
+     * 아무도 쓰지 않은 번호가 있으면 그 번호로 바로잡음. 위치 → 새 번호
+     */
+    private fun misplaced(keys: List<Key>): Map<Int, Double> {
+        // 같은 단위 번호끼리만 봄 ("번외1" 의 1 은 "1화" 와 다름)
+        val used = keys.filter { it.num >= 0 }.map { it.unit to it.num }.toHashSet()
+        val out = HashMap<Int, Double>()
+        val idx = keys.indices.filter { keys[it].num >= 0 && keys[it].prefix != PROLOGUE_KEY }
+        idx.forEachIndexed { p, i ->
+            val k = keys[i]
+            val a = idx.getOrNull(p - 1)?.let { keys[it] }?.takeIf { it.unit == k.unit }
+            val b = idx.getOrNull(p + 1)?.let { keys[it] }?.takeIf { it.unit == k.unit }
+            if (a == null && b == null) return@forEachIndexed
+            if (listOfNotNull(a, b).any { abs(it.num - k.num) <= 10 }) return@forEachIndexed
+            val cand = when {
+                a != null && b != null -> {
+                    if (abs(a.num - b.num) > 2) return@forEachIndexed
+                    (minOf(a.num, b.num).toInt() + 1 until maxOf(a.num, b.num).toInt()).map { it.toDouble() }
+                }
+                // 맨 끝: 목록은 최신 → 과거라서 앞(a)만 있으면 가장 오래된 회차 → 한 번호 작게
+                a != null -> listOf(a.num - 1)
+                else -> listOf(b!!.num + 1)
+            }.firstOrNull { it >= 0 && (k.unit to it) !in used } ?: return@forEachIndexed
+            used += k.unit to cand
+            out[i] = cand
+        }
+        return out
     }
 
     fun sort(input: List<SChapter>, title: String = ""): List<SChapter> {
-        val list = dedupe(input)
-        if (list.size < 2) return list
+        if (input.size < 2) return input
         // 작품 제목 단어("원피스", "one", "piece")는 앞부분에서 지우고 비교
         // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
         val titleWords = (listOf(norm(title)) + WORD.findAll(title.lowercase()).map { it.value }.filter { it.length >= 2 })
             .filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }
+        // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
+        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords) })
+        val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
+        val list = dedupe(input, fixed.keys)
+        if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
-        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords) }
+        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords).also { k -> fixedNum[c]?.let { k.num = it } } }
         mergePrefixes(keys)
         // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
         keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }

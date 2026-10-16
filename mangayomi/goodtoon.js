@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.28",
+    "version": "0.3.29",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -67,15 +67,6 @@ async function openByUrl(ext, query, toLink) {
 // "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → …, 본편은 시즌1 안에서 고름
 function orderChapters(list, title) {
     if (!list || list.length < 2) return list;
-    // 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만
-    const best = {};
-    list.forEach((c, i) => {
-        const k = String(c.name || "").trim().replace(/\s+/g, " ").toLowerCase();
-        if (best[k] === undefined || Number(c.dateUpload || 0) > Number(list[best[k]].dateUpload || 0)) best[k] = i;
-    });
-    const keep = new Set(Object.values(best));
-    if (keep.size < list.length) list = list.filter((_, i) => keep.has(i));
-    if (list.length < 2) return list;
     const PRO = "\u0000prologue";
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const isExtra = (p) => p.indexOf("번외") >= 0 || p.indexOf("외전") >= 0;
@@ -83,10 +74,10 @@ function orderChapters(list, title) {
     // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
     const titleWords = [...new Set([norm(title)].concat((String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
-    const keys = list.map((c, i) => {
+    const keyOf = (c, i, arr) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
         const name = String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
-        const index = list.length - 1 - i;
+        const index = arr.length - 1 - i;
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
         const units = [...name.matchAll(/(\d+)(?:\s*([-.])\s*(\d+))?(?:\s*[~～]\s*\d+)?\s*(화|권|호|부|話)/g)];
@@ -110,6 +101,49 @@ function orderChapters(list, title) {
         // "제62화" 의 "제" 는 번호 앞에 붙는 말 ("62화" 와 같은 묶음)
         if (prefix.endsWith("제")) prefix = prefix.slice(0, -1);
         return { prefix, unit: m[4] || "", num, index };
+    };
+    // 앞뒤 회차와 동떨어진 번호는 사이트가 잘못 적은 것 ("2화" 옆 "56화" 가 실제 1화, 늑대닷컴 무직전생):
+    // 앞뒤 번호가 서로 가깝고(2 이하) 이 회차 번호는 둘과 10 넘게 차이 나며, 그 사이(맨 끝이면 바로 옆)에
+    // 아무도 쓰지 않은 번호가 있으면 그 번호로 바로잡음
+    const pre = list.map((c, i) => keyOf(c, i, list));
+    // 같은 단위 번호끼리만 봄 ("번외1" 의 1 은 "1화" 와 다름)
+    const used = new Set(pre.filter((k) => k.num >= 0).map((k) => `${k.unit}|${k.num}`));
+    const fixed = new Map();
+    const idx = pre.map((k, i) => i).filter((i) => pre[i].num >= 0 && pre[i].prefix !== PRO);
+    idx.forEach((i, p) => {
+        const k = pre[i];
+        const a = p > 0 && pre[idx[p - 1]].unit === k.unit ? pre[idx[p - 1]] : null;
+        const b = p + 1 < idx.length && pre[idx[p + 1]].unit === k.unit ? pre[idx[p + 1]] : null;
+        if (!a && !b) return;
+        if ([a, b].some((x) => x && Math.abs(x.num - k.num) <= 10)) return;
+        let cand;
+        if (a && b) {
+            if (Math.abs(a.num - b.num) > 2) return;
+            cand = [];
+            for (let n = Math.floor(Math.min(a.num, b.num)) + 1; n < Math.floor(Math.max(a.num, b.num)); n++) cand.push(n);
+        } else {
+            // 맨 끝: 목록은 최신 → 과거라서 앞(a)만 있으면 가장 오래된 회차 → 한 번호 작게
+            cand = [a ? a.num - 1 : b.num + 1];
+        }
+        const n = cand.find((x) => x >= 0 && !used.has(`${k.unit}|${x}`));
+        if (n === undefined) return;
+        used.add(`${k.unit}|${n}`);
+        fixed.set(list[i], n);
+    });
+    // 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (바로잡은 회차는 남김)
+    const best = {};
+    list.forEach((c, i) => {
+        if (fixed.has(c)) return;
+        const k = String(c.name || "").trim().replace(/\s+/g, " ").toLowerCase();
+        if (best[k] === undefined || Number(c.dateUpload || 0) > Number(list[best[k]].dateUpload || 0)) best[k] = i;
+    });
+    const keep = new Set(Object.values(best));
+    if (keep.size + fixed.size < list.length) list = list.filter((c, i) => keep.has(i) || fixed.has(c));
+    if (list.length < 2) return list;
+    const keys = list.map((c, i) => {
+        const k = keyOf(c, i, list);
+        if (fixed.has(c)) { k.num = fixed.get(c); k.fixed = true; }
+        return k;
     });
     // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈, 번외·외전끼리만 따로
     const prefixes = [...new Set(keys.map((k) => k.prefix))].filter((p) => p !== PRO && p.length >= 2)
@@ -176,7 +210,7 @@ function orderChapters(list, title) {
     order.forEach((i) => {
         if (rank(keys[i]) > 0) list[i] = Object.assign({}, list[i], { name: `${++next} · ${String(list[i].name || "").trim()}` });
         // 본편인데 회차 번호 앞에 다른 숫자가 있으면 ("2부 172화") 망가요미가 그 숫자를 읽지 않게 번호를 앞에 붙임
-        else if (rank(keys[i]) === 0 && /\d/.test(keys[i].prefix)) {
+        else if (rank(keys[i]) === 0 && (/\d/.test(keys[i].prefix) || keys[i].fixed)) {
             list[i] = Object.assign({}, list[i], { name: `${keys[i].num} · ${String(list[i].name || "").trim()}` });
         }
     });
