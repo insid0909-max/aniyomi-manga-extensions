@@ -12,7 +12,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/blacktoon.js",
   "apiUrl": "",
-  "version": "0.3.32",
+  "version": "0.3.33",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
