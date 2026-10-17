@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.32",
+    "version": "0.3.33",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -371,7 +371,11 @@ class DefaultExtension extends MProvider {
         try {
             res = await this.reqRaw(...args);
         } catch (e) {
-            throw new Error(friendlyError(e));
+            // 어느 주소에서 어떤 오류였는지도 붙임 (앱마다 연결 방식이 달라 원인 확인용)
+            const raw = String((e && e.message) || e || "").replace(/\s+/g, " ").substring(0, 100);
+            const host = String(args[0] || "").split("/")[2] || "";
+            const msg = friendlyError(e);
+            throw new Error(msg === raw ? `${msg} [${host}]` : `${msg} [${host}: ${raw}]`);
         }
         const msg = friendlyHttp(res && Number(res.statusCode));
         if (msg) throw new Error(msg);
