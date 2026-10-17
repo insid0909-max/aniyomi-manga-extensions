@@ -46,6 +46,7 @@
 15. 같은 단위 번호가 여러 개면 마지막 것이 회차 ("두 번 사는 랭커 1화 222화" 는 222화, 굿툰). 단 괄호 ( ) [ ] 안 번호는 설명이라 빼고 봄 ("143화 (외전 2화)" 는 143화 — 사이트처럼 외전도 본편 번호 순서, 블랙툰 말단 병사에서 군주까지). 굿툰 회차 이름의 글자 "&nbsp;" 는 빈칸으로.
 16. 앞뒤 회차와 동떨어진 번호는 사이트가 잘못 적은 것: 앞뒤 번호가 서로 2 이하로 가깝고 이 회차는 둘과 10 넘게 차이 나면, 사이(맨 끝이면 바로 옆)의 안 쓰인 같은 단위 번호로 바로잡고 중복 정리(12번)에서도 지우지 않음. 망가요미는 "1 · 56화"처럼 번호를 앞에 붙임 (늑대닷컴 무직전생: 1화가 "56화"로 적혀 진짜 56화와 겹쳐 지워졌던 문제).
 - 늑대닷컴 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://wfwf517.com/cl?toon=<번호>&s=n&pg=1` (웹툰은 /list?toon=, 쪽마다 pg=2,3…). 번호는 `/sh?q=<EUC-KR 검색어>` 결과에서.
+- 사용자는 망가요미 변형 앱 "Mangayomi Glitch"(SNI 파편화·인증서 무시 설정 등)도 씀. 블랙툰 작품 데이터(webtoon_0/1.js, 큰 파일)는 정규식 대신 위치로 배열을 자르고(btArray), 실패하면 주소별 이유(HTTP 코드·형식 다름·글자 수)를 오류에 표시.
 - 굿툰 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://www.goodtoon007.com/manga/gt-<번호>/ajax/chapters/?t=1|https://www.goodtoon007.com/manga/gt-<번호>/` (번호는 `/?q=검색어` 결과에서).
 - 11toon 실제 회차 목록 확인: anime 저장소 mangayomi_probe(fetch)로 `https://11toon2.com/iapi/t3?usercode=100&menucode=2001&parent=<작품번호>&ordertype=1|https://11toon2.com/mb/content/info/<작품번호>?page=toon` (작품번호는 /iapi/t2?Page=N&Pagerow=100&SType=0&SCountry=0&SEnd=0&SzA_Z=0&MenuCode=1000 목록에서 찾음).
 
