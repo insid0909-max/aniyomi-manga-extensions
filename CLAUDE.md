@@ -47,6 +47,7 @@
 16. 앞뒤 회차와 동떨어진 번호는 사이트가 잘못 적은 것: 앞뒤 번호가 서로 2 이하로 가깝고 이 회차는 둘과 10 넘게 차이 나면, 사이(맨 끝이면 바로 옆)의 안 쓰인 같은 단위 번호로 바로잡고 중복 정리(12번)에서도 지우지 않음. 망가요미는 "1 · 56화"처럼 번호를 앞에 붙임 (늑대닷컴 무직전생: 1화가 "56화"로 적혀 진짜 56화와 겹쳐 지워졌던 문제).
 - 늑대닷컴 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://wfwf517.com/cl?toon=<번호>&s=n&pg=1` (웹툰은 /list?toon=, 쪽마다 pg=2,3…). 번호는 `/sh?q=<EUC-KR 검색어>` 결과에서.
 - 사용자는 망가요미 변형 앱 "Mangayomi Glitch"(SNI 파편화·인증서 무시 설정 등)도 씀. 블랙툰 작품 데이터(webtoon_0/1.js, 큰 파일)는 정규식 대신 위치로 배열을 자르고(btArray), 실패하면 주소별 이유(HTTP 코드·형식 다름·글자 수)를 오류에 표시.
+- 망가요미 JS 공통 appClient: 사이트 요청은 User-Agent 를 빼고 보냄(원래 망가요미가 웹뷰 UA를 넣어 클라우드플레어 쿠키가 통함). Glitch 는 UA 를 안 넣어 사이트가 연결을 끊음(블랙툰) → 연결 오류·403 이면 UA 넣어 다시 보내고 그 뒤로 계속 넣음(APP_NO_UA). 13개 파일(웹툰 10 + 애니 3) 모두 같은 코드 유지.
 - 굿툰 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://www.goodtoon007.com/manga/gt-<번호>/ajax/chapters/?t=1|https://www.goodtoon007.com/manga/gt-<번호>/` (번호는 `/?q=검색어` 결과에서).
 - 11toon 실제 회차 목록 확인: anime 저장소 mangayomi_probe(fetch)로 `https://11toon2.com/iapi/t3?usercode=100&menucode=2001&parent=<작품번호>&ordertype=1|https://11toon2.com/mb/content/info/<작품번호>?page=toon` (작품번호는 /iapi/t2?Page=N&Pagerow=100&SType=0&SCountry=0&SEnd=0&SzA_Z=0&MenuCode=1000 목록에서 찾음).
 

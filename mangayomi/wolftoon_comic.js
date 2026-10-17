@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.24",
+    "version": "0.1.25",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -913,17 +913,52 @@ function withParams(list, base) {
     return out;
 }
 
+// 망가요미 변형 앱(Mangayomi Glitch 등)은 User-Agent 를 넣어 주지 않아, 빼고 보내면 사이트가 연결을 끊거나 403 을 줌
+// → 그런 응답이면 User-Agent 를 넣어 다시 보내고, 그 뒤로는 처음부터 넣음 (원래 망가요미는 첫 요청이 성공해 그대로)
+let APP_NO_UA = false;
 function appClient(raw) {
     const media = /\.(?:m3u8|mp4|ts|m4s|jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
+    const fallbackUa = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
     const strip = (url, headers) => {
         if (!headers || media.test(String(url || ""))) return headers || {};
         const out = {};
         for (const k in headers) if (k.toLowerCase() !== "user-agent") out[k] = headers[k];
         return out;
     };
+    const withUa = (headers) => {
+        const out = Object.assign({}, headers || {});
+        if (!Object.keys(out).some((k) => k.toLowerCase() === "user-agent")) out["User-Agent"] = fallbackUa;
+        return out;
+    };
+    const send = async (call, url, headers) => {
+        if (APP_NO_UA || media.test(String(url || ""))) return call(url, APP_NO_UA ? withUa(headers) : headers || {});
+        let res;
+        try {
+            res = await call(url, strip(url, headers));
+        } catch (e) {
+            res = null;
+            try {
+                const again = await call(url, withUa(headers));
+                APP_NO_UA = true;
+                return again;
+            } catch (e2) {
+                throw e;
+            }
+        }
+        if (res && res.statusCode === 403) {
+            try {
+                const again = await call(url, withUa(headers));
+                if (again && again.statusCode && again.statusCode < 400) {
+                    APP_NO_UA = true;
+                    return again;
+                }
+            } catch (e) {}
+        }
+        return res;
+    };
     return {
-        get: (url, headers) => raw.get(url, strip(url, headers)),
-        post: (url, headers, body) => raw.post(url, strip(url, headers), body),
+        get: (url, headers) => send((u, h) => raw.get(u, h), url, headers),
+        post: (url, headers, body) => send((u, h) => raw.post(u, h, body), url, headers),
     };
 }
 
