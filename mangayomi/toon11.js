@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214005,
     "name": "11toon 만화",
     "lang": "ko",
-    "baseUrl": "https://11toon148.com",
+    "baseUrl": "https://update.spotv24.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.29",
+    "version": "0.3.30",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -17,12 +17,18 @@ const mangayomiSources = [{
 
 const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
-const AUTO_HOST = /^(www\.)?(11toon|spotv)\d*\.com$/;
+// 11toon숫자.com · spotv숫자.com, 사용자가 알려 준 접속 주소(update.spotv24.com · 91.192.107.81:6600)
+const AUTO_HOST = /^(www\.)?((11toon|spotv)\d*\.com|[a-z0-9-]+\.spotv24\.com|\d{1,3}(\.\d{1,3}){3})(:\d+)?$/;
 const AUTO_NUM = /(?:11toon|spotv)(\d+)/;
 const AUTO_PROBE = "/";
 // 진짜 일일툰 페이지에 있는 글자 (주소 안내 페이지와 구별)
 const AUTO_MARKER = "bo_table=toon";
 const T11_GUIDE = "https://11toon1.com/";
+// 안내 사이트의 "현재주소"(11toon148.com 등)는 국내에서 막히는 일이 있어, 국내에서 열리는 주소를 먼저 씀
+const T11_ALTERNATES = ["https://update.spotv24.com", "http://91.192.107.81:6600"];
+// 2026.10 개편 때 설정 키를 바꿈 (옛 11toon2 · 11toon148 저장값을 쓰지 않게)
+const T11_DOMAIN_KEY = "domain_v2";
+const T11_AUTO_KEY = "auto_domain_v2";
 
 // 11toon 만화 (일일툰) - Aniyomi 확장(Toon11.kt)과 같은 구조를 망가요미용으로 옮김
 // 2026.10 사이트 개편 뒤 게시판 구조:
@@ -339,13 +345,13 @@ class DefaultExtension extends MProvider {
         // 설치 중 등 설정을 읽을 수 없을 때는 기본 주소
         try {
             const prefs = new SharedPreferences();
-            const manual = this.cleanUrl(prefs.get("domain"));
+            const manual = this.cleanUrl(prefs.get(T11_DOMAIN_KEY));
             // 직접 넣은 주소는 기본 주소와 같아도 그대로 씀 (설정 기본값은 빈 칸)
             if (manual) return manual;
             // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
-            const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
+            const auto = this.cleanUrl(prefs.getString(T11_AUTO_KEY, ""));
             const n = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
-            return auto && n(auto) >= n(this.source.baseUrl) ? auto : this.source.baseUrl;
+            return auto || this.source.baseUrl;
         } catch (e) {
             return this.source.baseUrl;
         }
@@ -384,8 +390,8 @@ class DefaultExtension extends MProvider {
         try {
             const res = post ? await this.client.post(url, headers || {}, body) : await this.client.get(url, headers || {});
             // 자동으로 찾은 주소가 막히면(403) 자동 주소를 지우고 기본 주소로 다시 요청
-            if (ours && res.statusCode === 403 && base !== this.source.baseUrl && !this.cleanUrl(new SharedPreferences().get("domain"))) {
-                new SharedPreferences().setString("auto_domain", "");
+            if (ours && res.statusCode === 403 && base !== this.source.baseUrl && !this.cleanUrl(new SharedPreferences().get(T11_DOMAIN_KEY))) {
+                new SharedPreferences().setString(T11_AUTO_KEY, "");
                 const fb = this.source.baseUrl;
                 const h = {};
                 for (const k in headers || {}) h[k] = String(headers[k]).split(base).join(fb);
@@ -396,7 +402,7 @@ class DefaultExtension extends MProvider {
             // 정상 화면에 적힌 더 새 주소(사이트가 새 주소로 넘겨 준 경우 포함)를 자동 주소로 기억
             if (ours && !post && !notice && res.statusCode === 200) {
                 const self = await selfTarget(this, res.body, base, AUTO_MARKER);
-                if (self) new SharedPreferences().setString("auto_domain", self);
+                if (self) new SharedPreferences().setString(T11_AUTO_KEY, self);
             }
             if (!notice && (!ours || !(res.statusCode >= 500))) return res;
             failed = res;
@@ -405,7 +411,7 @@ class DefaultExtension extends MProvider {
             error = e;
         }
         const found = notice || await this.discover(base);
-        if (notice) new SharedPreferences().setString("auto_domain", notice);
+        if (notice) new SharedPreferences().setString(T11_AUTO_KEY, notice);
         if (!found) {
             if (error) throw error;
             return failed;
@@ -444,7 +450,7 @@ class DefaultExtension extends MProvider {
             ok.sort((a, b) => num(b) - num(a));
             found = ok[0] || null;
         }
-        if (found) prefs.setString("auto_domain", found);
+        if (found) prefs.setString(T11_AUTO_KEY, found);
         return found;
     }
 
@@ -462,16 +468,19 @@ class DefaultExtension extends MProvider {
     autoCandidates(current) {
         const n = parseInt((String(current).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const out = [];
-        if (n > 1) for (let i = n + 1; i <= n + 10; i++) out.push(`https://11toon${i}.com`);
+        if (n > 1 && /11toon\d+\.com/.test(String(current))) for (let i = n + 1; i <= n + 10; i++) out.push(`https://11toon${i}.com`);
         return out;
     }
 
-    /** 주소 안내 사이트(11toon1.com)의 "일일툰현재주소" 중 실제로 열리는 주소 (큰 번호 우선) */
+    /** 예비 주소 → 주소 안내 사이트(11toon1.com)의 "일일툰현재주소" 중 실제로 열리는 주소 (큰 번호 우선) */
     async autoGuide(current) {
-        const body = String((await this.client.get(T11_GUIDE, { "User-Agent": MOBILE_UA })).body || "");
+        let body = "";
+        try {
+            body = String((await this.client.get(T11_GUIDE, { "User-Agent": MOBILE_UA })).body || "");
+        } catch (e) {}
         const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
-        const hosts = [...new Set((body.match(/(?:www\.)?(?:11toon|spotv)\d+\.com/gi) || []).map(h => "https://" + h.toLowerCase()))]
-            .filter(h => h !== current && num(h) > 1).sort((a, b) => num(b) - num(a));
+        const hosts = T11_ALTERNATES.concat([...new Set((body.match(/(?:www\.)?(?:11toon|spotv)\d+\.com/gi) || []).map(h => "https://" + h.toLowerCase()))]
+            .filter(h => num(h) > 1).sort((a, b) => num(b) - num(a))).filter(h => h !== current);
         for (const h of hosts) {
             try {
                 const r = await this.client.get(h + "/", { "User-Agent": MOBILE_UA });
@@ -810,10 +819,10 @@ class DefaultExtension extends MProvider {
                 value: true
             }
         }, {
-            key: "domain",
+            key: T11_DOMAIN_KEY,
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://11toon148.com)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://update.spotv24.com, http://91.192.107.81:6600)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
@@ -822,7 +831,7 @@ class DefaultExtension extends MProvider {
             key: "auto_on",
             switchPreferenceCompat: {
                 title: "도메인 자동 찾기",
-                summary: "접속이 안 되면 주소 안내(11toon1.com)에 적힌 주소나 다음 번호 주소로 자동 변경",
+                summary: "접속이 안 되면 예비 주소(update.spotv24.com · 91.192.107.81:6600)와 주소 안내(11toon1.com)에 적힌 주소 중 열리는 곳으로 자동 변경",
                 value: true
             }
         }];
