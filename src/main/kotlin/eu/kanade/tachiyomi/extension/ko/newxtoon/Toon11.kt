@@ -72,8 +72,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             } catch (e: Throwable) {
                 ""
             }
-            // 옛 주소(11toon2.com 등 번호가 기본 주소보다 작은 주소)는 기본 주소로
-            return if (Regex("^https?://[^\\s/]+$").matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
+            return if (Regex("^https?://[^\\s/]+$").matches(v)) v else DEFAULT
         }
 
     private fun autoDomain(): Boolean = try {
@@ -111,10 +110,11 @@ class Toon11 : HttpSource(), ConfigurableSource {
         val res = try {
             chain.proceed(req)
         } catch (e: IOException) {
-            val found = if (auto) discoverDomain(baseHost!!) else null
+            val found = if (auto) discoverDomain(baseUrl) else null
             if (found == null) throw e
-            saveDomain("https://$found")
-            return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+            saveDomain(found)
+            val f = found.toHttpUrl()
+            return chain.proceed(req.newBuilder().url(req.url.newBuilder().scheme(f.scheme).host(f.host).port(f.port).build()).build())
         }
 
         if (res.code == 451) {
@@ -123,7 +123,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
         }
         val finalHost = res.request.url.host
         if (auto && finalHost != baseHost && HOST_REGEX.matches(finalHost) && hostNumber(finalHost) > 1) {
-            saveDomain("https://$finalHost")
+            saveDomain("${res.request.url.scheme}://$finalHost" + res.request.url.port.let { if (it == 80 || it == 443) "" else ":$it" })
         }
         return res
     }
@@ -144,9 +144,9 @@ class Toon11 : HttpSource(), ConfigurableSource {
             .build()
     }
 
-    /** 일일툰 페이지가 실제로 열리는 주소인지 */
-    private fun works(host: String): Boolean = try {
-        val r = Request.Builder().url("https://$host/").header("User-Agent", userAgent).build()
+    /** 일일툰 페이지가 실제로 열리는 주소인지 (base: "https://호스트" 또는 "http://IP:포트") */
+    private fun works(base: String): Boolean = try {
+        val r = Request.Builder().url("$base/").header("User-Agent", userAgent).build()
         plain.newCall(r).execute().use { res ->
             res.code == 200 && HOST_REGEX.matches(res.request.url.host) && (res.body?.string() ?: "").contains(MARKER)
         }
@@ -155,9 +155,10 @@ class Toon11 : HttpSource(), ConfigurableSource {
     }
 
     /**
-     * 새 주소 찾기: 1) 주소 안내 사이트(11toon1.com)에 적힌 "일일툰현재주소" 2) 지금 번호 다음 10개 (11toon149 …)
+     * 새 주소 찾기 (찾은 주소를 "https://호스트" 모양으로 돌려줌):
+     * 1) 국내에서 열리는 예비 주소 2) 주소 안내 사이트(11toon1.com)에 적힌 "일일툰현재주소" 3) 지금 번호 다음 10개 (11toon149 …)
      */
-    private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
+    private fun discoverDomain(current: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
         lastDiscover = now
@@ -170,15 +171,16 @@ class Toon11 : HttpSource(), ConfigurableSource {
         } catch (e: Exception) {
             emptyList()
         }
-        announced.filter { it != currentHost }.firstOrNull { works(it) }?.let { return it }
+        (ALTERNATES + announced.map { "https://$it" }).filter { it != current }.firstOrNull { works(it) }?.let { return it }
 
+        val currentHost = current.toHttpUrlOrNull()?.host ?: return null
         val cur = hostNumber(currentHost)
-        if (cur <= 1) return null
+        if (cur <= 1 || !currentHost.contains("11toon")) return null
         val www = if (currentHost.startsWith("www.")) "www." else ""
         val pool = java.util.concurrent.Executors.newFixedThreadPool(5)
         try {
-            (cur + 1..cur + 10).map { "${www}11toon$it.com" }
-                .map { host -> pool.submit<String?> { if (works(host)) host else null } }
+            (cur + 1..cur + 10).map { "https://${www}11toon$it.com" }
+                .map { base -> pool.submit<String?> { if (works(base)) base else null } }
                 .mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
         } finally {
             pool.shutdown()
@@ -190,7 +192,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
             title = "도메인 주소"
-            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT)"
+            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT, 예비: http://91.192.107.81:6600)"
             dialogTitle = "도메인 주소"
             setDefaultValue(DEFAULT)
             setOnPreferenceChangeListener { _, v ->
@@ -201,7 +203,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
         SwitchPreferenceCompat(screen.context).apply {
             key = KEY_AUTO
             title = "도메인 자동 찾기"
-            summary = "접속이 안 되면 주소 안내(11toon1.com)에 적힌 주소나 다음 번호 주소로 자동 변경"
+            summary = "접속이 안 되면 예비 주소(update.spotv24.com · 91.192.107.81:6600)와 주소 안내(11toon1.com)에 적힌 주소 중 열리는 곳으로 자동 변경"
             setDefaultValue(true)
         }.also(screen::addPreference)
 
@@ -482,15 +484,19 @@ class Toon11 : HttpSource(), ConfigurableSource {
     private fun Response.asDoc(): Document = Jsoup.parse(body?.string().orEmpty(), request.url.toString())
 
     companion object {
-        private const val KEY_DOMAIN = "pref_domain_key"
+        // 2026.10 개편 때 키를 바꿈 (옛 11toon2 · 11toon148 저장값을 쓰지 않게)
+        private const val KEY_DOMAIN = "pref_domain_v2"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://11toon148.com"
+
+        // 안내 사이트의 "현재주소"(11toon148.com 등)는 국내에서 막히는 일이 있어, 국내에서 열리는 주소를 기본·예비로 씀
+        private const val DEFAULT = "https://update.spotv24.com"
+        private val ALTERNATES = listOf("https://update.spotv24.com", "http://91.192.107.81:6600")
         private const val GUIDE = "https://11toon1.com/"
 
         // 진짜 일일툰 페이지에 있는 글자 (주소 안내 페이지와 구별)
         private const val MARKER = "bo_table=toon"
-        private val HOST_REGEX = Regex("^(www\\.)?(11toon|spotv)\\d*\\.com$")
+        private val HOST_REGEX = Regex("^(www\\.)?((11toon|spotv)\\d*\\.com|[a-z0-9-]+\\.spotv24\\.com|\\d{1,3}(\\.\\d{1,3}){3})$")
 
         /** 목록 종류 (사이트 메뉴) */
         private val LISTS = listOf(
