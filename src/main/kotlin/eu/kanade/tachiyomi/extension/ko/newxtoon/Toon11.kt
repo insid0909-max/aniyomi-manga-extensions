@@ -386,13 +386,17 @@ class Toon11 : HttpSource(), ConfigurableSource {
             ChapterOrder.sort(it, manga.title).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l, manga.title) else l }
         }
 
+    private fun nfc(s: String): String = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFC)
+
     private fun parseEpisodes(doc: Document, id: String, title: String, seen: HashSet<String>): List<SChapter> =
         doc.select("#comic-episode-list button[onclick*=wr_id], .episode-list button[onclick*=wr_id]").mapNotNull { b ->
             val cid = Regex("wr_id=(\\d+)").find(b.attr("onclick"))?.groupValues?.get(1) ?: return@mapNotNull null
             if (!seen.add(cid)) return@mapNotNull null
-            val full = b.selectFirst(".episode-title")?.text()?.trim().orEmpty()
+            // 사이트가 한글을 자모로 풀어 적은 회차("열혈강호 729")도 있어 보통 한글로 모음
+            val full = nfc(b.selectFirst(".episode-title")?.text()?.trim().orEmpty())
             // 사이트와 같이 회차 제목에서 작품 제목을 뺌 ("Re: 열혈강호 14권" → "Re: 14권")
-            val name = (if (title.isNotEmpty()) full.replace(title, "") else full)
+            val t = nfc(title)
+            val name = (if (t.isNotEmpty()) full.replace(t, "") else full)
                 .replace(Regex("\\s+"), " ").trim().ifEmpty { full.ifEmpty { cid } }
             chapter(cid, id, name).apply {
                 date_upload = Regex("(\\d{2})\\.(\\d{2})\\.(\\d{2})").find(b.selectFirst(".free-date")?.ownText().orEmpty())?.let { m ->

@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.31",
+    "version": "0.3.32",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -285,6 +285,14 @@ async function familyTarget(ext, body, base, marker, quiet) {
         }
     }
     return null;
+}
+
+function nfc(s) {
+    try {
+        return String(s).normalize("NFC");
+    } catch (e) {
+        return String(s);
+    }
 }
 
 // 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
@@ -647,9 +655,10 @@ class DefaultExtension extends MProvider {
             const tt = b.select(".episode-title");
             if (!tt.length) continue;
             seen[cid] = true;
-            const full = String(tt[0].text || "").trim();
+            // 사이트가 한글을 자모로 풀어 적은 회차("열혈강호 729")도 있어 보통 한글로 모음
+            const full = nfc(String(tt[0].text || "").trim());
             // 사이트와 같이 회차 제목에서 작품 제목을 뺌 ("Re: 열혈강호 14권" → "Re: 14권")
-            const name = (title ? full.split(title).join("") : full).replace(/\s+/g, " ").trim() || full || cid;
+            const name = (title ? full.split(nfc(title)).join("") : full).replace(/\s+/g, " ").trim() || full || cid;
             const fd = b.select(".free-date");
             const d = (fd.length ? fd[0].text : "").match(/(\d{2})\.(\d{2})\.(\d{2})/);
             out.push({
