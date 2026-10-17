@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214005,
     "name": "11toon 만화",
     "lang": "ko",
-    "baseUrl": "https://11toon2.com",
+    "baseUrl": "https://11toon148.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.28",
+    "version": "0.3.29",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -17,21 +17,26 @@ const mangayomiSources = [{
 
 const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
-const AUTO_HOST = /^(www\.)?11toon\d*\.com$/;
-const AUTO_NUM = /11toon(\d+)/;
-const AUTO_PROBE = "/mb";
-const AUTO_MARKER = "content/info/";
+const AUTO_HOST = /^(www\.)?(11toon|spotv)\d*\.com$/;
+const AUTO_NUM = /(?:11toon|spotv)(\d+)/;
+const AUTO_PROBE = "/";
+// 진짜 일일툰 페이지에 있는 글자 (주소 안내 페이지와 구별)
+const AUTO_MARKER = "bo_table=toon";
+const T11_GUIDE = "https://11toon1.com/";
 
 // 11toon 만화 (일일툰) - Aniyomi 확장(Toon11.kt)과 같은 구조를 망가요미용으로 옮김
-// 작품: /mb/content/info/{id}?page=toon, 회차: /mb/content/image/{id}?page=toon&parent_id={작품id}
-// 데이터 API: /iapi/t3 (작품+회차), /iapi/t4 (랭킹), /iapi/t5 (이미지), POST /mb/top_search (검색)
-// 응답 형식: {"data":{"SucCode":20000,"SucData":...,"SucAllCnt":N},"code":200}
-const T11_USER = "100";
-const T11_VIEW = "2001";   // ViewCodeToon
-const T11_TOP = "400";     // TopCoce
-const T11_NEW = "100";     // NewCoce
-const T11_ROW = 30;
-const T11_SEARCH_ROW = 20;
+// 2026.10 사이트 개편 뒤 게시판 구조:
+// 목록: /bbs/board.php?bo_table=toon_c&tablename=인기만화 (type=upd 최신, is_over=1 완결, sca=장르, page=N)
+// 작품: /bbs/board.php?bo_table=toons&is={작품id}&page=N (회차 100개씩), 회차: bo_table=toons&wr_id={회차id}
+// 회차 이미지: 회차 페이지의 img_list (예비 서버 img_list_2), 검색: /bbs/ajax.search.php?search_key= (JSON)
+// 앱 안의 작품·회차 주소는 예전 모양(/mb/content/info/{id}, /mb/content/image/{id}) 그대로 두어 서재·읽은 기록이 이어짐
+// 목록 종류 (사이트 메뉴)
+const T11_LISTS = [
+    ["인기만화", "tablename=%EC%9D%B8%EA%B8%B0%EB%A7%8C%ED%99%94"],
+    ["최신만화", "type=upd&tablename=%EC%B5%9C%EC%8B%A0%EB%A7%8C%ED%99%94"],
+    ["완결만화", "is_over=1&tablename=%EC%99%84%EA%B2%B0%EB%A7%8C%ED%99%94"],
+    ["매일 추천 100", "type=today&tablename=%EB%A7%A4%EC%9D%BC%20%EC%B6%94%EC%B2%9C%20100"]
+];
 
 // ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
 // 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
@@ -47,9 +52,9 @@ const TAB_RULE_OPTIONS = [
     "Latest 탭을 기본값으로 복원",
     "두 탭 모두 기본값으로 복원"
 ];
-// 사이트 "만화분류"의 장르 (번호 = SType, 0 = 전체)
-const T11_GENRES = ["전체", "SF", "TS", "개그", "드라마", "러브코미디", "먹방", "백합", "붕탁", "순정", "스릴러",
-    "스포츠", "시대", "액션", "인기", "일상 + 치유", "추리", "판타지", "학원", "호러", "BL"];
+// 사이트 장르 탭 (sca 값, 0 = 전체)
+const T11_GENRES = ["전체", "BL", "러브코미디", "17", "판타지", "순정", "드라마", "학원", "게임", "SF", "스릴러", "먹방", "TS",
+    "스포츠", "이세계", "추리", "일상", "라노벨", "백합", "시대", "애니화", "전생", "붕탁", "무협", "호러", "공포"];
 
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
@@ -387,10 +392,10 @@ class DefaultExtension extends MProvider {
                 const r2 = (post ? await this.client.post(fb + url.substring(base.length), h, body) : await this.client.get(fb + url.substring(base.length), h));
                 if (r2.statusCode < 400) return r2;
             }
-            if (ours && !post && res.statusCode === 200) notice = await noticeTarget(this, res.body, base, "content/info/");
+            if (ours && !post && res.statusCode === 200) notice = await noticeTarget(this, res.body, base, AUTO_MARKER);
             // 정상 화면에 적힌 더 새 주소(사이트가 새 주소로 넘겨 준 경우 포함)를 자동 주소로 기억
             if (ours && !post && !notice && res.statusCode === 200) {
-                const self = await selfTarget(this, res.body, base, "content/info/");
+                const self = await selfTarget(this, res.body, base, AUTO_MARKER);
                 if (self) new SharedPreferences().setString("auto_domain", self);
             }
             if (!notice && (!ours || !(res.statusCode >= 500))) return res;
@@ -453,23 +458,36 @@ class DefaultExtension extends MProvider {
         return hosts[0] || null;
     }
 
+    /** 지금 번호 다음 10개 (11toon149 …) */
     autoCandidates(current) {
+        const n = parseInt((String(current).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const out = [];
-        for (let i = 1; i <= 30; i++) out.push(`https://11toon${i}.com`);
+        if (n > 1) for (let i = n + 1; i <= n + 10; i++) out.push(`https://11toon${i}.com`);
         return out;
     }
 
+    /** 주소 안내 사이트(11toon1.com)의 "일일툰현재주소" 중 실제로 열리는 주소 (큰 번호 우선) */
     async autoGuide(current) {
+        const body = String((await this.client.get(T11_GUIDE, { "User-Agent": MOBILE_UA })).body || "");
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        const hosts = [...new Set((body.match(/(?:www\.)?(?:11toon|spotv)\d+\.com/gi) || []).map(h => "https://" + h.toLowerCase()))]
+            .filter(h => h !== current && num(h) > 1).sort((a, b) => num(b) - num(a));
+        for (const h of hosts) {
+            try {
+                const r = await this.client.get(h + "/", { "User-Agent": MOBILE_UA });
+                if (r.statusCode === 200 && String(r.body || "").includes(AUTO_MARKER)) return h;
+            } catch (e) {}
+        }
         return null;
     }
 
     getHeaders(url) {
-        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/mb" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.source.baseUrl + "/" };
     }
 
     /** 실제 요청용 헤더 (현재 도메인 기준) */
     hdr(url) {
-        return { "User-Agent": MOBILE_UA, "Referer": this.base + "/mb" };
+        return { "User-Agent": MOBILE_UA, "Referer": this.base + "/" };
     }
 
     abs(u) {
@@ -492,191 +510,89 @@ class DefaultExtension extends MProvider {
         return !t || t.trim().toLowerCase().startsWith("loading");
     }
 
-    // 사이트는 모든 API 요청에 페이지의 _token 을 X-CSRF-TOKEN 헤더로 보냄
-    async token() {
-        if (this._token) return this._token;
-        try {
-            const res = await this.req(this.base + "/mb", this.hdr());
-            const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
-            if (t) this._token = t;
-        } catch (e) {
-            // 토큰 없이 진행
-        }
-        return this._token || "";
-    }
-
-    async apiHeaders(referer, withToken = true) {
-        const h = {
-            "User-Agent": MOBILE_UA,
-            "Referer": referer,
-            "Accept": "application/json, text/javascript, */*; q=0.01",
-            "X-Requested-With": "XMLHttpRequest"
-        };
-        if (withToken) {
-            const t = await this.token();
-            if (t) h["X-CSRF-TOKEN"] = t;
-        }
-        return h;
-    }
-
-    parseJson(body) {
-        const i = (body || "").search(/[{[]/);
-        if (i < 0) return null;
-        try {
-            return JSON.parse(body.substring(i));
-        } catch (e) {
-            return null;
-        }
-    }
-
-    // 조회(GET) API는 토큰 없이 바로 요청 (메인 페이지를 먼저 받지 않아 빠름), 실패하면 토큰을 붙여 한 번 더
-    async api(path, params, referer) {
-        const q = Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join("&");
-        const url = `${this.base}${path}?${q}`;
-        for (const withToken of [false, true]) {
-            try {
-                const json = this.parseJson((await this.req(url, await this.apiHeaders(referer, withToken))).body);
-                if (json && (json.code === undefined || json.code == 200)) return json;
-            } catch (e) {
-                // 토큰 붙여 재시도
-            }
-        }
-        return null;
-    }
-
-    sucData(o) {
-        if (!o) return null;
-        return (o.data && o.data.SucData !== undefined) ? o.data.SucData : (o.SucData !== undefined ? o.SucData : (o.data || o));
-    }
-
-    /** 응답 안 어디에 있든 id + subject 를 가진 작품 객체들을 모음 (문자열 JSON 포함) */
-    collect(node, out) {
-        if (node == null) return;
-        if (typeof node === "string") {
-            if (node.startsWith("{")) {
-                try {
-                    this.collect(JSON.parse(node), out);
-                } catch (e) {
-                    // 무시
-                }
-            }
-        } else if (Array.isArray(node)) {
-            node.forEach(n => this.collect(n, out));
-        } else if (typeof node === "object") {
-            if (node.id !== undefined && node.subject !== undefined) out.push(node);
-            else Object.keys(node).forEach(k => this.collect(node[k], out));
-        }
-    }
-
-    imageOf(o) {
-        const img = o.image;
-        const raw = img && typeof img === "object" ? (img.Big || img.Small || img.Middle || "") : (typeof img === "string" ? img : "");
-        return raw ? this.abs(raw) : "";
-    }
-
+    // 앱 안 주소는 예전 모양 그대로 (서재·읽은 기록 유지)
     mangaUrl(id) {
         return `/mb/content/info/${id}?page=toon`;
     }
 
     mangaId(u) {
-        return ((u || "").match(/\/content\/info\/(\d+)/) || [])[1];
+        return ((u || "").match(/\/content\/info\/(\d+)/) || (u || "").match(/[?&]is=(\d+)/) || [])[1];
+    }
+
+    chapterId(u) {
+        return ((u || "").match(/\/content\/image\/(\d+)/) || (u || "").match(/[?&]wr_id=(\d+)/) || [])[1];
+    }
+
+    /** 사이트 작품 페이지 (회차 목록 page 쪽) */
+    sitePage(id, page) {
+        return `${this.base}/bbs/board.php?bo_table=toons&is=${id}` + (page > 1 ? `&page=${page}` : "");
+    }
+
+    siteViewer(cid) {
+        return `${this.base}/bbs/board.php?bo_table=toons&wr_id=${cid}`;
     }
 
     // ---------- 목록 ----------
-    toList(items) {
-        const seen = {};
-        const list = [];
-        for (const o of items) {
-            const id = String(o.id || "");
-            const name = String(o.subject || "").trim();
-            if (!id || seen[id] || this.isPlaceholder(name)) continue;
-            if (o.type && o.type !== "만화" && o.type !== "toon") continue;
-            seen[id] = true;
-            let img = this.imageOf(o);
-            if (img) this.rememberCover(img); else img = this.coverFor(id);
-            list.push({ name, imageUrl: img, link: this.mangaUrl(id) });
-        }
-        return list;
-    }
-
-    /** 메인(/mb) 등 HTML 의 /mb/content/info/{id} 카드들 */
+    /** 목록·검색 화면의 작품 카드 (li > a[href*=is=] / li[data-id][data-title]) */
     parseCards(html) {
         const doc = new Document(html);
         const seen = {};
         const list = [];
-        for (const a of doc.select("a[href*='/content/info/']")) {
-            const id = this.mangaId(a.attr("href"));
+        for (const li of doc.select("li")) {
+            if (!li.select(".homelist-title").length) continue;
+            const a = li.select("a[href*='is=']");
+            let id = a.length ? ((a[0].attr("href") || "").match(/[?&]is=(\d+)/) || [])[1] : null;
+            if (!id && li.attr("data-title") && /^\d+$/.test(li.attr("data-id") || "")) id = li.attr("data-id");
             if (!id || seen[id]) continue;
-            const name = (a.selectFirst("h4")?.text || a.selectFirst("h3")?.text || a.selectFirst("img")?.attr("alt") || "").trim();
-            if (this.isPlaceholder(name)) continue;
+            const t = li.select(".homelist-title span");
+            const name = ((t.length ? (t[0].attr("title") || t[0].text) : "") || li.attr("data-title") || "").trim();
+            if (!name) continue;
             seen[id] = true;
-            let img = "";
-            for (const i of a.select("img")) {
-                const s = i.attr("data-original") || i.attr("data-src") || i.attr("src") || "";
-                if (s.includes("toon_category")) { img = this.abs(s); break; }
-            }
-            if (img) this.rememberCover(img); else img = this.coverFor(id);
+            const th = li.select(".homelist-thumb");
+            let img = th.length ? (th[0].attr("data-mobile-image") || ((th[0].attr("style") || "").match(/url\(['"]?([^'")]+)/) || [])[1] || "") : "";
+            if (img) { img = this.abs(img); this.rememberCover(img); } else img = this.coverFor(id);
             list.push({ name, imageUrl: img, link: this.mangaUrl(id) });
         }
         return list;
     }
 
-    async mainPage(page) {
-        if (page > 1) return { list: [], hasNextPage: false };
-        const res = await this.req(this.base + "/mb", this.hdr());
-        return { list: this.parseCards(res.body), hasNextPage: false };
-    }
-
-    async ranking(menu, page) {
-        const json = await this.api("/iapi/t4", {
-            usercode: T11_USER, menucode: menu, page: page, pagerow: T11_ROW, type: 0
-        }, this.base + "/mb");
-        if (!json) return null;
-        const items = [];
-        this.collect(this.sucData(json), items);
-        const list = this.toList(items);
-        if (!list.length) return page > 1 ? { list: [], hasNextPage: false } : null;
-        const total = json.data && json.data.SucAllCnt ? Number(json.data.SucAllCnt) : -1;
-        // 다음 쪽은 이번 쪽이 꽉 찼고 전체 개수가 더 많을 때만
-        return { list, hasNextPage: items.length >= T11_ROW && (total < 0 || page * T11_ROW < total) };
+    /** query: 목록 종류(tablename 등), genre: 사이트 sca 값 */
+    async listPage(query, genre, page) {
+        const url = `${this.base}/bbs/board.php?bo_table=toon_c&${query}` + (genre ? `&sca=${encodeURIComponent(genre)}` : "") + (page > 1 ? `&page=${page}` : "");
+        const html = (await this.req(url, this.hdr())).body;
+        const list = this.parseCards(html);
+        // 다음 쪽 링크가 있을 때만 더 있음
+        const pages = (String(html).match(/[?&](?:amp;)?page=(\d+)/g) || []).map(x => parseInt(x.replace(/\D+/g, ""), 10));
+        return { list, hasNextPage: list.length > 0 && pages.some(n => n > page) };
     }
 
     async getPopular(page) {
         await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_POPULAR);
         if (s) return this.categoryList(page, this.tabRestore(s));
-        return (await this.ranking(T11_TOP, page)) || this.mainPage(page);
+        return this.listPage(T11_LISTS[0][1], "", page);
     }
 
     async getLatestUpdates(page) {
         await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_LATEST);
         if (s) return this.categoryList(page, this.tabRestore(s));
-        return (await this.ranking(T11_NEW, page)) || this.mainPage(page);
+        return this.listPage(T11_LISTS[1][1], "", page);
     }
 
-    /** 사이트 "만화분류"와 같은 목록 (/iapi/t2: 장르 SType, 국가 SCountry, 연재 SEnd) */
+    /** 필터(목록 종류 · 장르)로 고른 목록 */
     async categoryList(page, filters) {
         const val = (param) => {
             const f = (filters || []).find((x) => x && x.param === param);
-            return f && f.values && f.values[f.state] ? f.values[f.state].value : "0";
+            return f && f.values && f.values[f.state] ? f.values[f.state].value : "";
         };
-        const sType = val("SType"), sCountry = val("SCountry"), sEnd = val("SEnd");
-        const referer = `${this.base}/mb/search/content?page=toon&SType=${sType}&SCountry=${sCountry}&SEnd=${sEnd}`;
-        const json = await this.api("/iapi/t2", {
-            Page: page, Pagerow: T11_ROW, SType: sType, SCountry: sCountry, SEnd: sEnd, SzA_Z: 0, MenuCode: 1000
-        }, referer);
-        if (!json) return { list: [], hasNextPage: false };
-        const items = [];
-        this.collect(this.sucData(json), items);
-        const list = this.toList(items);
-        const total = json.data && json.data.SucAllCnt ? Number(json.data.SucAllCnt) : -1;
-        return { list, hasNextPage: items.length >= T11_ROW && (total < 0 || page * T11_ROW < total) };
+        const list = T11_LISTS.find((l) => l[1] === val("list")) || T11_LISTS[0];
+        return this.listPage(list[1], val("sca"), page);
     }
 
-    // 검색: 검색어가 없으면 필터(만화분류) 목록, 있으면 검색 페이지를 연 뒤(토큰) POST /mb/top_search → {"data":[...],"total":N}
+    // 검색: 검색어가 없으면 필터 목록, 있으면 사이트 검색창과 같은 자동완성 검색 (JSON: list[wr_id, wr_subject, ca_name, wr_6=작가], counts=만화 개수)
     async search(query, page, filters) {
-        const byUrl = await openByUrl(this, query, (p) => { const m = /\/content\/info\/(\d+)/.exec(p); return m ? this.mangaUrl(m[1]) : null; });
+        const byUrl = await openByUrl(this, query, (p) => { const id = this.mangaId(p); return id ? this.mangaUrl(id) : null; });
         if (byUrl) return byUrl;
         // 맨 위 상태 줄은 빼고 넘김 (규칙 저장 위치가 밀리지 않게)
         const flist = withParams(filters, this.tabFilterList());
@@ -689,123 +605,108 @@ class DefaultExtension extends MProvider {
         if (r === 3 || r === 5) this.tabStore(TAB_KEY_POPULAR, null);
         if (r === 4 || r === 5) this.tabStore(TAB_KEY_LATEST, null);
         if (!String(query || "").trim()) return this.categoryList(page, flist);
-        const q = (query || "").trim();
-        const pageUrl = `${this.base}/mb/top_search?subject=${encodeURIComponent(q)}`;
+        if (page > 1) return { list: [], hasNextPage: false };
+        const res = await this.req(`${this.base}/bbs/ajax.search.php?search_key=${encodeURIComponent(query.trim())}`,
+            Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*; q=0.01" }));
+        let json = {};
         try {
-            const res = await this.req(pageUrl, this.hdr());
-            const t = new Document(res.body).selectFirst("meta[name='_token']")?.attr("content");
-            if (t) this._token = t;
+            const body = String(res.body || "");
+            json = JSON.parse(body.substring(Math.max(0, body.indexOf("{"))));
         } catch (e) {
-            // 토큰은 /mb 에서 다시 시도
+            json = {};
         }
-        const token = await this.token();
-        const headers = await this.apiHeaders(pageUrl);
-        headers["Origin"] = this.base;
-        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
-        const body = `subject=${encodeURIComponent(q)}&page=${page}&pagerow=${T11_SEARCH_ROW}` + (token ? `&_token=${encodeURIComponent(token)}` : "");
-        let json = null;
-        try {
-            json = this.parseJson((await this.req(`${this.base}/mb/top_search`, headers, true, body)).body);
-        } catch (e) {
-            json = null;
-        }
-        const items = [];
-        this.collect(json, items);
-        const list = this.toList(items);
-        const total = json && json.total ? Number(json.total) : -1;
-        return { list, hasNextPage: items.length >= T11_SEARCH_ROW && (total < 0 || page * T11_SEARCH_ROW < total) };
+        const arr = Array.isArray(json.list) ? json.list : [];
+        const comics = json.counts !== undefined ? Number(json.counts) : arr.length;
+        const list = arr.slice(0, comics).filter((o) => o && o.wr_id && o.wr_subject)
+            .map((o) => ({ name: String(o.wr_subject).trim(), imageUrl: this.coverFor(o.wr_id), link: this.mangaUrl(o.wr_id) }));
+        return { list, hasNextPage: false };
     }
 
-    // ---------- 상세 + 회차 (t3) ----------
-    async getDetail(url) {
-        const id = this.mangaId(url) || String(url).replace(/\D+/g, "");
-        const json = await this.api("/iapi/t3", {
-            usercode: T11_USER, menucode: T11_VIEW, parent: id, ordertype: 1
-        }, this.base + this.mangaUrl(id));
-        const data = this.sucData(json) || {};
-        const toon = data.ToonData || {};
-        const subject = String(toon.subject || "").trim();
+    // ---------- 상세 + 회차 (작품 페이지, 회차는 100개씩 여러 쪽) ----------
+    /** "장르 : …", "분류 : 완결", "작가 : …", "소개 : …" 줄 */
+    infoLine(html, label) {
+        const m = new RegExp(`genre-subtitle">\\s*${label}\\s*:\\s*</span>\\s*<span[^>]*>([\\s\\S]*?)</span>`).exec(html);
+        return m ? m[1].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim() : "";
+    }
 
-        const chapters = [];
-        const seen = {};
-        for (const o of data.ToonList || []) {
-            const cid = String(o.id || "");
+    parseEpisodes(html, id, title, seen) {
+        const out = [];
+        const doc = new Document(html);
+        for (const b of doc.select("button[onclick*='wr_id']")) {
+            const cid = ((b.attr("onclick") || "").match(/wr_id=(\d+)/) || [])[1];
             if (!cid || seen[cid]) continue;
+            const tt = b.select(".episode-title");
+            if (!tt.length) continue;
             seen[cid] = true;
-            const full = String(o.subject || "").trim();
+            const full = String(tt[0].text || "").trim();
             // 사이트와 같이 회차 제목에서 작품 제목을 뺌 ("Re: 열혈강호 14권" → "Re: 14권")
-            const name = (subject ? full.split(subject).join("") : full).replace(/\s+/g, " ").trim() || full;
-            const d = String(o.datetime || "").match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
-            chapters.push({
+            const name = (title ? full.split(title).join("") : full).replace(/\s+/g, " ").trim() || full || cid;
+            const fd = b.select(".free-date");
+            const d = (fd.length ? fd[0].text : "").match(/(\d{2})\.(\d{2})\.(\d{2})/);
+            out.push({
                 name,
-                url: `/mb/content/image/${cid}?page=toon&parent_id=${o.parentid || id}`,
-                dateUpload: d ? String(new Date(`${d[1]}T${d[2]}+09:00`).valueOf()) : null
+                url: `/mb/content/image/${cid}?page=toon&parent_id=${id}`,
+                dateUpload: d ? String(new Date(`20${d[1]}-${d[2]}-${d[3]}T00:00:00+09:00`).valueOf()) : null
             });
         }
-        if (!chapters.length) throw new Error("11toon 회차 목록을 불러오지 못했습니다");
-        chapters.reverse(); // 사이트는 1화부터 → 최신화가 위로
+        return out;
+    }
 
-        const end = String(toon.end || "");
+    async getDetail(url) {
+        const id = this.mangaId(url) || String(url).replace(/\D+/g, "");
+        const html = (await this.req(this.sitePage(id, 1), this.hdr())).body;
+        const doc = new Document(html);
+        const h2 = doc.select("h2.title");
+        const subject = (h2.length ? h2[0].text : "").trim();
+        const seen = {};
+        const chapters = this.parseEpisodes(html, id, subject, seen);
+        // 다음 쪽: 새 회차가 나오는 동안 계속 (최대 200쪽)
+        for (let p = 2; p <= 200 && chapters.length >= (p - 1) * 100; p++) {
+            let more = [];
+            try {
+                more = this.parseEpisodes((await this.req(this.sitePage(id, p), this.hdr())).body, id, subject, seen);
+            } catch (e) {
+                break;
+            }
+            if (!more.length) break;
+            chapters.push(...more);
+        }
+        if (!chapters.length) throw new Error("11toon 회차 목록을 불러오지 못했습니다");
+
+        const state = this.infoLine(html, "분류");
         let status = 5;
-        if (end.includes("완결")) status = 1;
-        else if (/연재|주간|월간|격주/.test(end)) status = 0;
-        const img = this.imageOf(toon);
+        if (state.includes("완결")) status = 1;
+        else if (state.includes("연재")) status = 0;
+        const banner = doc.select("img.banner");
+        const img = banner.length && (banner[0].attr("src") || "").includes("toon_category") ? this.abs(banner[0].attr("src")) : this.coverFor(id);
         return {
             name: subject,
-            imageUrl: img || this.coverFor(id),
-            author: String(toon.maker || "").trim(),
-            description: String(toon.memo || "").trim(),
-            genre: String(toon.caname || "").split(/[,\/]/).map(s => s.trim()).filter(s => s),
+            imageUrl: img,
+            author: this.infoLine(html, "작가"),
+            description: this.infoLine(html, "소개"),
+            genre: this.infoLine(html, "장르").split(/[,\/]/).map(s => s.trim()).filter(s => s),
             status,
             chapters: chapterPosition(orderChapters(chapters, subject), subject)
         };
     }
 
-    // ---------- 이미지 (t5 → 실패하면 회차 페이지를 열어 세션을 만든 뒤 재시도) ----------
-    async t5(cid, parent, referer) {
-        const json = await this.api("/iapi/t5", { id: cid, parent: parent }, referer);
-        const image = (this.sucData(json) || {}).Image;
-        if (!image) return [];
-        let arr = image.imagelist;
-        if (typeof arr === "string") {
-            try {
-                arr = JSON.parse(arr);
-            } catch (e) {
-                arr = [];
-            }
-        }
-        if (!Array.isArray(arr)) return [];
-        const file = image.file || "";
-        return arr.filter(x => x).map(x => /^(https?:)?\/\//.test(x) ? this.abs(x) : this.abs(file + x));
-    }
-
+    // ---------- 이미지: 회차 페이지의 img_list (안 되면 예비 서버 img_list_2) ----------
     async getPageList(url) {
-        const pageUrl = this.abs(url);
-        const cid = (pageUrl.match(/\/content\/image\/(\d+)/) || [])[1];
-        const parent = (pageUrl.match(/[?&]parent_id=(\d+)/) || [])[1] || "";
+        const cid = this.chapterId(url);
         if (!cid) throw new Error("잘못된 회차 주소");
-
-        let urls = [];
-        let html = "";
-        for (let attempt = 0; attempt < 3 && !urls.length; attempt++) {
-            urls = await this.t5(cid, parent, pageUrl);
-            if (urls.length) break;
-            if (attempt === 0) {
-                try {
-                    html = (await this.req(pageUrl, this.hdr())).body;
-                    const t = new Document(html).selectFirst("meta[name='_token']")?.attr("content");
-                    if (t) this._token = t;
-                } catch (e) {
-                    html = "";
-                }
+        const pageUrl = this.siteViewer(cid);
+        const html = String((await this.req(pageUrl, this.hdr())).body || "");
+        const pick = (name) => {
+            const m = new RegExp(`var\\s+${name}\\s*=\\s*(\\[[^\\]]*\\])`).exec(html);
+            if (!m) return [];
+            try {
+                return JSON.parse(m[1]).filter((x) => x).map((x) => this.abs(x));
+            } catch (e) {
+                return [];
             }
-        }
-        if (!urls.length && html) {
-            for (const img of new Document(html).select("#ImageShow img")) {
-                const s = img.attr("src");
-                if (s) urls.push(this.abs(s));
-            }
-        }
+        };
+        let urls = pick("img_list");
+        if (!urls.length) urls = pick("img_list_2");
         if (!urls.length) throw new Error("이미지를 찾을 수 없습니다 (사이트 구조 변경 또는 접근 제한)");
         return urls.filter((u, i) => urls.indexOf(u) === i).map(u => ({ url: u, headers: { "Referer": pageUrl, "User-Agent": MOBILE_UA } }));
     }
@@ -841,9 +742,8 @@ class DefaultExtension extends MProvider {
         });
         return [
             { type_name: "HeaderFilter", name: "검색어를 입력하면 필터는 무시됩니다" },
-            sel("장르", "SType", T11_GENRES.map((n, i) => [n, String(i)])),
-            sel("국가", "SCountry", [["전체", "0"], ["일본만화", "2"]]),
-            sel("연재", "SEnd", [["전체", "0"], ["연재만화", "1"], ["완결만화", "2"]])
+            sel("목록", "list", T11_LISTS.map((l) => [l[0], l[1]])),
+            sel("장르", "sca", T11_GENRES.map((n, i) => [n, i ? n : ""]))
         ];
     }
 
@@ -913,7 +813,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://11toon3.com)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://11toon148.com)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
@@ -922,7 +822,7 @@ class DefaultExtension extends MProvider {
             key: "auto_on",
             switchPreferenceCompat: {
                 title: "도메인 자동 찾기",
-                summary: "접속이 안 되면 11toon1~30.com 중 열리는 주소로 자동 변경",
+                summary: "접속이 안 되면 주소 안내(11toon1.com)에 적힌 주소나 다음 번호 주소로 자동 변경",
                 value: true
             }
         }];
