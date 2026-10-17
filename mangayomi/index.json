@@ -112,7 +112,7 @@
  {
   "name": "11toon 만화",
   "id": 870214005,
-  "baseUrl": "https://11toon2.com",
+  "baseUrl": "https://11toon148.com",
   "lang": "ko",
   "typeSource": "single",
   "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
@@ -122,7 +122,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/toon11.js",
   "apiUrl": "",
-  "version": "0.3.28",
+  "version": "0.3.29",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
