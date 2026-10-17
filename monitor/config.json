@@ -70,23 +70,6 @@
    "key": "blacktoon"
   },
   {
-   "name": "11toon",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toon11.kt",
-    "regex": "DEFAULT = \"(https://11toon\\d+\\.com)\""
-   },
-   "pattern": "^https://11toon(\\d+)\\.com$",
-   "format": "https://11toon{n}.com",
-   "pad": 0,
-   "probe": "/",
-   "marker": "bo_table=toon",
-   "range": [
-    -1,
-    10
-   ],
-   "key": "toon11"
-  },
-  {
    "name": "늑대닷컴",
    "currentFrom": {
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
