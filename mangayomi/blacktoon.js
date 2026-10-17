@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.31",
+    "version": "0.3.32",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -50,6 +50,17 @@ const TAB_RULE_OPTIONS = [
 // ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
 // 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
 let lastSiteRequest = 0;
+// 데이터 파일 "data1 = [ ... ]" 에서 배열만 꺼냄 (큰 파일이라 정규식 대신 위치로 자름 — 앱마다 JS 엔진이 달라 큰 정규식이 실패할 수 있음)
+function btArray(body, name) {
+    body = String(body || "");
+    const at = body.search(new RegExp(`\\b${name}\\s*=\\s*\\[`));
+    if (at < 0) return null;
+    const s = body.indexOf("[", at);
+    const e = body.lastIndexOf("]");
+    if (e <= s) return null;
+    return JSON.parse(body.substring(s, e + 1));
+}
+
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
     if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
@@ -628,6 +639,7 @@ class DefaultExtension extends MProvider {
         this.vars = vars;
         const items = [];
         // 연재(1) / 완결(0) 데이터를 동시에 받음
+        const why = { 0: [], 1: [] };
         const loadIndex = async index => {
             const cands = urls.filter(u => new RegExp(`/(?:webtoon_${index}|data/webtoon/webtoon_${index}_\\d+)\\.js`).test(u.split("?")[0]));
             for (const h of [vars.inc_url2, vars.inc_url1].concat(BT_DATA_HOSTS)) {
@@ -636,12 +648,11 @@ class DefaultExtension extends MProvider {
             for (const u of cands) {
                 try {
                     const body = await this.get(u, pageUrl);
-                    const m = body.match(new RegExp(`data${index}\\s*=\\s*(\\[[\\s\\S]*\\])`));
-                    if (!m) continue;
-                    const arr = JSON.parse(m[1]);
-                    if (arr.length) return arr;
+                    const arr = btArray(body, `data${index}`);
+                    if (arr && arr.length) return arr;
+                    why[index].push(`${u.split("/")[2]}: ${arr ? "비어 있음" : "형식 다름"}(${body.length}자)`);
                 } catch (e) {
-                    // 다음 후보
+                    why[index].push(`${u.split("/")[2]}: ${String((e && e.message) || e).substring(0, 60)}`);
                 }
             }
             return null;
@@ -649,7 +660,7 @@ class DefaultExtension extends MProvider {
         const lists = await Promise.all([loadIndex(1), loadIndex(0)]);
         for (const [n, index] of [[0, 1], [1, 0]]) {
             const loaded = lists[n];
-            if (!loaded) throw new Error(`블랙툰 작품 데이터(webtoon_${index})를 불러오지 못했습니다`);
+            if (!loaded) throw new Error(`블랙툰 작품 데이터(webtoon_${index})를 불러오지 못했습니다 — ${why[index].join(" / ").substring(0, 300) || "데이터 주소를 찾지 못함"}`);
             for (const o of loaded) {
                 if (!o.x) continue;
                 items.push({
@@ -741,9 +752,8 @@ class DefaultExtension extends MProvider {
         for (const u of cands) {
             try {
                 const body = await this.get(u, pageUrl);
-                const m = body.match(/clist\s*=\s*(\[[\s\S]*\])/);
-                if (!m) throw new Error("형식 다름");
-                const arr = JSON.parse(m[1]);
+                const arr = btArray(body, "clist");
+                if (!arr) throw new Error(`형식 다름(${body.length}자)`);
                 if (!arr.length) throw new Error("비어 있음");
                 chapters = arr.map(o => ({
                     name: o.t || String(o.id),
