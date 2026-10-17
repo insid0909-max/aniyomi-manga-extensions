@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.30",
+    "version": "0.3.31",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -839,6 +839,7 @@ function withParams(list, base) {
 // 망가요미 변형 앱(Mangayomi Glitch 등)은 User-Agent 를 넣어 주지 않아, 빼고 보내면 사이트가 연결을 끊거나 403 을 줌
 // → 그런 응답이면 User-Agent 를 넣어 다시 보내고, 그 뒤로는 처음부터 넣음 (원래 망가요미는 첫 요청이 성공해 그대로)
 let APP_NO_UA = false;
+let APP_ALT = null;
 function appClient(raw) {
     const media = /\.(?:m3u8|mp4|ts|m4s|jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
     const fallbackUa = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
@@ -853,24 +854,49 @@ function appClient(raw) {
         if (!Object.keys(out).some((k) => k.toLowerCase() === "user-agent")) out["User-Agent"] = fallbackUa;
         return out;
     };
+    // 망가요미 기본 통신이 끊기면 연결을 재사용하지 않는 별도 통신으로 한 번 더 (애니24에서 효과 확인, DC 확장과 같은 방법)
+    const alt = () => {
+        if (!APP_ALT) {
+            try {
+                APP_ALT = new Client({ persistentConnection: false, noProxy: true, timeout: 25, connectTimeout: 10 });
+            } catch (e) {
+                APP_ALT = null;
+            }
+        }
+        return APP_ALT;
+    };
     const send = async (call, url, headers) => {
-        if (APP_NO_UA || media.test(String(url || ""))) return call(url, APP_NO_UA ? withUa(headers) : headers || {});
+        if (APP_NO_UA || media.test(String(url || ""))) {
+            try {
+                return await call(raw, url, APP_NO_UA ? withUa(headers) : headers || {});
+            } catch (e) {
+                const c = alt();
+                if (!c) throw e;
+                return call(c, url, withUa(headers));
+            }
+        }
         let res;
         try {
-            res = await call(url, strip(url, headers));
+            res = await call(raw, url, strip(url, headers));
         } catch (e) {
             res = null;
             try {
-                const again = await call(url, withUa(headers));
+                const again = await call(raw, url, withUa(headers));
                 APP_NO_UA = true;
                 return again;
             } catch (e2) {
-                throw e;
+                const c = alt();
+                if (!c) throw e;
+                try {
+                    return await call(c, url, withUa(headers));
+                } catch (e3) {
+                    throw e;
+                }
             }
         }
         if (res && res.statusCode === 403) {
             try {
-                const again = await call(url, withUa(headers));
+                const again = await call(raw, url, withUa(headers));
                 if (again && again.statusCode && again.statusCode < 400) {
                     APP_NO_UA = true;
                     return again;
@@ -880,8 +906,8 @@ function appClient(raw) {
         return res;
     };
     return {
-        get: (url, headers) => send((u, h) => raw.get(u, h), url, headers),
-        post: (url, headers, body) => send((u, h) => raw.post(u, h, body), url, headers),
+        get: (url, headers) => send((c, u, h) => c.get(u, h), url, headers),
+        post: (url, headers, body) => send((c, u, h) => c.post(u, h, body), url, headers),
     };
 }
 
