@@ -49,7 +49,7 @@
 - 사용자는 망가요미 변형 앱 "Mangayomi Glitch"(SNI 파편화·인증서 무시 설정 등)도 씀. 블랙툰 작품 데이터(webtoon_0/1.js, 큰 파일)는 정규식 대신 위치로 배열을 자르고(btArray), 실패하면 주소별 이유(HTTP 코드·형식 다름·글자 수)를 오류에 표시.
 - 망가요미 JS 공통 appClient: 사이트 요청은 User-Agent 를 빼고 보냄(원래 망가요미가 웹뷰 UA를 넣어 클라우드플레어 쿠키가 통함). Glitch 는 UA 를 안 넣어 사이트가 연결을 끊음(블랙툰) → 연결 오류·403 이면 UA 넣어 다시 보내고 그 뒤로 계속 넣음(APP_NO_UA). 13개 파일(웹툰 10 + 애니 3) 모두 같은 코드 유지.
 - 굿툰 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://www.goodtoon007.com/manga/gt-<번호>/ajax/chapters/?t=1|https://www.goodtoon007.com/manga/gt-<번호>/` (번호는 `/?q=검색어` 결과에서).
-- 11toon 실제 회차 목록 확인: anime 저장소 mangayomi_probe(fetch)로 `https://11toon2.com/iapi/t3?usercode=100&menucode=2001&parent=<작품번호>&ordertype=1|https://11toon2.com/mb/content/info/<작품번호>?page=toon` (작품번호는 /iapi/t2?Page=N&Pagerow=100&SType=0&SCountry=0&SEnd=0&SzA_Z=0&MenuCode=1000 목록에서 찾음).
+- 11toon (2026.10 개편): 옛 /mb·/iapi 가 없어지고 게시판 구조. 지금 주소는 안내 사이트 11toon1.com 의 "일일툰현재주소"(11toon148.com, spotv148.com). 목록 `/bbs/board.php?bo_table=toon_c&tablename=인기만화`(type=upd 최신, is_over=1 완결, sca=장르, page=N), 작품 `bo_table=toons&is=<작품번호>&page=N`(회차 100개씩, .episode-title·.free-date yy.MM.dd), 회차 `bo_table=toons&wr_id=<회차번호>`(var img_list / 예비 img_list_2), 검색 `/bbs/ajax.search.php?search_key=`(JSON list·counts). 작품·회차 번호는 예전과 같아서 앱 안 주소는 옛 모양(/mb/content/info/{id}, /mb/content/image/{id}) 그대로 두고 요청할 때만 바꿈(서재·읽은 기록 유지). 실제 목록 확인은 mangayomi_probe(fetch)로 위 주소들.
 
 ## 지금까지 고친 것·배운 것 (다시 같은 실수 하지 않기)
 - 네이버웹툰(NaverWebtoon.kt / naverwebtoon.js): 공식 무료 회차만(미리보기·유료 `charge` 제외), 19세 기본 숨김(WebView 로그인 필요), 그림은 모바일 회차 화면 `img.toon_image` + Referer m.comic.naver.com, 도메인 자동 찾기 없음(공식 고정 주소).
