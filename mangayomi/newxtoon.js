@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.31",
+    "version": "0.3.32",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -340,11 +340,18 @@ class DefaultExtension extends MProvider {
         try {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get("domain"));
-            // 직접 넣은 주소는 기본 주소와 같아도 그대로 씀 (설정 기본값은 빈 칸)
-            if (manual) return manual;
-            // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
             const auto = this.cleanUrl(prefs.getString("auto_domain", ""));
             const n = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
+            if (manual) {
+                // 직접 넣은 주소는 바로 씀. 단 자동 찾기로 그보다 번호가 큰 진짜 사이트 주소가 확인되면
+                // (끊겨서 찾았거나 사이트 화면·안내에 새 주소가 적힌 경우) 그 주소로 바꾸고 설정 칸도 고침
+                if (auto && auto !== manual && n(auto) > n(manual) && this.autoOn()) {
+                    prefs.setString("domain", auto);
+                    return auto;
+                }
+                return manual;
+            }
+            // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
             return auto && n(auto) >= n(this.source.baseUrl) ? auto : this.source.baseUrl;
         } catch (e) {
             return this.source.baseUrl;
@@ -800,7 +807,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://newxtoon2.com)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 주소가 확인되면 자동으로 바뀜 (예: https://newxtoon2.com)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
