@@ -62,15 +62,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
             }
         }
 
+    // 직접 넣은 주소는 바로, 더 새 주소가 확인되면 자동으로 바뀜 (DomainGuard.pick)
     override val baseUrl: String
-        get() {
-            val v = try {
-                sp.getString(KEY_DOMAIN, "")?.trim()?.trimEnd('/').orEmpty()
-            } catch (e: Throwable) {
-                ""
-            }
-            return if (DOMAIN_REGEX.matches(v)) DomainGuard.preferDefault(v, DEFAULT) else DEFAULT
-        }
+        get() = DomainGuard.pick(runCatching { sp }.getOrNull(), KEY_DOMAIN, DEFAULT, autoDomain(), { DOMAIN_REGEX.matches(it) })
 
     private fun autoDomain(): Boolean = try {
         sp.getBoolean(KEY_AUTO, true)
@@ -80,7 +74,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
 
     private fun saveDomain(url: String) {
         try {
-            sp.edit().putString(KEY_DOMAIN, url).apply()
+            DomainGuard.saveAuto(sp, KEY_DOMAIN, url)
         } catch (e: Throwable) {
             // 저장 실패는 무시
         }
@@ -178,9 +172,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
             title = "도메인 주소"
-            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT)"
+            summary = "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 주소가 확인되면 자동으로 바뀜 (기본: $DEFAULT)"
             dialogTitle = "도메인 주소"
-            setDefaultValue(DEFAULT)
+            setDefaultValue("")
             setOnPreferenceChangeListener { _, v ->
                 DOMAIN_REGEX.matches((v as String).trim().trimEnd('/'))
             }

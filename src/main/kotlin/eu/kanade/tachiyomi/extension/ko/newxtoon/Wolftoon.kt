@@ -57,17 +57,9 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             }
         }
 
+    // 직접 넣은 주소는 바로, 더 새 주소가 확인되면 자동으로 바뀜 (DomainGuard.pick)
     override val baseUrl: String
-        get() {
-            val v = try {
-                sp.getString(KEY_DOMAIN, "")?.trim()?.trimEnd('/').orEmpty()
-            } catch (e: Throwable) {
-                ""
-            }
-            if (!DOMAIN_REGEX.matches(v)) return DEFAULT
-            // 저장된 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
-            return if (hostNumber(v) in 1 until hostNumber(DEFAULT)) DEFAULT else v
-        }
+        get() = DomainGuard.pick(runCatching { sp }.getOrNull(), KEY_DOMAIN, DEFAULT, autoDomain(), { DOMAIN_REGEX.matches(it) })
 
     private fun autoDomain(): Boolean = try {
         sp.getBoolean(KEY_AUTO, true)
@@ -77,7 +69,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
 
     private fun saveDomain(url: String) {
         try {
-            sp.edit().putString(KEY_DOMAIN, url).apply()
+            DomainGuard.saveAuto(sp, KEY_DOMAIN, url)
         } catch (e: Throwable) {
             // 저장 실패는 무시
         }
@@ -218,9 +210,9 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
             title = "도메인 주소$same"
-            summary = "사이트 주소가 바뀌면 여기서 변경 (기본: $DEFAULT)\n현재 주소: $baseUrl"
+            summary = "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 주소가 확인되면 자동으로 바뀜 (기본: $DEFAULT)\n현재 주소: $baseUrl"
             dialogTitle = "도메인 주소"
-            setDefaultValue(if (comic) baseUrl else DEFAULT)
+            setDefaultValue("")
             setOnPreferenceChangeListener { _, v ->
                 val ok = DOMAIN_REGEX.matches((v as String).trim().trimEnd('/'))
                 if (ok && comic) share(KEY_DOMAIN, v.trim().trimEnd('/'))
