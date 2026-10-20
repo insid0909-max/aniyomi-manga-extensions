@@ -1,5 +1,29 @@
 {
- "changedFiles": [],
- "domainChanges": [],
+ "changedFiles": [
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+  "mangayomi/bookkor.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+  "mangayomi/toonkor.js"
+ ],
+ "domainChanges": [
+  {
+   "name": "북코 소설",
+   "from": "https://004.bookkor.com",
+   "to": "https://005.bookkor.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+    "mangayomi/bookkor.js"
+   ]
+  },
+  {
+   "name": "툰코",
+   "from": "https://toonkor4.org",
+   "to": "https://toonkor5.org",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+    "mangayomi/toonkor.js"
+   ]
+  }
+ ],
  "notes": []
 }
