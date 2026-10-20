@@ -67,3 +67,4 @@
 
 ## 주소(도메인) 규칙
 - 망가요미: 직접 넣은 주소(domain)는 바로 씀. 자동 찾기로 그보다 번호가 큰 진짜 사이트 주소(auto_domain)가 확인되면 그 주소로 바꾸고 설정 칸도 고침(자동 찾기 켜짐일 때). newxtoon.js 0.3.32 에 먼저 적용, 사용자 확인 후 웹툰 망가요미 전부(blacktoon·bookkor·goodtoon·jjaptoon·toon11·toonkor·wolftoon·wolftoon_comic)와 애니 저장소 anilife·gogotv·tvchak 에도 같은 규칙 적용(2026-10-20). 새 망가요미 소스도 같은 규칙으로 만들 것. 잘 열리는데 더 새 주소를 미리 찾는 기능은 넣지 않음(요청 증가·차단 위험). 애니요미(Kotlin)는 그대로.
+- 애니요미(Kotlin)도 같은 규칙(2026-10-20): SiteTools.kt 의 `DomainGuard.pick(sp, KEY_DOMAIN, DEFAULT, autoDomain(), valid)` 로 baseUrl, 자동으로 찾은 주소는 `DomainGuard.saveAuto` 로 KEY_DOMAIN_auto 에 저장. 처음 한 번 예전 한 칸 값을 자동 칸으로 옮김(KEY_split). 도메인 칸 기본값은 "". Toon11 은 기본 주소가 안내 사이트라 newerDefault = false. 로컬 컴파일은 t11k/stub(pref.kt·uid.kt 빼고) + Jjaptoon 303줄 jsoup 차이만 임시로 고쳐서 확인.
