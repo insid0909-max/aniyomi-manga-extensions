@@ -5,8 +5,8 @@
    "domain": "dead",
    "domainSince": "2026-10-05T02:24:01.412Z",
    "ok": false,
-   "msg": "fetch failed",
-   "checkedAt": "2026-10-19T01:42:17.671Z"
+   "msg": "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.",
+   "checkedAt": "2026-10-20T02:04:36.758Z"
   },
   "goodtoon": {
    "origin": "https://www.goodtoon007.com",
@@ -14,7 +14,7 @@
    "domainSince": "2026-10-17T01:32:48.816Z",
    "ok": false,
    "msg": "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.",
-   "checkedAt": "2026-10-19T01:42:17.821Z"
+   "checkedAt": "2026-10-20T02:04:37.052Z"
   },
   "jjaptoon": {
    "origin": "https://www.jjaptoon008.com",
@@ -22,7 +22,7 @@
    "domainSince": "2026-10-03T17:30:30.454Z",
    "ok": true,
    "msg": "목록 36개, 회차 202개, 이미지 69장, 완결",
-   "checkedAt": "2026-10-19T01:42:22.131Z"
+   "checkedAt": "2026-10-20T02:04:40.596Z"
   },
   "blacktoon": {
    "origin": "https://blacktoon424.com",
@@ -30,7 +30,7 @@
    "domainSince": "2026-10-13T03:53:19.163Z",
    "ok": true,
    "msg": "목록 24개, 회차 221개, 이미지 16장, 완결",
-   "checkedAt": "2026-10-19T01:42:24.017Z"
+   "checkedAt": "2026-10-20T02:04:42.193Z"
   },
   "wolftoon": {
    "origin": "https://wfwf517.com",
@@ -38,33 +38,33 @@
    "domainSince": "2026-10-16T01:39:45.647Z",
    "ok": true,
    "msg": "목록 36개, 회차 125개, 이미지 56장, 연재",
-   "checkedAt": "2026-10-19T01:42:27.186Z"
+   "checkedAt": "2026-10-20T02:04:45.522Z"
   },
   "bookkor": {
-   "origin": "https://004.bookkor.com",
+   "origin": "https://005.bookkor.com",
    "domain": "alive",
-   "domainSince": "2026-10-15T01:50:35.083Z",
+   "domainSince": "2026-10-20T02:04:35.439Z",
    "ok": true,
    "msg": "목록 10개, 회차 1945개, 본문 5328자, 연재",
-   "checkedAt": "2026-10-19T01:42:35.519Z"
+   "checkedAt": "2026-10-20T02:04:54.963Z"
   },
   "toonkor": {
-   "origin": "https://toonkor4.org",
+   "origin": "https://toonkor5.org",
    "domain": "alive",
-   "domainSince": "2026-10-15T01:50:36.210Z",
+   "domainSince": "2026-10-20T02:04:36.284Z",
    "ok": true,
-   "msg": "목록 30개, 회차 303개, 이미지 98장, 연재",
-   "checkedAt": "2026-10-19T01:42:36.728Z"
+   "msg": "목록 30개, 회차 140개, 이미지 2장, 연재",
+   "checkedAt": "2026-10-20T02:04:56.050Z"
   },
   "toon11": {
    "ok": true,
    "msg": "목록 101개, 회차 316개, 이미지 19장, 상태 미확인",
-   "checkedAt": "2026-10-19T01:42:26.021Z"
+   "checkedAt": "2026-10-20T02:04:44.407Z"
   },
   "wolftoon_comic": {
    "ok": true,
    "msg": "목록 36개, 회차 1145개, 이미지 17장, 상태 미확인",
-   "checkedAt": "2026-10-19T01:42:37.954Z"
+   "checkedAt": "2026-10-20T02:04:57.088Z"
   }
  }
 }
