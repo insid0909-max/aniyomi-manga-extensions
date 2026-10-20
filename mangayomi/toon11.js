@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.32",
+    "version": "0.3.33",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -355,7 +355,16 @@ class DefaultExtension extends MProvider {
             const prefs = new SharedPreferences();
             const manual = this.cleanUrl(prefs.get(T11_DOMAIN_KEY));
             // 직접 넣은 주소는 기본 주소와 같아도 그대로 씀 (설정 기본값은 빈 칸)
-            if (manual) return manual;
+            if (manual) {
+                // 직접 넣은 주소는 바로 씀. 단 자동 찾기로 그보다 번호가 큰 진짜 사이트 주소가 확인되면 그 주소로 바꾸고 설정 칸도 고침
+                const newer = this.cleanUrl(prefs.getString(T11_AUTO_KEY, ""));
+                const num = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
+                if (newer && newer !== manual && num(newer) > num(manual) && this.autoOn()) {
+                    prefs.setString(T11_DOMAIN_KEY, newer);
+                    return newer;
+                }
+                return manual;
+            }
             // 자동으로 찾은 주소가 확장 업데이트로 바뀐 기본 주소보다 옛 번호면 기본 주소를 씀
             const auto = this.cleanUrl(prefs.getString(T11_AUTO_KEY, ""));
             const n = (u) => { const x = /(\d+)(?!.*\d)/.exec(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\.[a-z]{2,6}$/i, "")); return x ? parseInt(x[1], 10) : 0; };
