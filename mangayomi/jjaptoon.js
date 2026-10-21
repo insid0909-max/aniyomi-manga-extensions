@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.31",
+    "version": "0.3.32",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "jjaptoon.js"
@@ -50,10 +50,12 @@ async function siteWait(url) {
 
 // 검색창에 사이트 작품(또는 회차) 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
 async function openByUrl(ext, query, toLink) {
-    const m = /^https?:\/\/([^/?#]+)(\/[^#]*)?/.exec(String(query || "").trim());
-    if (!m || !AUTO_HOST.test(m[1])) return null;
+    // 새 주소를 붙여 넣으면 그 주소로 바로 바꿈 (주소만이면 인기 목록)
+    const adopted = await addrAdopt(ext, query);
+    const m = /^(?:https?:\/\/)?([^/?#\s]+)(\/[^#\s]*)?$/.exec(String(query || "").trim());
+    if (!m || !AUTO_HOST.test(m[1].toLowerCase())) return null;
     const link = toLink(m[2] || "/");
-    if (!link) return null;
+    if (!link) return adopted ? await ext.getPopular(1) : null;
     const d = await ext.getDetail(link);
     return { list: d && d.name ? [{ name: d.name, imageUrl: d.imageUrl || "", link }] : [], hasNextPage: false };
 }
@@ -304,6 +306,73 @@ function friendlyError(e) {
         return "사이트에 연결하지 못했어요. 인터넷 연결을 확인하거나 잠시 뒤 다시 시도해 주세요.";
     }
     return m;
+}
+
+// 주소 바뀜 대응 설정: 사이트 주소 모양, 진짜 사이트 표시 글자, User-Agent, 직접 넣은 주소 설정 키
+const ADDR_HOST = AUTO_HOST;
+const ADDR_MARK = AUTO_MARKER;
+const ADDR_UA = MOBILE_UA;
+const ADDR_PREF = "domain";
+
+// ---------- 주소가 바뀐 것 같을 때 · 붙여 넣은 새 주소 (애니·웹툰 망가요미 파일 같은 코드, 위 ADDR_* 만 다름) ----------
+const ADDR_HELP = "주소가 바뀐 것 같아요. 웹뷰로 열어 새 주소를 확인한 뒤 그 주소를 검색창에 붙여 넣어 주세요.";
+
+function addrCurrent(ext) {
+    try {
+        return String("base" in ext ? ext.base : ext.getBaseUrl());
+    } catch (e) {
+        return "";
+    }
+}
+
+// 그 주소가 진짜 사이트인지 (첫 화면에 사이트 표시 글자가 있는지)
+async function addrIsSite(ext, origin) {
+    try {
+        const r = await ext.client.get(origin + "/", { "User-Agent": ADDR_UA });
+        return r.statusCode === 200 && String(r.body || "").toLowerCase().includes(ADDR_MARK.toLowerCase());
+    } catch (e) {
+        return false;
+    }
+}
+
+// 검색창에 붙여 넣은 사이트 주소(https:// 없어도 됨)가 지금 주소와 다르고 진짜 사이트면 직접 넣은 주소로 바로 씀 → 바뀐 주소(없으면 null)
+async function addrAdopt(ext, query) {
+    const m = /^(?:https?:\/\/)?([^/?#\s]+)(?:[/?#]\S*)?$/.exec(String(query || "").trim());
+    if (!m || !ADDR_HOST.test(m[1].toLowerCase())) return null;
+    const origin = "https://" + m[1].toLowerCase();
+    const plain = (u) => String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
+    if (plain(origin) === plain(addrCurrent(ext))) return null;
+    if (!(await addrIsSite(ext, origin))) return null;
+    try {
+        new SharedPreferences().setString(ADDR_PREF, origin);
+    } catch (e) {
+        return null;
+    }
+    return origin;
+}
+
+// 인기·최신 첫 쪽이 오류이거나 비었는데 지금 주소가 사이트가 아니면(끊김·빈 페이지·404) 새 주소를 찾아 다시 불러옴,
+// 못 찾으면 붙여 넣기 안내 (지금 주소가 진짜 사이트면 원래 결과·오류 그대로)
+async function addrGuard(ext, page, fn) {
+    let r = null;
+    let err = null;
+    try {
+        r = await fn();
+    } catch (e) {
+        err = e;
+    }
+    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn()) {
+        if (err) throw err;
+        return r;
+    }
+    const base = addrCurrent(ext);
+    if (await addrIsSite(ext, base)) {
+        if (err) throw err;
+        return r;
+    }
+    const found = await ext.discover(base);
+    if (found) return await fn();
+    throw new Error(ADDR_HELP + (err ? ` [${(err && err.message) || err}]` : ""));
 }
 
 class DefaultExtension extends MProvider {
@@ -716,12 +785,20 @@ class DefaultExtension extends MProvider {
     }
 
     async getPopular(page) {
+        return addrGuard(this, page, () => this.popularGuarded(page));
+    }
+
+    async popularGuarded(page) {
         await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_POPULAR);
         return s ? this.baseSearch("", page, this.tabRestore(s)) : this.basePopular(page);
     }
 
     async getLatestUpdates(page) {
+        return addrGuard(this, page, () => this.latestGuarded(page));
+    }
+
+    async latestGuarded(page) {
         await statusRefresh(this.client);
         const s = this.tabLoad(TAB_KEY_LATEST);
         return s ? this.baseSearch("", page, this.tabRestore(s)) : this.baseLatest(page);
