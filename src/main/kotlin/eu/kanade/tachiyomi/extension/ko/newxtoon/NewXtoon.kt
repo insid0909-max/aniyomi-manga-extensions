@@ -595,7 +595,7 @@ class NewXtoon(
     }
 
     companion object {
-        private const val DEFAULT_BASE_URL = "https://newxtoon1.com"
+        private const val DEFAULT_BASE_URL = "https://newxtoon3.com"
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_UA = "pref_user_agent"
         private const val KEY_AUTO = "pref_auto_domain"
