@@ -119,6 +119,23 @@
     30
    ],
    "key": "toonkor"
+  },
+  {
+   "name": "마루마루",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Marumaru.kt",
+    "regex": "DEFAULT = \"(https://marumaru\\d+\\.com)\""
+   },
+   "pattern": "^https://marumaru(\\d+)\\.com$",
+   "format": "https://marumaru{n}.com",
+   "pad": 0,
+   "probe": "/",
+   "marker": "/assets/logo/marumaru",
+   "range": [
+    -3,
+    30
+   ],
+   "key": "marumaru"
   }
  ],
  "replaceIn": [
@@ -138,7 +155,11 @@
   "mangayomi/bookkor.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
   "mangayomi/toonkor.js",
-  "mangayomi/wolftoon_comic.js"
+  "mangayomi/wolftoon_comic.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Marumaru.kt",
+  "mangayomi/marumaru_webtoon.js",
+  "mangayomi/marumaru_manhwa.js",
+  "mangayomi/marumaru_novel.js"
  ],
  "indexFiles": [],
  "health": [
@@ -195,6 +216,24 @@
    "file": "mangayomi/wolftoon_comic.js",
    "depth": "pages",
    "key": "wolftoon_comic"
+  },
+  {
+   "name": "마루마루 웹툰 (망가요미)",
+   "file": "mangayomi/marumaru_webtoon.js",
+   "depth": "detail",
+   "key": "marumaru"
+  },
+  {
+   "name": "마루마루 만화 (망가요미)",
+   "file": "mangayomi/marumaru_manhwa.js",
+   "depth": "detail",
+   "key": "marumaru_manhwa"
+  },
+  {
+   "name": "마루마루 소설 (망가요미)",
+   "file": "mangayomi/marumaru_novel.js",
+   "depth": "detail",
+   "key": "marumaru_novel"
   }
  ]
 }
