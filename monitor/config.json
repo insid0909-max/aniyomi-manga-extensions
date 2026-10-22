@@ -36,23 +36,6 @@
    "key": "goodtoon"
   },
   {
-   "name": "짭툰",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Jjaptoon.kt",
-    "regex": "DEFAULT = \"(https://www\\.jjaptoon\\d+\\.com)\""
-   },
-   "pattern": "^https://www\\.jjaptoon(\\d+)\\.com$",
-   "format": "https://www.jjaptoon{n}.com",
-   "pad": 3,
-   "probe": "/",
-   "marker": "짭툰",
-   "range": [
-    -3,
-    40
-   ],
-   "key": "jjaptoon"
-  },
-  {
    "name": "블랙툰",
    "currentFrom": {
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
@@ -119,35 +102,16 @@
     30
    ],
    "key": "toonkor"
-  },
-  {
-   "name": "마루마루",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Marumaru.kt",
-    "regex": "DEFAULT = \"(https://marumaru\\d+\\.com)\""
-   },
-   "pattern": "^https://marumaru(\\d+)\\.com$",
-   "format": "https://marumaru{n}.com",
-   "pad": 0,
-   "probe": "/",
-   "marker": "/assets/logo/marumaru",
-   "range": [
-    -3,
-    30
-   ],
-   "key": "marumaru"
   }
  ],
  "replaceIn": [
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Jjaptoon.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toon11.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
   "mangayomi/newxtoon.js",
   "mangayomi/goodtoon.js",
-  "mangayomi/jjaptoon.js",
   "mangayomi/blacktoon.js",
   "mangayomi/toon11.js",
   "mangayomi/wolftoon.js",
@@ -155,11 +119,7 @@
   "mangayomi/bookkor.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
   "mangayomi/toonkor.js",
-  "mangayomi/wolftoon_comic.js",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Marumaru.kt",
-  "mangayomi/marumaru_webtoon.js",
-  "mangayomi/marumaru_manhwa.js",
-  "mangayomi/marumaru_novel.js"
+  "mangayomi/wolftoon_comic.js"
  ],
  "indexFiles": [],
  "health": [
@@ -174,12 +134,6 @@
    "file": "mangayomi/goodtoon.js",
    "depth": "pages",
    "key": "goodtoon"
-  },
-  {
-   "name": "짭툰 (망가요미)",
-   "file": "mangayomi/jjaptoon.js",
-   "depth": "pages",
-   "key": "jjaptoon"
   },
   {
    "name": "블랙툰 (망가요미)",
@@ -216,24 +170,6 @@
    "file": "mangayomi/wolftoon_comic.js",
    "depth": "pages",
    "key": "wolftoon_comic"
-  },
-  {
-   "name": "마루마루 웹툰 (망가요미)",
-   "file": "mangayomi/marumaru_webtoon.js",
-   "depth": "detail",
-   "key": "marumaru"
-  },
-  {
-   "name": "마루마루 만화 (망가요미)",
-   "file": "mangayomi/marumaru_manhwa.js",
-   "depth": "detail",
-   "key": "marumaru_manhwa"
-  },
-  {
-   "name": "마루마루 소설 (망가요미)",
-   "file": "mangayomi/marumaru_novel.js",
-   "depth": "detail",
-   "key": "marumaru_novel"
   }
  ]
 }
