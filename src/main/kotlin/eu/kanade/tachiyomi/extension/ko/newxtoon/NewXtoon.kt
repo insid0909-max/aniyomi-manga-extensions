@@ -629,11 +629,6 @@ class NewXtoonFactory : SourceFactory {
             list.add(ErrorSource("Goodtoon 오류", e))
         }
         try {
-            list.add(Jjaptoon())
-        } catch (e: Throwable) {
-            list.add(ErrorSource("Jjaptoon 오류", e))
-        }
-        try {
             list.add(Blacktoon())
         } catch (e: Throwable) {
             list.add(ErrorSource("Blacktoon 오류", e))
@@ -663,13 +658,6 @@ class NewXtoonFactory : SourceFactory {
             list.add(Bookkor())
         } catch (e: Throwable) {
             list.add(ErrorSource("북코 소설 오류", e))
-        }
-        try {
-            list.add(Marumaru())
-            list.add(Marumaru(Marumaru.MANHWA))
-            list.add(Marumaru(Marumaru.NOVEL))
-        } catch (e: Throwable) {
-            list.add(ErrorSource("마루마루 오류", e))
         }
         return list
     }

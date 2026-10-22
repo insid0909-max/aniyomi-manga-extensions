@@ -7,7 +7,7 @@
 
 ## 새 확장앱(망가·웹툰·소설) 체크리스트 — 요청 없어도 기본 적용
 
-사용자가 "빠진 기능"을 매번 말하지 않도록, 새 소스는 기존 앱(NewXtoon·Toon11·Blacktoon·Bookkor·Goodtoon·Jjaptoon·Wolftoon)과 같은 기능을 처음부터 넣는다.
+사용자가 "빠진 기능"을 매번 말하지 않도록, 새 소스는 기존 앱(NewXtoon·Toon11·Blacktoon·Bookkor·Goodtoon·Wolftoon)과 같은 기능을 처음부터 넣는다.
 
 ### Aniyomi/Tachiyomi (Kotlin, src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon)
 - `SiteTools`: `SiteRateLimit`(이미지 요청 제외), 주소 붙여넣기 열기(UrlOpen)
@@ -48,7 +48,7 @@
 16. 앞뒤 회차와 동떨어진 번호는 사이트가 잘못 적은 것: 앞뒤 번호가 서로 2 이하로 가깝고 이 회차는 둘과 10 넘게 차이 나면, 사이(맨 끝이면 바로 옆)의 안 쓰인 같은 단위 번호로 바로잡고 중복 정리(12번)에서도 지우지 않음. 망가요미는 "1 · 56화"처럼 번호를 앞에 붙임 (늑대닷컴 무직전생: 1화가 "56화"로 적혀 진짜 56화와 겹쳐 지워졌던 문제).
 - 늑대닷컴 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://wfwf517.com/cl?toon=<번호>&s=n&pg=1` (웹툰은 /list?toon=, 쪽마다 pg=2,3…). 번호는 `/sh?q=<EUC-KR 검색어>` 결과에서.
 - 사용자는 망가요미 변형 앱 "Mangayomi Glitch"(SNI 파편화·인증서 무시 설정 등)도 씀. 블랙툰 작품 데이터(webtoon_0/1.js, 큰 파일)는 정규식 대신 위치로 배열을 자르고(btArray), 실패하면 주소별 이유(HTTP 코드·형식 다름·글자 수)를 오류에 표시.
-- 망가요미 JS 공통 appClient: 사이트 요청은 User-Agent 를 빼고 보냄(원래 망가요미가 웹뷰 UA를 넣어 클라우드플레어 쿠키가 통함). Glitch 는 UA 를 안 넣어 사이트가 연결을 끊음(블랙툰) → 연결 오류·403 이면 UA 넣어 다시 보내고 그 뒤로 계속 넣음(APP_NO_UA). 18개 파일(웹툰 13 + 애니 5: gogotv·tvchak·livesports2·anilife·ohli24) 모두 같은 코드 유지. 그래도 연결 오류면 `new Client({persistentConnection:false,noProxy:true,timeout:25,connectTimeout:10})`(APP_ALT, 연결 재사용 없는 별도 통신)로 한 번 더 — 애니24 재생에서 효과 확인된 방법.
+- 망가요미 JS 공통 appClient: 사이트 요청은 User-Agent 를 빼고 보냄(원래 망가요미가 웹뷰 UA를 넣어 클라우드플레어 쿠키가 통함). Glitch 는 UA 를 안 넣어 사이트가 연결을 끊음(블랙툰) → 연결 오류·403 이면 UA 넣어 다시 보내고 그 뒤로 계속 넣음(APP_NO_UA). 14개 파일(웹툰 9 + 애니 5: gogotv·tvchak·livesports2·anilife·ohli24) 모두 같은 코드 유지. 그래도 연결 오류면 `new Client({persistentConnection:false,noProxy:true,timeout:25,connectTimeout:10})`(APP_ALT, 연결 재사용 없는 별도 통신)로 한 번 더 — 애니24 재생에서 효과 확인된 방법.
 - 굿툰 실제 회차 목록 확인: mangayomi_probe(fetch)로 `https://www.goodtoon007.com/manga/gt-<번호>/ajax/chapters/?t=1|https://www.goodtoon007.com/manga/gt-<번호>/` (번호는 `/?q=검색어` 결과에서).
 - 11toon (2026.10 개편): 옛 /mb·/iapi 가 없어지고 게시판 구조. 안내 사이트 11toon1.com 의 "일일툰현재주소"(11toon148.com, spotv148.com)는 국내 휴대폰에서 막힘 → 사용자가 알려 준 국내 접속 주소 https://update.spotv24.com 을 기본, http://91.192.107.81:6600 을 예비로 씀(자동 찾기는 예비 주소 → 안내 사이트 순). 주소 설정 키를 바꿈(Kotlin pref_domain_v2, JS domain_v2·auto_domain_v2)해서 옛 저장 주소를 버림. 번호 주소가 아니라 주소 감시(monitor sites)에서는 뺌. 목록 `/bbs/board.php?bo_table=toon_c&tablename=인기만화`(type=upd 최신, is_over=1 완결, sca=장르, page=N), 작품 `bo_table=toons&is=<작품번호>&page=N`(회차 100개씩, .episode-title·.free-date yy.MM.dd), 회차 `bo_table=toons&wr_id=<회차번호>`(var img_list / 예비 img_list_2), 검색 `/bbs/ajax.search.php?search_key=`(JSON list·counts). 작품·회차 번호는 예전과 같아서 앱 안 주소는 옛 모양(/mb/content/info/{id}, /mb/content/image/{id}) 그대로 두고 요청할 때만 바꿈(서재·읽은 기록 유지). 실제 목록 확인은 mangayomi_probe(fetch)로 위 주소들.
 
@@ -62,12 +62,12 @@
 - 회차 순서 문제는 위 "회차 정렬·번호 규칙"을 따르고, 실제 사이트 이름으로 두 앱 모두 테스트. 규칙을 바꾸면 예전 사례(21화 누락, 블랙툰 2부·말단 병사, 바키도, 주술회전, 두 번 사는 랭커, 시즌)를 모두 다시 돌려 볼 것.
 - 11toon 열혈강호 "열혈강호 729"(729화)는 사이트가 한글을 자모로 풀어 적음(NFD, "화"도 없음) → 작품 제목이 안 빠지고 다른 묶음이 돼 맨 위 "마지막"으로 보임. 회차 이름·작품 제목을 NFC 로 모아 비교(Kotlin Normalizer, JS normalize). 총 316화인데 Missing 416 은 사이트에 1~17권 + 일부 화만 있어서(확장으로 못 채움).
 
-- 마루마루(Marumaru.kt 한 클래스 + mangayomi/marumaru_{webtoon,manhwa,novel}.js, 2026-10-22): marumaru###.com(106), React 앱이라 전부 JSON. 목록 `/api/works?mediaType=WEBTOON|MANHWA|NOVEL&page=(0부터)&size=49` + sort(LATEST·NEW·BOOKMARK·VIEW·RATING·EPISODE)·weekday(MON..)·initial(ㄱ..ㅎ)·platform·genre·completed=true·adult=true·blgl=true|false(웹툰 기본은 blgl=false, 사이트와 같음), 검색 `/api/search?q&page&media&sort(LATEST·BOOKMARK·VIEW·EPISODE)&status=COMPLETED|ON`, 작품 `/api/works/{번호}`(work·synopsis·illustrator), 회차 `api.storagewebtoon.store/api/v1/reader/A2/works/{번호}?page=(1부터)&size=100&order=asc`(100개가 최대), 회차 내용 `…/A2/episodes/{회차번호}` → body[{kind:image,url}] (그림은 Referer 없이도 열림). 소설 본문은 회차의 embed_url(.dat, 그냥 UTF-8 글자). 최신 화 일부는 body 가 [{kind:"paid"}] = 사이트 포인트 구매 회차 → 우회하지 않고 "포인트로 사야 볼 수 있어요" 오류(목록에는 표시 없음), 그래서 감시 점검은 회차 목록까지(depth detail). 앱 주소 /webtoon|manhwa|novel/{번호}[/{회차번호}]. 사이트 표시 글자(주소 찾기)는 "/assets/logo/marumaru"(Kotlin NoticeFollow 가 Latin-1 로 읽어 한글 표시는 못 씀). 소설 플랫폼 필터는 사이트 값이 전부 0건이라 뺌. 회차 이름은 사이트 제목 그대로, 앞에 (잘린 "…") 작품 제목이 붙으면 "N화"부터. 세 소스가 주소·자동 찾기·UA 를 웹툰 소스 저장소로 같이 씀(Wolftoon 만화와 같은 방식), 회차 이름 표시·소설 글자 설정은 소스마다. 망가요미 세 파일은 같은 코드(MEDIA·이름·id 870214012~014·itemType 만 다름) → 하나 고치면 셋 다.
+- 마루마루(marumaru###.com)·짭툰(jjaptoon)은 사용자 요청으로 삭제(2026-10-22). 마루마루를 다시 만들자고 하면: 전부 JSON API(/api/works·/api/search·/api/works/{번호}, 회차·본문 api.storagewebtoon.store/api/v1/reader/A2), 소설 본문은 embed_url(.dat UTF-8), 최신 화 일부는 포인트 구매 회차(kind "paid", 우회 안 함). 망가요미 id 870214003(짭툰)·870214012~014(마루마루), Kotlin 키 newxtoon.jjaptoon/ko/1·newxtoon.marumaru/ko/1~3 은 다시 쓰지 말 것. 코드는 git 기록(#71)에 있음.
 
 ## 아이콘
 - 앱 아이콘은 src/main/res/mipmap-xxxhdpi/ic_launcher.png(192px, 사용자가 준 만화 칸 K 그림). 예전엔 build.yml 이 보라색 아이콘을 그렸지만 그 단계는 뺌. 망가요미 iconUrl 은 gh-pages/icon(APK 에서 꺼낸 그림)이라 빌드 후 같이 바뀜.
 
 ## 주소(도메인) 규칙
 - 망가요미: 직접 넣은 주소(domain)는 바로 씀. 자동 찾기로 그보다 번호가 큰 진짜 사이트 주소(auto_domain)가 확인되면 그 주소로 바꾸고 설정 칸도 고침(자동 찾기 켜짐일 때). newxtoon.js 0.3.32 에 먼저 적용, 사용자 확인 후 웹툰 망가요미 전부(blacktoon·bookkor·goodtoon·jjaptoon·toon11·toonkor·wolftoon·wolftoon_comic)와 애니 저장소 anilife·gogotv·tvchak 에도 같은 규칙 적용(2026-10-20). 새 망가요미 소스도 같은 규칙으로 만들 것. 잘 열리는데 더 새 주소를 미리 찾는 기능은 넣지 않음(요청 증가·차단 위험). 애니요미(Kotlin)는 그대로.
-- 애니요미(Kotlin)도 같은 규칙(2026-10-20): SiteTools.kt 의 `DomainGuard.pick(sp, KEY_DOMAIN, DEFAULT, autoDomain(), valid)` 로 baseUrl, 자동으로 찾은 주소는 `DomainGuard.saveAuto` 로 KEY_DOMAIN_auto 에 저장. 처음 한 번 예전 한 칸 값을 자동 칸으로 옮김(KEY_split). 도메인 칸 기본값은 "". Toon11 은 기본 주소가 안내 사이트라 newerDefault = false. 로컬 컴파일은 t11k/stub(pref.kt·uid.kt 빼고) + Jjaptoon 303줄 jsoup 차이만 임시로 고쳐서 확인.
-- 망가요미 주소 바뀜 대응(2026-10-21, 9개 파일 + 마루마루 3개): 파일마다 ADDR_HOST·ADDR_MARK·ADDR_UA·ADDR_PREF + 같은 공통 코드(addrAdopt·addrGuard). openByUrl 이 붙여 넣은 새 주소(https:// 없어도)를 확인 후 직접 넣은 주소로 적용(주소만이면 인기 목록). 인기·최신 첫 쪽이 오류/빈 목록이고 지금 주소 첫 화면에 ADDR_MARK 가 없으면 discover → 다시, 못 찾으면 붙여 넣기 안내 오류. 새 파일도 같은 블록 넣을 것.
+- 애니요미(Kotlin)도 같은 규칙(2026-10-20): SiteTools.kt 의 `DomainGuard.pick(sp, KEY_DOMAIN, DEFAULT, autoDomain(), valid)` 로 baseUrl, 자동으로 찾은 주소는 `DomainGuard.saveAuto` 로 KEY_DOMAIN_auto 에 저장. 처음 한 번 예전 한 칸 값을 자동 칸으로 옮김(KEY_split). 도메인 칸 기본값은 "". Toon11 은 기본 주소가 안내 사이트라 newerDefault = false. 로컬 컴파일은 t11k/stub(pref.kt·uid.kt 빼고) 로 확인.
+- 망가요미 주소 바뀜 대응(2026-10-21, 9개 파일, 짭툰 삭제로 지금 8개): 파일마다 ADDR_HOST·ADDR_MARK·ADDR_UA·ADDR_PREF + 같은 공통 코드(addrAdopt·addrGuard). openByUrl 이 붙여 넣은 새 주소(https:// 없어도)를 확인 후 직접 넣은 주소로 적용(주소만이면 인기 목록). 인기·최신 첫 쪽이 오류/빈 목록이고 지금 주소 첫 화면에 ADDR_MARK 가 없으면 discover → 다시, 못 찾으면 붙여 넣기 안내 오류. 새 파일도 같은 블록 넣을 것.
