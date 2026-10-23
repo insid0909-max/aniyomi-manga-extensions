@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214002,
     "name": "Goodtoon 웹툰",
     "lang": "ko",
-    "baseUrl": "https://www.goodtoon007.com",
+    "baseUrl": "https://www.goodtoon008.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.33",
+    "version": "0.3.34",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -21,6 +21,8 @@ const AUTO_HOST = /^(www\.)?goodtoon\d+\.com$/;
 const AUTO_NUM = /goodtoon(\d+)/;
 const AUTO_PROBE = "/";
 const AUTO_MARKER = "/manga/gt-";
+// 최신 주소로 넘겨 주는 안내 주소
+const AUTO_GUIDES = ["https://goodtoon.top/", "http://goodtoon.top/"];
 
 // Goodtoon 웹툰 - Aniyomi 확장(Goodtoon.kt)과 같은 구조를 망가요미용으로 옮김
 // ---------- Popular/Latest 규칙 ----------
@@ -289,6 +291,7 @@ function chapterPosition(list, title) {
 // 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
 function friendlyHttp(code) {
     if (code === 403) return "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.";
+    if (code === 451) return "접근이 차단된 주소예요 (HTTP 451). 설정에서 새 도메인 주소를 넣거나 '도메인 자동 찾기'를 켜 주세요.";
     if (code === 429) return "요청이 너무 많아 사이트가 잠시 막았어요 (HTTP 429). 1~2분 뒤 다시 시도해 주세요.";
     if (code >= 500 && code <= 599) return `사이트가 지금 응답하지 않아요 (HTTP ${code}). 잠시 뒤 다시 시도해 주세요.`;
     return null;
@@ -458,7 +461,8 @@ class DefaultExtension extends MProvider {
                 const self = await selfTarget(this, res.body, base, "/manga/gt-");
                 if (self) new SharedPreferences().setString("auto_domain", self);
             }
-            if (!notice && (!ours || !(res.statusCode >= 500))) return res;
+            // 접근 차단(451)도 새 주소 찾기
+            if (!notice && (!ours || !(res.statusCode >= 500 || res.statusCode === 451))) return res;
             failed = res;
         } catch (e) {
             if (!ours) throw e;
@@ -491,18 +495,24 @@ class DefaultExtension extends MProvider {
             found = null;
         }
         if (!found) {
-            const cands = this.autoCandidates(current).filter(c => c !== current);
-            const hits = await Promise.all(cands.map(async c => {
-                try {
-                    const r = await this.client.get(c + AUTO_PROBE, { "Referer": c + "/" });
-                    return r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER) ? c : null;
-                } catch (e) {
-                    return null;
-                }
-            }));
-            const ok = hits.filter(x => x);
-            ok.sort((a, b) => num(b) - num(a));
-            found = ok[0] || null;
+            // 지금 번호보다 위(+1~+20)를 먼저, 없으면 나머지 전체
+            const cur = num(current);
+            const all = this.autoCandidates(current).filter(c => c !== current);
+            const up = all.filter(c => num(c) > cur && num(c) <= cur + 20);
+            const scan = async cands => {
+                const hits = await Promise.all(cands.map(async c => {
+                    try {
+                        const r = await this.client.get(c + AUTO_PROBE, { "Referer": c + "/" });
+                        return r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER) ? c : null;
+                    } catch (e) {
+                        return null;
+                    }
+                }));
+                const ok = hits.filter(x => x);
+                ok.sort((a, b) => num(b) - num(a));
+                return ok[0] || null;
+            };
+            found = await scan(up) || await scan(all.filter(c => !up.includes(c)));
         }
         if (found) prefs.setString("auto_domain", found);
         return found;
@@ -525,7 +535,20 @@ class DefaultExtension extends MProvider {
         return out;
     }
 
+    /** 안내 주소(goodtoon.top) 화면에 적힌 가장 큰 번호의 굿툰 주소 (안내 주소가 최신 주소로 넘겨 줌) */
     async autoGuide(current) {
+        for (const g of AUTO_GUIDES) {
+            try {
+                const r = await this.client.get(g, { "User-Agent": MOBILE_UA });
+                if (r.statusCode !== 200) continue;
+                const pick = this.pickFrom(r.body, current);
+                if (!pick) continue;
+                const ok = await this.client.get(pick + AUTO_PROBE, { "Referer": pick + "/" });
+                if (ok.statusCode === 200 && String(ok.body || "").toLowerCase().includes(AUTO_MARKER)) return pick;
+            } catch (e) {
+                // 다음 안내 주소
+            }
+        }
         return null;
     }
 
@@ -849,7 +872,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://www.goodtoon007.com)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://www.goodtoon008.com)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
@@ -858,7 +881,7 @@ class DefaultExtension extends MProvider {
             key: "auto_on",
             switchPreferenceCompat: {
                 title: "도메인 자동 찾기",
-                summary: "접속이 안 되면 goodtoon001~060.com 중 열리는 주소로 자동 변경",
+                summary: "접속이 안 되거나 차단되면 안내 주소(goodtoon.top) → 지금보다 위 번호 → goodtoon001~060.com 순으로 찾아 자동 변경",
                 value: true
             }
         }];
