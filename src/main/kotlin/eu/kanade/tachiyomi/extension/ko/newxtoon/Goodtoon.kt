@@ -100,9 +100,16 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
         }
 
-        if (res.code == 451) {
+        // 접근 차단(451) 또는 차단 안내 페이지로 넘어가면: 안내 주소(goodtoon.top) → 위 번호 순으로 새 주소를 찾아 다시 요청
+        val blocked = res.code == 451 || (ours && !HOST_REGEX.matches(res.request.url.host) && BLOCK_HOST.containsMatchIn(res.request.url.host))
+        if (blocked) {
             res.close()
-            throw java.io.IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
+            val found = if (ours) discoverDomain(baseHost!!) else null
+            if (found != null) {
+                saveDomain("https://$found")
+                return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+            }
+            throw java.io.IOException("접근 차단됨 (HTTP ${res.code}). 새 주소를 찾지 못했어요. 확장 설정에서 도메인 주소를 직접 넣어 주세요.")
         }
         if (req.method == "POST" && !res.isSuccessful) {
             val snippet = try {
@@ -129,7 +136,41 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     private fun hostNumber(host: String): Int =
         Regex("goodtoon(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** goodtoon001~060.com 중 실제 굿툰 사이트가 열리는 주소를 찾음 (가장 큰 번호 우선) */
+    /** 굿툰 사이트가 맞는지 확인하고 실제로 열린 주소를 돌려줌 */
+    private fun probe(plain: okhttp3.OkHttpClient, url: String, ua: String): String? = try {
+        val r = Request.Builder().url(url).header("User-Agent", ua).build()
+        plain.newCall(r).execute().use { res ->
+            val fh = res.request.url.host
+            if (HOST_REGEX.matches(fh) && res.code == 200 && (res.body?.string() ?: "").contains("/manga/gt-")) fh else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** 안내 주소(goodtoon.top)가 넘겨 주는 주소, 또는 그 화면에 적힌 가장 큰 번호의 주소 */
+    private fun fromGuide(plain: okhttp3.OkHttpClient, ua: String, currentHost: String): String? {
+        for (g in GUIDE_URLS) {
+            try {
+                val r = Request.Builder().url(g).header("User-Agent", ua).build()
+                val (fh, body) = plain.newCall(r).execute().use { res ->
+                    res.request.url.host to (if (res.code == 200) res.body?.string().orEmpty() else "")
+                }
+                if (HOST_REGEX.matches(fh) && fh != currentHost && body.contains("/manga/gt-")) return fh
+                val hosts = Regex("""(?:www\.)?goodtoon\d+\.com""", RegexOption.IGNORE_CASE).findAll(body)
+                    .map { it.value.lowercase() }.filter { HOST_REGEX.matches(it) && it != currentHost }
+                    .distinct().sortedByDescending { hostNumber(it) }.toList()
+                for (h in hosts.take(3)) probe(plain, "https://$h/", ua)?.let { return it }
+            } catch (e: Exception) {
+                // 다음 안내 주소
+            }
+        }
+        return null
+    }
+
+    /**
+     * 새 주소 찾기: ① 안내 주소(goodtoon.top) ② 지금 번호보다 위(+1~+20) ③ 그래도 없으면 001~060 전체.
+     * 여러 개 열리면 가장 큰 번호
+     */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -142,27 +183,16 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        fromGuide(plain, ua, currentHost)?.let { return it }
+
+        val cur = hostNumber(currentHost)
         val pool = java.util.concurrent.Executors.newFixedThreadPool(10)
         try {
-            val futures = (1..60).map { String.format("%sgoodtoon%03d.com", prefix, it) }
+            fun scan(nums: List<Int>): String? = nums.map { String.format("%sgoodtoon%03d.com", prefix, it) }
                 .filter { it != currentHost }
-                .map { host ->
-                    pool.submit<String?> {
-                        try {
-                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
-                            plain.newCall(r).execute().use { res ->
-                                val fh = res.request.url.host
-                                if (!HOST_REGEX.matches(fh)) return@use null
-                                val ok = res.code == 200 &&
-                                    (res.body?.string() ?: "").contains("/manga/gt-")
-                                if (ok) fh else null
-                            }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                }
-            futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
+                .map { host -> pool.submit<String?> { probe(plain, "https://$host/", ua) } }
+                .mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
+            scan(((cur + 1)..(cur + 20)).toList()) ?: scan((1..60).filter { it <= cur || it > cur + 20 })
         } finally {
             pool.shutdown()
         }
@@ -187,7 +217,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         androidx.preference.SwitchPreferenceCompat(screen.context).apply {
             key = KEY_AUTO
             title = "도메인 자동 찾기"
-            summary = "주소 번호가 바뀌어 접속이 안 되면 goodtoon001~060.com 중 열리는 주소로 자동 변경"
+            summary = "접속이 안 되거나 차단되면 안내 주소(goodtoon.top) → 지금보다 위 번호 → goodtoon001~060.com 순으로 열리는 주소를 찾아 자동 변경"
             setDefaultValue(true)
         }.also(screen::addPreference)
 
@@ -406,7 +436,13 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private val HOST_REGEX = Regex("^(www\\.)?goodtoon\\d+\\.com$")
-        private const val DEFAULT = "https://www.goodtoon007.com"
+        private const val DEFAULT = "https://www.goodtoon008.com"
+
+        /** 최신 주소로 넘겨 주는 안내 주소 */
+        private val GUIDE_URLS = listOf("https://goodtoon.top/", "http://goodtoon.top/")
+
+        /** 통신사 차단 안내 페이지 */
+        private val BLOCK_HOST = Regex("warning\\.or\\.kr|warning\\.go\\.kr")
         private val LISTS = listOf(
             "전체(최신)" to "/",
             "인기순" to "/recommend/",

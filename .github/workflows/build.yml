@@ -113,7 +113,7 @@ jobs:
                   "code": vcode, "version": vname, "nsfw": 1,
                   "sources": [{"name": n, "lang": "ko", "id": i, "baseUrl": u} for n, i, u in [
                       ("newxtoon 웹툰", source_id("newxtoon 웹툰", "ko"), "https://newxtoon1.com"),
-                      ("Goodtoon 웹툰", key_id("newxtoon.goodtoon/ko/1"), "https://www.goodtoon006.com"),
+                      ("Goodtoon 웹툰", key_id("newxtoon.goodtoon/ko/1"), "https://www.goodtoon008.com"),
                       ("Blacktoon 웹툰", key_id("newxtoon.blacktoon/ko/1"), "https://blacktoon423.com"),
                       ("11toon 만화", key_id("newxtoon.toon11/ko/1"), "https://update.spotv24.com"),
                       ("늑대닷컴 웹툰", key_id("newxtoon.wolftoon/ko/1"), "https://wfwf510.com"),
