@@ -5,6 +5,8 @@
 - 개인정보: 기록(커밋)에 사용자 지메일을 넣지 않음. git config user.name "insid0909-max", user.email "266083559+insid0909-max@users.noreply.github.com" (세션마다 다시 설정). 합친 사람(committer) 칸은 깃허브가 계정 설정으로 정함 → 사용자가 깃허브 "Keep my email addresses private" 를 켬(2026-10-19). 합친 뒤 `git log -1 --format="%ae %ce" origin/기본가지` 로 지메일 없는지 확인.
 - monitor 워크플로의 도메인 변경 자동 커밋은 허용됨.
 
+- 업데이트 내역(2026-10-24): 저장소 맨 위 `changelog.json`(names + items[키] = [{d:"yyyy-MM-dd", t:"짧은 설명"}], 최신이 앞) → 확장 필터 맨 위 📝 줄에 그 소스의 최근 3개(Kotlin `ExtStatus.notes/withNotes`(StatusHeader 라 탭 규칙 위치에 안 섞임), JS `notesRefresh`·`notesFilters`, 1시간마다 main raw 에서 받음). `업데이트내역.md` 는 `node monitor/changelog.js changelog.json 업데이트내역.md` 로 만듦. **확장을 고칠 때마다 changelog.json 에 한 줄 넣고 md 다시 만들기.** 감시 작업이 주소를 자동으로 바꾸면 내역도 자동으로 적음(monitor.js noteDomainChange). 키: newxtoon·goodtoon·blacktoon·toon11·wolftoon(만화도)·toonkor·bookkor·naverwebtoon. JS 상태 줄 거르기 글자에 📝 포함, 네이버웹툰은 withParams 에서 📝 줄을 뺌(구분선 넣지 않음: 망가요미가 표식을 지우면 위치가 밀림).
+
 ## 새 확장앱(망가·웹툰·소설) 체크리스트 — 요청 없어도 기본 적용
 
 사용자가 "빠진 기능"을 매번 말하지 않도록, 새 소스는 기존 앱(NewXtoon·Toon11·Blacktoon·Bookkor·Goodtoon·Wolftoon)과 같은 기능을 처음부터 넣는다.
