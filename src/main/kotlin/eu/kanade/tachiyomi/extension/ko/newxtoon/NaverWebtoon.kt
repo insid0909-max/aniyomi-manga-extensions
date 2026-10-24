@@ -307,11 +307,15 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
     private class ListFilter : Filter.Select<String>("목록", LISTS.map { it.first }.toTypedArray())
     private class OrderFilter : Filter.Select<String>("정렬", ORDERS.map { it.first }.toTypedArray())
 
-    override fun getFilterList() = tabRules.attach(
-        FilterList(
-            Filter.Header("검색어가 없을 때만 적용 (무료 회차만 보여요)"),
-            ListFilter(),
-            OrderFilter(),
+    // 맨 위에 최근 업데이트 내역(📝)
+    override fun getFilterList() = ExtStatus.withNotes(
+        "naverwebtoon",
+        tabRules.attach(
+            FilterList(
+                Filter.Header("검색어가 없을 때만 적용 (무료 회차만 보여요)"),
+                ListFilter(),
+                OrderFilter(),
+            ),
         ),
     )
 
