@@ -16,13 +16,19 @@ import kotlin.math.abs
 /**
  * 사이트 주소(번호가 바뀌어도 같은 사이트)로 가는 요청 사이에 최소 간격을 둔다.
  * 한꺼번에 많이 요청하면 사이트가 접속을 막는(403) 것을 줄이기 위함. 그림(이미지) 요청은 제한하지 않아 읽기 속도는 그대로.
+ * skipPath: 간격 없이 보내도 되는 요청 경로 (newxtoon 회차 목록 20개씩 묶음: 17개 동시 요청도 모두 200, 1.2초 ↔ 차례로 15초)
  */
-internal class SiteRateLimit(private val hostRegex: Regex, private val minGapMs: Long = 350L) : Interceptor {
+internal class SiteRateLimit(
+    private val hostRegex: Regex,
+    private val minGapMs: Long = 350L,
+    private val skipPath: Regex? = null,
+) : Interceptor {
     private var last = 0L
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val req = chain.request()
-        if (hostRegex.matches(req.url.host) && !IMAGE_PATH.containsMatchIn(req.url.encodedPath)) {
+        val skip = skipPath?.matches(req.url.encodedPath) == true
+        if (!skip && hostRegex.matches(req.url.host) && !IMAGE_PATH.containsMatchIn(req.url.encodedPath)) {
             synchronized(this) {
                 val wait = last + minGapMs - System.currentTimeMillis()
                 if (wait > 0) Thread.sleep(wait)

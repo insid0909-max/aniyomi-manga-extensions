@@ -111,7 +111,8 @@ class NewXtoon(
         // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
         .apply { interceptors().add(0, FriendlyErrors) }
         .apply { interceptors().add(1, ImageRetry) }
-        .addInterceptor(SiteRateLimit(HOST_REGEX))
+        // 회차 목록 묶음(/comics/{id}/chapters?page=N)은 간격 없이 동시에 받음 (회차 많은 작품 열기가 빨라짐)
+        .addInterceptor(SiteRateLimit(HOST_REGEX, skipPath = Regex("^/comics/\\d+/chapters$")))
         .addInterceptor { chain -> smartIntercept(chain) }
         .addInterceptor(NoticeFollow(HOST_REGEX, "/comics/"))
         .build()
