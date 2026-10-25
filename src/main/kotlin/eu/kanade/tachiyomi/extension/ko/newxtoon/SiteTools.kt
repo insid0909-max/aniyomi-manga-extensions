@@ -95,12 +95,18 @@ internal object ChapterOrder {
 
     private val SPACES = Regex("""\s+""")
 
-    /** 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (keep 은 항상 남김) */
-    private fun dedupe(list: List<SChapter>, keep: Set<Int>): List<SChapter> {
+    /**
+     * 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (keep 은 항상 남김).
+     * 빈칸과 맨 앞 작품 제목은 빼고 비교 ("검술명가 막내아들135화" 와 다시 올린 "135화" 는 같은 회차, newxtoon)
+     */
+    private fun dedupe(list: List<SChapter>, keep: Set<Int>, title: String): List<SChapter> {
+        fun squash(v: String) = java.text.Normalizer.normalize(v, java.text.Normalizer.Form.NFC).replace(SPACES, "").lowercase()
+        val t = squash(title)
         val best = HashMap<String, Int>()
         list.forEachIndexed { i, c ->
             if (i in keep) return@forEachIndexed
-            val k = c.name.trim().replace(SPACES, " ").lowercase()
+            var k = squash(c.name)
+            if (t.isNotEmpty() && k.length > t.length && k.startsWith(t)) k = k.substring(t.length).trimStart('-', '–', ':', '·', '.', '_')
             val j = best[k]
             if (j == null || c.date_upload > list[j].date_upload) best[k] = i
         }
@@ -149,7 +155,7 @@ internal object ChapterOrder {
         // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
         val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords) })
         val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
-        val list = dedupe(input, fixed.keys)
+        val list = dedupe(input, fixed.keys, title)
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords).also { k -> fixedNum[c]?.let { k.num = it } } }
