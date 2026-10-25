@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.35",
+    "version": "0.3.36",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -133,10 +133,14 @@ function orderChapters(list, title) {
         fixed.set(list[i], n);
     });
     // 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (바로잡은 회차는 남김)
+    // 빈칸과 맨 앞 작품 제목은 빼고 비교 ("검술명가 막내아들135화" 와 다시 올린 "135화" 는 같은 회차, newxtoon)
+    const squash = (v) => String(v || "").normalize("NFC").replace(/\s+/g, "").toLowerCase();
+    const tk = squash(title);
     const best = {};
     list.forEach((c, i) => {
         if (fixed.has(c)) return;
-        const k = String(c.name || "").trim().replace(/\s+/g, " ").toLowerCase();
+        let k = squash(c.name);
+        if (tk && k.length > tk.length && k.startsWith(tk)) k = k.substring(tk.length).replace(/^[-–:·._]+/, "");
         if (best[k] === undefined || Number(c.dateUpload || 0) > Number(list[best[k]].dateUpload || 0)) best[k] = i;
     });
     const keep = new Set(Object.values(best));
