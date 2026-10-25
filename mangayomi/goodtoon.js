@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.36",
+    "version": "0.3.37",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -69,7 +69,7 @@ async function openByUrl(ext, query, toLink) {
 // 망가요미는 이름 맨 앞 숫자로 회차 번호를 정하므로, 본편이 아닌 회차는 이름 앞에 본편 마지막 번호 다음 순번을 붙임
 // ("1195 · 원피스 매거진 1호") → "화 번호별" 정렬도 본편 1화 ~ 끝 → 나머지 순서
 // "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → …, 본편은 시즌1 안에서 고름
-function orderChapters(list, title) {
+function orderChapters(list, title, keepOldest) {
     if (!list || list.length < 2) return list;
     const PRO = "\u0000prologue";
     const norm = (p) => String(p || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -143,7 +143,10 @@ function orderChapters(list, title) {
         if (fixed.has(c)) return;
         let k = squash(c.name);
         if (tk && k.length > tk.length && k.startsWith(tk)) k = k.substring(tk.length).replace(/^[-–:·._]+/, "");
-        if (best[k] === undefined || Number(c.dateUpload || 0) > Number(list[best[k]].dateUpload || 0)) best[k] = i;
+        // keepOldest: 가장 먼저 올라온 것을 남김 (newxtoon 은 다시 올린 회차 그림이 404 라 원래 회차를 남김)
+        const t = Number(c.dateUpload || 0);
+        const bt = best[k] === undefined ? 0 : Number(list[best[k]].dateUpload || 0);
+        if (best[k] === undefined || (keepOldest ? t < bt : t > bt)) best[k] = i;
     });
     const keep = new Set(Object.values(best));
     if (keep.size + fixed.size < list.length) list = list.filter((c, i) => keep.has(i) || fixed.has(c));
