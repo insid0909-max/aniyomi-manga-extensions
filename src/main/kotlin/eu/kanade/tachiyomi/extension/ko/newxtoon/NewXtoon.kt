@@ -396,7 +396,8 @@ class NewXtoon(
                 SiteIndex.number(it).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l, manga.title) else l }
                     .let { l -> SiteIndex.prefix(l) }
             } else {
-                ChapterOrder.sort(it, manga.title).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l, manga.title) else l }
+                // 같은 회차가 두 번 있으면 먼저 올라온 쪽 (사이트가 다시 올린 회차는 그림이 없음, 검술명가 막내아들 1~136화)
+                ChapterOrder.sort(it, manga.title, keepOldest = true).let { l -> if (ChapterPosition.enabled(sp)) ChapterPosition.label(l, manga.title) else l }
             }
         }
 
