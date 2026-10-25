@@ -199,37 +199,83 @@ class Toonkor : HttpSource(), ConfigurableSource {
     private fun Response.asDoc(): Document = use { Jsoup.parse(it.body?.string().orEmpty(), it.request.url.toString()) }
 
     // ---------- 목록 ----------
-    /** /분류[/목록]?fil=정렬·장르&wpage=N */
-    private fun listReq(section: String, list: String, fil: String, page: Int): Request {
+    /** /분류[/목록]?fil=정렬·장르 (1쪽 주소, 다음 쪽은 listPage) */
+    private fun listUrl(section: String, list: String, fil: String): String {
         val b = "$baseUrl/".toHttpUrl().newBuilder().addPathSegment(section)
         if (list.isNotEmpty()) b.addPathSegment(list)
         if (fil.isNotEmpty()) b.addQueryParameter("fil", fil)
-        if (page > 1) b.addQueryParameter("wpage", page.toString())
-        return GET(b.build().toString(), headers)
+        return b.build().toString()
     }
 
-    override fun popularMangaRequest(page: Int) = listReq("웹툰", "", "인기", page)
-    override fun latestUpdatesRequest(page: Int) = listReq("웹툰", "", "최신", page)
+    /** 휴대폰 화면의 "아래로 내리면 더 불러오기" 주소 (연재·요일: m_day.rows.php, 완결·망가 등: cat.rows.php) */
+    private class More(val file: String, val params: List<Pair<String, String>>)
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        if (query.isNotBlank()) {
-            val url = "$baseUrl/bbs/search.php".toHttpUrl().newBuilder()
-                .addQueryParameter("sfl", "wr_subject||wr_content")
-                .addQueryParameter("stx", query.trim())
-                .apply { if (page > 1) addQueryParameter("wpage", page.toString()) }
-                .build()
-            return GET(url.toString(), headers)
+    private val moreCache = HashMap<String, More?>()
+
+    private fun unescape(v: String) = UNI_REGEX.replace(v) { it.groupValues[1].toInt(16).toChar().toString() }
+
+    /** 1쪽 화면 스크립트에서 더 불러오기 주소와 값을 읽음 (사이트가 wpage 쪽 번호를 더는 안 받음, 2026-10-26) */
+    private fun moreOf(html: String): More? = when {
+        html.contains("m_day.rows.php") -> {
+            fun v(k: String) = Regex("""var\s+$k\s*=\s*["']([^"']*)["']""").find(html)?.groupValues?.get(1)?.let(::unescape).orEmpty()
+            More("m_day.rows.php", listOf("fil" to v("fil"), "yo" to v("yo")))
         }
+        html.contains("cat.rows.php") -> PARAMS_REGEX.find(html)?.groupValues?.get(1)?.let { body ->
+            More(
+                "cat.rows.php",
+                PARAM_REGEX.findAll(body).map { m ->
+                    m.groupValues[1] to unescape(m.groups[2]?.value ?: m.groups[3]?.value ?: m.groups[4]?.value.orEmpty())
+                }.toList(),
+            )
+        }
+        else -> null
+    }
+
+    private fun fetchHtml(url: String): String = client.newCall(GET(url, headers)).execute().use { it.body?.string().orEmpty() }
+
+    /** firstUrl: 1쪽 주소. 2쪽부터는 사이트의 더 불러오기 주소로 30개씩 (빈 결과면 끝) */
+    private fun listPage(firstUrl: String, page: Int): MangasPage {
+        if (page <= 1) {
+            val html = fetchHtml(firstUrl)
+            val more = moreOf(html)
+            synchronized(moreCache) { moreCache[firstUrl] = more }
+            val list = parseCards(Jsoup.parse(html, firstUrl))
+            return MangasPage(list, list.isNotEmpty() && more != null)
+        }
+        val more = synchronized(moreCache) { moreCache[firstUrl] }
+            ?: moreOf(fetchHtml(firstUrl)).also { synchronized(moreCache) { moreCache[firstUrl] = it } }
+            ?: return MangasPage(emptyList(), false)
+        val b = "$baseUrl/skin/board/bt_webtoon/${more.file}".toHttpUrl().newBuilder()
+            .addQueryParameter("page", page.toString())
+        more.params.forEach { (k, v) -> b.addQueryParameter(k, v) }
+        val url = b.build().toString()
+        val list = parseCards(Jsoup.parse(fetchHtml(url), url))
+        return MangasPage(list, list.isNotEmpty())
+    }
+
+    private fun filterUrl(filters: FilterList): String {
         val section = SECTIONS[filters.filterIsInstance<SectionFilter>().firstOrNull()?.state ?: 0]
         // 연재·완결·요일 목록은 웹툰에만 있음
         val list = if (section == "웹툰") LISTS[filters.filterIsInstance<ListFilter>().firstOrNull()?.state ?: 0].second else ""
         val fil = FILS[filters.filterIsInstance<FilFilter>().firstOrNull()?.state ?: 0].second
-        return listReq(section, list, fil, page)
+        return listUrl(section, list, fil)
     }
 
-    override fun popularMangaParse(response: Response) = parseList(response)
-    override fun latestUpdatesParse(response: Response) = parseList(response)
-    override fun searchMangaParse(response: Response) = parseList(response)
+    // 검색은 결과가 한 쪽에 다 나옴 (2쪽을 달라고 해도 같은 결과)
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val url = "$baseUrl/bbs/search.php".toHttpUrl().newBuilder()
+            .addQueryParameter("sfl", "wr_subject||wr_content")
+            .addQueryParameter("stx", query.trim())
+            .build()
+        return GET(url.toString(), headers)
+    }
+
+    override fun searchMangaParse(response: Response) = MangasPage(parseCards(response.asDoc()), false)
+
+    override fun popularMangaRequest(page: Int): Request = throw UnsupportedOperationException()
+    override fun popularMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
+    override fun latestUpdatesRequest(page: Int): Request = throw UnsupportedOperationException()
+    override fun latestUpdatesParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     /** 목록·검색 공통 카드 (.section-item-inner) */
     /** 그림 주소: 늦게 불러오는 카드는 src 가 빈 그림(data:)이고 진짜 주소는 data-src 에 있음 */
@@ -237,8 +283,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
         listOf("data-src", "data-original", "src").map { img.absUrl(it) }
             .firstOrNull { it.isNotEmpty() && !it.startsWith("data:") }
 
-    private fun parseList(response: Response): MangasPage {
-        val doc = response.asDoc()
+    private fun parseCards(doc: Document): List<SManga> {
         val seen = HashSet<String>()
         val mangas = doc.select(".section-item-inner").mapNotNull { item ->
             val a = item.selectFirst("a#title[href], .section-item-title a[href]") ?: return@mapNotNull null
@@ -252,12 +297,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
                 genre = item.selectFirst(".toon_gen")?.text()?.trim()?.replace("/", ", ")?.ifEmpty { null }
             }
         }.filter { it.title.isNotEmpty() }
-        // 다음 쪽: 지금 쪽보다 큰 wpage 링크가 있으면
-        val cur = WPAGE_REGEX.find(doc.location())?.groupValues?.get(1)?.toIntOrNull() ?: 1
-        val hasNext = doc.select("a[href*=wpage=]").any {
-            (WPAGE_REGEX.find(it.attr("href"))?.groupValues?.get(1)?.toIntOrNull() ?: 0) > cur
-        }
-        return MangasPage(mangas, hasNext && mangas.isNotEmpty())
+        return mangas
     }
 
     // ---------- 상세 ----------
@@ -358,11 +398,11 @@ class Toonkor : HttpSource(), ConfigurableSource {
 
     override fun fetchPopularManga(page: Int): Observable<MangasPage> =
         tabRules.saved(TabRules.POPULAR, getFilterList())?.let { fetchSearchManga(page, "", it) }
-            ?: super.fetchPopularManga(page)
+            ?: Observable.fromCallable { listPage(listUrl("웹툰", "", "인기"), page) }
 
     override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
         tabRules.saved(TabRules.LATEST, getFilterList())?.let { fetchSearchManga(page, "", it) }
-            ?: super.fetchLatestUpdates(page)
+            ?: Observable.fromCallable { listPage(listUrl("웹툰", "", "최신"), page) }
 
     /** 붙여 넣은 사이트 주소 → 작품 주소 (회차 주소면 작품 이름까지만) */
     private fun urlToManga(u: okhttp3.HttpUrl): String? {
@@ -375,6 +415,8 @@ class Toonkor : HttpSource(), ConfigurableSource {
         tabRules.apply(filters)
         // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌 (주소 번호가 달라도 됨)
         UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
+        if (query.isBlank()) return Observable.fromCallable { listPage(filterUrl(filters), page) }
+        if (page > 1) return Observable.just(MangasPage(emptyList(), false))
         return super.fetchSearchManga(page, query, filters)
     }
 
@@ -419,7 +461,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
         private val HOST_REGEX = Regex("^(www\\.)?toonkor\\d+\\.[a-z]{2,6}$")
         private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
-        private val WPAGE_REGEX = Regex("[?&]wpage=(\\d+)")
+        private val UNI_REGEX = Regex("""\\u([0-9a-fA-F]{4})""")
+        private val PARAMS_REGEX = Regex("""var\s+params\s*=\s*\{([\s\S]*?)\}""")
+        private val PARAM_REGEX = Regex("""(\w+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(-?\d+))""")
         private val TOON_IMG_REGEX = Regex("""var\s+toon_img\s*=\s*'([A-Za-z0-9+/=]+)'""")
         private val EP_NUM_REGEX = Regex("""(\d+(?:\.\d+)?)\s*화""")
         private const val ONGOING_DAYS = 21

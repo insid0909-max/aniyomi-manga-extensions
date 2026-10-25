@@ -70,6 +70,8 @@
 
 - newxtoon 회차 목록 속도(2026-10-26): 사이트가 /comics/{id}/chapters?page=N 으로 20개씩만 줌(per_page·size·limit 등 무시). 확장은 6개씩 동시에 보내도 `SiteRateLimit`(0.35초 간격)이 차례로 만들어서 354화가 약 7초 → 회차 목록 묶음만 간격에서 뺌(Kotlin `SiteRateLimit(skipPath=…)`, JS siteWait). 해외 측정: 17개 동시 요청 모두 200·1.2초(차례로 15초), Kotlin 7.2 → 2.4초, JS 3.4 → 2.1초.
 
+- 툰코 목록 2쪽 반복(2026-10-26): 사이트가 휴대폰 화면에서 wpage 쪽 번호를 무시(늘 같은 30개, 검색도 같음). 휴대폰 화면은 아래로 내리면 /skin/board/bt_webtoon/m_day.rows.php?page&fil&yo(연재·요일) 또는 cat.rows.php?page + params(완결·장르·망가 등, 1쪽 스크립트의 var params)로 30개씩, 빈 결과면 끝 → 1쪽 화면 스크립트에서 주소·값을 읽어 2쪽부터 그 주소로(Kotlin listPage/moreOf, JS listPage/moreSpec). 검색은 한 쪽(2쪽 없음). User-Agent 가 없으면 PC 화면(연재 240개 한 번에, 요일 거르기 안 됨)이라 망가요미 toonkor.js 는 처음부터 휴대폰 UA 를 넣음(APP_NO_UA = true). 점검 방법: runtime.js 기본 UA 를 "Dart/3.5" 로 바꾼 복사본과 원래 것 둘 다로 전체 망가요미 소스를 돌려 비교(2026-10-26 전체 점검에서 다른 소스는 차이 없음).
+
 ## 아이콘
 - 앱 아이콘은 src/main/res/mipmap-xxxhdpi/ic_launcher.png(192px, 사용자가 준 만화 칸 K 그림). 예전엔 build.yml 이 보라색 아이콘을 그렸지만 그 단계는 뺌. 망가요미 iconUrl 은 gh-pages/icon(APK 에서 꺼낸 그림)이라 빌드 후 같이 바뀜.
 
