@@ -66,6 +66,8 @@
 
 - 마루마루(marumaru###.com)·짭툰(jjaptoon)은 사용자 요청으로 삭제(2026-10-22). 마루마루를 다시 만들자고 하면: 전부 JSON API(/api/works·/api/search·/api/works/{번호}, 회차·본문 api.storagewebtoon.store/api/v1/reader/A2), 소설 본문은 embed_url(.dat UTF-8), 최신 화 일부는 포인트 구매 회차(kind "paid", 우회 안 함). 망가요미 id 870214003(짭툰)·870214012~014(마루마루), Kotlin 키 newxtoon.jjaptoon/ko/1·newxtoon.marumaru/ko/1~3 은 다시 쓰지 말 것. 코드는 git 기록(#71)에 있음.
 
+- 고래툰(Goraetoon.kt + mangayomi/goraetoon.js, id 870214015, 2026-10-25): 지금 주소 ###.grtoon.com(001), 예전 goraetoon##.com 은 새 주소로 넘겨 줌(새 주소는 텔레그램 @grtoonlink 공지). 목록은 사이트 JSON 통째로: /catalog-data/webtoon-active.json(오늘 업데이트 510개, 연재 "UP"), -ongoing(4.7MB, 요일 고를 때), -completed(14MB, 완결·검색 때만, 6시간 보관), top.json(day·week·month·realtime → comm·adult·bl → 작품 id), options.json. 사이트 규칙 그대로: 정렬 new = catalog_order(작은 순, 없는 것 뒤) → updated_at 최신, hot = view_count_total, 검색은 제목·작가(빈칸 빼고 대문자) 연재+완결. 작품 /webtoon/{public_id}.html(회차 전부 a.episode-row, 상태는 "연재/완결 총N화"), 회차 /webtoons/{pid}/{eid}.html: 그림 img[o_src] + window.__IMAGE_HOST(edgekite) — 그림은 Referer 필요. Kotlin 은 큰 파일을 android.util.JsonReader 로 조금씩 읽음. 주소 칸·붙여 넣기는 ###.grtoon.com 모양만(예전 주소는 번호 비교가 어긋나서), 자동 찾기는 ###.grtoon.com 번호 → 예전 주소들이 넘겨 주는(망가요미는 화면에 적힌) 주소. 표시 글자 "goraetoon-loading.svg".
+
 ## 아이콘
 - 앱 아이콘은 src/main/res/mipmap-xxxhdpi/ic_launcher.png(192px, 사용자가 준 만화 칸 K 그림). 예전엔 build.yml 이 보라색 아이콘을 그렸지만 그 단계는 뺌. 망가요미 iconUrl 은 gh-pages/icon(APK 에서 꺼낸 그림)이라 빌드 후 같이 바뀜.
 

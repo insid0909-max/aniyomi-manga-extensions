@@ -650,6 +650,11 @@ class NewXtoonFactory : SourceFactory {
             list.add(ErrorSource("툰코 오류", e))
         }
         try {
+            list.add(Goraetoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("고래툰 오류", e))
+        }
+        try {
             list.add(NaverWebtoon())
         } catch (e: Throwable) {
             list.add(ErrorSource("네이버웹툰 오류", e))

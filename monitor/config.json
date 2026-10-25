@@ -102,6 +102,23 @@
     30
    ],
    "key": "toonkor"
+  },
+  {
+   "name": "고래툰",
+   "currentFrom": {
+    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
+    "regex": "DEFAULT = \"(https://\\d+\\.grtoon\\.com)\""
+   },
+   "pattern": "^https://(\\d+)\\.grtoon\\.com$",
+   "format": "https://{n}.grtoon.com",
+   "pad": 3,
+   "probe": "/",
+   "marker": "goraetoon-loading\\.svg",
+   "range": [
+    -2,
+    30
+   ],
+   "key": "goraetoon"
   }
  ],
  "replaceIn": [
@@ -119,7 +136,9 @@
   "mangayomi/bookkor.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
   "mangayomi/toonkor.js",
-  "mangayomi/wolftoon_comic.js"
+  "mangayomi/wolftoon_comic.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
+  "mangayomi/goraetoon.js"
  ],
  "indexFiles": [],
  "health": [
@@ -170,6 +189,12 @@
    "file": "mangayomi/wolftoon_comic.js",
    "depth": "pages",
    "key": "wolftoon_comic"
+  },
+  {
+   "name": "고래툰 (망가요미)",
+   "file": "mangayomi/goraetoon.js",
+   "depth": "pages",
+   "key": "goraetoon"
   }
  ]
 }
