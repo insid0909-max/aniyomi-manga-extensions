@@ -103,9 +103,10 @@ internal object ChapterOrder {
 
     /**
      * 이름이 똑같은 회차(사이트에 같은 화가 여러 번 올라온 것, 11toon 주술회전)는 가장 최근 업로드 하나만 (keep 은 항상 남김).
-     * 빈칸과 맨 앞 작품 제목은 빼고 비교 ("검술명가 막내아들135화" 와 다시 올린 "135화" 는 같은 회차, newxtoon)
+     * 빈칸과 맨 앞 작품 제목은 빼고 비교 ("검술명가 막내아들135화" 와 다시 올린 "135화" 는 같은 회차, newxtoon).
+     * keepOldest: 가장 먼저 올라온 것을 남김 (newxtoon 은 다시 올린 회차 그림이 404 라 원래 회차를 남김)
      */
-    private fun dedupe(list: List<SChapter>, keep: Set<Int>, title: String): List<SChapter> {
+    private fun dedupe(list: List<SChapter>, keep: Set<Int>, title: String, keepOldest: Boolean): List<SChapter> {
         fun squash(v: String) = java.text.Normalizer.normalize(v, java.text.Normalizer.Form.NFC).replace(SPACES, "").lowercase()
         val t = squash(title)
         val best = HashMap<String, Int>()
@@ -114,7 +115,7 @@ internal object ChapterOrder {
             var k = squash(c.name)
             if (t.isNotEmpty() && k.length > t.length && k.startsWith(t)) k = k.substring(t.length).trimStart('-', '–', ':', '·', '.', '_')
             val j = best[k]
-            if (j == null || c.date_upload > list[j].date_upload) best[k] = i
+            if (j == null || (if (keepOldest) c.date_upload < list[j].date_upload else c.date_upload > list[j].date_upload)) best[k] = i
         }
         val kept = best.values.toHashSet() + keep
         if (kept.size == list.size) return list
@@ -152,7 +153,7 @@ internal object ChapterOrder {
         return out
     }
 
-    fun sort(input: List<SChapter>, title: String = ""): List<SChapter> {
+    fun sort(input: List<SChapter>, title: String = "", keepOldest: Boolean = false): List<SChapter> {
         if (input.size < 2) return input
         // 작품 제목 단어("원피스", "one", "piece")는 앞부분에서 지우고 비교
         // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
@@ -161,7 +162,7 @@ internal object ChapterOrder {
         // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
         val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords) })
         val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
-        val list = dedupe(input, fixed.keys, title)
+        val list = dedupe(input, fixed.keys, title, keepOldest)
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords).also { k -> fixedNum[c]?.let { k.num = it } } }
