@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.33",
+    "version": "0.1.34",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -41,6 +41,8 @@ const TAB_RULE_OPTIONS = [
 // ---------- 접속 속도 제한 · 주소로 바로 열기 ----------
 // 사이트로 가는 요청 사이에 최소 간격 (한꺼번에 많이 요청하면 사이트가 403으로 막음). 그림 요청은 제외
 let lastSiteRequest = 0;
+// 목록 1쪽 주소 → 더 불러오기 주소 정보 (moreSpec)
+const TK_MORE = {};
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
     if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
@@ -384,6 +386,8 @@ class DefaultExtension extends MProvider {
     constructor() {
         super();
         this.client = appClient(new Client());
+        // 툰코는 User-Agent 가 없으면 PC 화면(요일 거르기·더 불러오기가 다름)을 줌 → 처음부터 휴대폰 User-Agent 를 넣어 보냄
+        APP_NO_UA = true;
     }
 
     // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
@@ -546,17 +550,16 @@ class DefaultExtension extends MProvider {
     }
 
     // ---------- 목록 ----------
-    /** /분류[/목록]?fil=정렬·장르&wpage=N */
+    /** /분류[/목록]?fil=정렬·장르 (1쪽만, 다음 쪽은 listPage) */
     listUrl(section, list, fil, page) {
         let u = this.base + "/" + encodeURIComponent(section) + (list ? "/" + encodeURIComponent(list) : "");
         const q = [];
         if (fil) q.push("fil=" + encodeURIComponent(fil));
-        if (page > 1) q.push("wpage=" + page);
         return u + (q.length ? "?" + q.join("&") : "");
     }
 
     /** 목록·검색 공통 카드 (.section-item-inner) */
-    parseList(html, page) {
+    parseList(html) {
         const doc = new Document(html);
         const seen = {};
         const list = [];
@@ -571,27 +574,66 @@ class DefaultExtension extends MProvider {
             const img = item.selectFirst(".section-item-photo img");
             list.push({ name, imageUrl: this.imgUrl(img), link });
         }
-        // 다음 쪽: 지금 쪽보다 큰 wpage 링크가 있으면
-        let maxPg = 0;
-        for (const a of doc.select("a")) {
-            const m = (a.attr("href") || "").match(/[?&]wpage=(\d+)/);
-            if (m) maxPg = Math.max(maxPg, parseInt(m[1], 10));
+        return { list, hasNextPage: false };
+    }
+
+    /**
+     * 휴대폰 화면의 "아래로 내리면 더 불러오기" 주소를 1쪽 화면 스크립트에서 읽음 (사이트가 wpage 쪽 번호를 더는 안 받음, 2026-10-26)
+     * 연재·요일: /skin/board/bt_webtoon/m_day.rows.php?page&fil&yo, 완결·망가 등: cat.rows.php?page + params
+     */
+    moreSpec(html) {
+        const uni = (v) => String(v).replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+        const day = /m_day\.rows\.php/.test(html);
+        const cat = /cat\.rows\.php/.test(html);
+        if (day) {
+            const get = (k) => { const m = new RegExp(`var\\s+${k}\\s*=\\s*["']([^"']*)["']`).exec(html); return m ? uni(m[1]) : ""; };
+            return { file: "m_day.rows.php", params: { fil: get("fil"), yo: get("yo") } };
         }
-        return { list, hasNextPage: list.length > 0 && maxPg > page };
+        if (cat) {
+            const m = /var\s+params\s*=\s*\{([\s\S]*?)\}/.exec(html);
+            if (!m) return null;
+            const params = {};
+            const re = /(\w+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(-?\d+))/g;
+            let x;
+            while ((x = re.exec(m[1]))) params[x[1]] = uni(x[2] !== undefined ? x[2] : x[3] !== undefined ? x[3] : x[4]);
+            return { file: "cat.rows.php", params };
+        }
+        return null;
+    }
+
+    /** firstUrl: 1쪽 주소. 2쪽부터는 사이트의 더 불러오기 주소로 30개씩 (빈 결과면 끝) */
+    async listPage(firstUrl, page) {
+        if (page <= 1) {
+            const html = await this.get(firstUrl);
+            const r = this.parseList(html);
+            TK_MORE[firstUrl] = this.moreSpec(html);
+            r.hasNextPage = r.list.length > 0 && !!TK_MORE[firstUrl];
+            return r;
+        }
+        if (TK_MORE[firstUrl] === undefined) TK_MORE[firstUrl] = this.moreSpec(await this.get(firstUrl));
+        const spec = TK_MORE[firstUrl];
+        if (!spec) return { list: [], hasNextPage: false };
+        const q = Object.assign({ page }, spec.params);
+        const u = `${this.base}/skin/board/bt_webtoon/${spec.file}?` + Object.keys(q).map((k) => `${k}=${encodeURIComponent(q[k])}`).join("&");
+        const r = this.parseList(await this.get(u));
+        r.hasNextPage = r.list.length > 0;
+        return r;
     }
 
     async basePopular(page) {
-        return this.parseList(await this.get(this.listUrl("웹툰", "", "인기", page)), page);
+        return this.listPage(this.listUrl("웹툰", "", "인기", 1), page);
     }
 
     async baseLatest(page) {
-        return this.parseList(await this.get(this.listUrl("웹툰", "", "최신", page)), page);
+        return this.listPage(this.listUrl("웹툰", "", "최신", 1), page);
     }
 
     async baseSearch(query, page, filters) {
         if (query && query.trim()) {
-            const u = `${this.base}/bbs/search.php?sfl=${encodeURIComponent("wr_subject||wr_content")}&stx=${encodeURIComponent(query.trim())}` + (page > 1 ? `&wpage=${page}` : "");
-            return this.parseList(await this.get(u), page);
+            // 검색은 결과가 한 쪽에 다 나옴 (2쪽을 달라고 해도 같은 결과)
+            if (page > 1) return { list: [], hasNextPage: false };
+            const u = `${this.base}/bbs/search.php?sfl=${encodeURIComponent("wr_subject||wr_content")}&stx=${encodeURIComponent(query.trim())}`;
+            return this.parseList(await this.get(u));
         }
         const v = {};
         for (const f of filters || []) {
@@ -600,7 +642,7 @@ class DefaultExtension extends MProvider {
         const section = v.section || "웹툰";
         // 연재·완결·요일 목록은 웹툰에만 있음
         const list = section === "웹툰" ? (v.list || "") : "";
-        return this.parseList(await this.get(this.listUrl(section, list, v.fil || "", page)), page);
+        return this.listPage(this.listUrl(section, list, v.fil || "", 1), page);
     }
 
     // ---------- 상세 + 회차 (최신순, 한 페이지) ----------
