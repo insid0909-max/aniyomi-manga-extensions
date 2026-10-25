@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.36",
+    "version": "0.3.37",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -42,6 +42,8 @@ let lastSiteRequest = 0;
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
     if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
+    // 회차 목록 묶음(/comics/{id}/chapters?page=N)은 간격 없이 동시에 받음 (17개 동시 요청도 모두 정상)
+    if (/^\/comics\/\d+\/chapters$/.test(m[2])) return;
     const wait = lastSiteRequest + 350 - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     lastSiteRequest = Date.now();
