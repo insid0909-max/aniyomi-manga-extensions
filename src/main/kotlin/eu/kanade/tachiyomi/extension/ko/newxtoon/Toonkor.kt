@@ -27,7 +27,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * 툰코 (toonkor#.org).
+ * 툰코 (###.toonkor.net, 예전 주소 toonkor#.org 는 새 주소로 넘겨 줌, 최신 주소 안내 toonkor.site).
  * 목록: /웹툰[/연재|/완결|/요일]?fil=정렬·장르&wpage=N, 망가·단행본·포토툰도 같은 모양.
  * 검색: /bbs/search.php?stx=, 작품: /작품이름, 회차: /작품이름_N화....html
  * 회차의 그림 목록은 페이지 안 toon_img 값(base64 로 감싼 img 태그)에 들어 있다.
@@ -112,7 +112,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
             }
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && finalHost != baseHost && NEW_HOST.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         return res
@@ -124,41 +124,44 @@ class Toonkor : HttpSource(), ConfigurableSource {
     private var lastDiscover = 0L
 
     private fun hostNumber(host: String): Int =
-        Regex("toonkor(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        Regex("^(\\d+)\\.toonkor").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** 현재 번호 주변(-2 ~ +30)의 toonkor#.org 중 툰코가 열리는 주소를 찾음 (가장 큰 번호 우선) */
+    /**
+     * 최신 주소 안내(toonkor.site, 새 주소로 넘겨 줌) → 현재 번호 주변(-2 ~ +30)의 ###.toonkor.net
+     * → 예전 주소 toonkor1~40.org 가 넘겨 주는 주소 중 툰코가 열리는 ###.toonkor.net 을 찾음 (가장 큰 번호 우선)
+     */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
         lastDiscover = now
 
-        val cur = hostNumber(currentHost).takeIf { it > 0 } ?: hostNumber(DEFAULT)
-        val tld = currentHost.substringAfterLast('.', "org")
+        val cur = hostNumber(currentHost).takeIf { it > 0 } ?: hostNumber(DEFAULT.substringAfter("://"))
+        val tld = if (NEW_HOST.matches(currentHost)) currentHost.substringAfterLast('.') else "net"
         val plain = okhttp3.OkHttpClient.Builder()
             .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+
+        // 열어서 넘어간 최종 주소가 ###.toonkor.net 이고 툰코 화면이면 그 주소
+        fun open(url: String): String? = try {
+            val r = Request.Builder().url(url).header("User-Agent", ua).build()
+            plain.newCall(r).execute().use { res ->
+                val fh = res.request.url.host
+                if (!NEW_HOST.matches(fh) || res.code != 200) return@use null
+                if (res.peekBody(300_000).string().contains("section-item")) fh else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+        open(GUIDE_URL)?.takeIf { it != currentHost }?.let { return@synchronized it }
+        val hosts = ((cur - 2).coerceAtLeast(1)..(cur + 30)).map { "%03d.toonkor.$tld".format(it) } +
+            (1..40).map { "toonkor$it.org" }
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(12)
         try {
-            val futures = ((cur - 2).coerceAtLeast(1)..(cur + 30)).map { "toonkor$it.$tld" }
-                .filter { it != currentHost }
-                .map { host ->
-                    pool.submit<String?> {
-                        try {
-                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
-                            plain.newCall(r).execute().use { res ->
-                                val fh = res.request.url.host
-                                if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
-                                if (res.peekBody(300_000).string().contains("section-item")) fh else null
-                            }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                }
-            futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
+            val futures = hosts.filter { it != currentHost }.map { host -> pool.submit<String?> { open("https://$host/") } }
+            futures.mapNotNull { it.get() }.distinct().maxByOrNull { hostNumber(it) }?.takeIf { it != currentHost }
         } finally {
             pool.shutdown()
         }
@@ -172,18 +175,19 @@ class Toonkor : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = KEY_DOMAIN
             title = "도메인 주소"
-            summary = "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 주소가 확인되면 자동으로 바뀜 (기본: $DEFAULT)"
+            summary = "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 주소가 확인되면 자동으로 바뀜 (기본: $DEFAULT, ###.toonkor.net 모양)"
             dialogTitle = "도메인 주소"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, v ->
-                DOMAIN_REGEX.matches((v as String).trim().trimEnd('/'))
+                val t = (v as String).trim().trimEnd('/')
+                t.isEmpty() || DOMAIN_REGEX.matches(t)
             }
         }.also(screen::addPreference)
 
         androidx.preference.SwitchPreferenceCompat(screen.context).apply {
             key = KEY_AUTO
             title = "도메인 자동 찾기"
-            summary = "주소 번호가 바뀌어 접속이 안 되면 toonkor#.org 중 열리는 주소로 자동 변경"
+            summary = "주소 번호가 바뀌어 접속이 안 되면 최신 주소 안내(toonkor.site)·###.toonkor.net·예전 주소(toonkor#.org)가 넘겨 주는 주소 중 열리는 주소로 자동 변경"
             setDefaultValue(true)
         }.also(screen::addPreference)
 
@@ -455,12 +459,20 @@ class Toonkor : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://toonkor7.org"
+        private const val DEFAULT = "https://001.toonkor.net"
+
+        // 최신 주소 안내 페이지 (사용자가 알려 줌 2026-10-29, 지금 주소로 넘겨 줌)
+        private const val GUIDE_URL = "https://toonkor.site/"
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
-        private val HOST_REGEX = Regex("^(www\\.)?toonkor\\d+\\.[a-z]{2,6}$")
-        private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
+
+        /** 지금 주소(###.toonkor.net)와 예전 주소(toonkor#.org, 새 주소로 넘겨 줌) */
+        private val HOST_REGEX = Regex("^(\\d{3}\\.toonkor\\.[a-z]{2,6}|(www\\.)?toonkor\\d+\\.[a-z]{2,6})$")
+        private val NEW_HOST = Regex("^\\d{3}\\.toonkor\\.[a-z]{2,6}$")
+
+        // 예전 모양(toonkor#.org)으로 저장된 주소는 쓰지 않음 (번호 비교가 맞지 않아 새 주소로 안 바뀜) → 기본 주소
+        private val DOMAIN_REGEX = Regex("^https?://\\d{3}\\.toonkor\\.[a-z]{2,6}$")
         private val UNI_REGEX = Regex("""\\u([0-9a-fA-F]{4})""")
         private val PARAMS_REGEX = Regex("""var\s+params\s*=\s*\{([\s\S]*?)\}""")
         private val PARAM_REGEX = Regex("""(\w+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(-?\d+))""")
