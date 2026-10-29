@@ -89,7 +89,28 @@ async function checkDomains() {
         else verdict = "dead";
         console.log(`[주소] ${site.name} ${cur} → ${verdict} (HTTP ${r.status}${r.error ? " " + r.error : ""})`);
 
-        if (verdict === "dead") {
+        // 끊겼으면 먼저 최신 주소 안내 페이지(site.guide)에 적힌 주소 확인 (번호가 큰 것부터)
+        if (verdict === "dead" && site.guide) {
+            try {
+                const res = await fetch(site.guide, { headers: { "User-Agent": UA }, redirect: "follow" });
+                const text = decodeAny(Buffer.from(await res.arrayBuffer()));
+                const re = new RegExp(site.pattern.replace(/^\^https:(?:\\\/|\/){2}/, "").replace(/\$$/, ""), "gi");
+                const hosts = [...new Set((text.match(re) || []).map((h) => "https://" + h.toLowerCase()))]
+                    .filter((h) => h !== cur && new RegExp(site.pattern).test(h))
+                    .sort((a, b) => (siteNumber(site, b) ?? 0) - (siteNumber(site, a) ?? 0));
+                for (const h of hosts) {
+                    const p = await probeSite(site, h);
+                    if (p.status === 200 && p.marker && new RegExp(site.pattern).test(p.finalOrigin)) {
+                        found = p.finalOrigin;
+                        break;
+                    }
+                }
+                console.log(`[주소] ${site.name} 안내 페이지 → ${hosts.join(", ") || "주소 없음"}${found ? " (사용: " + found + ")" : ""}`);
+            } catch (e) {
+                console.log(`[주소] ${site.name} 안내 페이지 실패: ${e.message}`);
+            }
+        }
+        if (verdict === "dead" && !found) {
             const n = siteNumber(site, cur) ?? 0;
             const [lo, hi] = site.range || [-3, 40];
             const cands = [];
