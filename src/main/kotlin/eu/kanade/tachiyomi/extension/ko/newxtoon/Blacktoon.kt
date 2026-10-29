@@ -703,7 +703,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://blacktoon425.com"
+        private const val DEFAULT = "https://blacktoon426.com"
         private const val GUIDE_URL = "https://blacktoonurl.net/"
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
         private const val POSTER_URL = "https://ttjsde.speedwebgo.com/"

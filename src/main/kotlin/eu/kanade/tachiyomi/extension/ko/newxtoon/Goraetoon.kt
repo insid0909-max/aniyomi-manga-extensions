@@ -567,7 +567,7 @@ class Goraetoon : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://001.grtoon.com"
+        private const val DEFAULT = "https://002.grtoon.com"
 
         /** 진짜 사이트 화면마다 있는 글자 (로딩 그림 이름) */
         private const val MARKER = "goraetoon-loading.svg"
