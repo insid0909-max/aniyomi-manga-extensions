@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.38",
+    "version": "0.3.39",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -21,6 +21,8 @@ const AUTO_HOST = /^(www\.)?newxtoon\d*\.com$/;
 const AUTO_NUM = /newxtoon(\d+)/;
 const AUTO_PROBE = "/";
 const AUTO_MARKER = "뉴엑스툰";
+// 최신 접속 주소 안내 페이지 (뉴엑스툰.com)
+const AUTO_GUIDE = "https://xn--vg1b002axlc8ts.com/";
 
 // newxtoon 웹툰 - Aniyomi 확장(NewXtoon.kt)과 같은 구조를 망가요미용으로 옮김
 // ---------- Popular/Latest 규칙 ----------
@@ -549,7 +551,26 @@ class DefaultExtension extends MProvider {
         return out;
     }
 
+    /** 최신 접속 주소 안내 페이지(뉴엑스툰.com)에 적힌 주소 중 번호가 큰 것부터, 진짜 사이트면 사용 */
     async autoGuide(current) {
+        let text = "";
+        try {
+            const r = await this.client.get(AUTO_GUIDE, {});
+            text = String(r.body || "");
+        } catch (e) {
+            return null;
+        }
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        const hosts = [...new Set((text.match(/newxtoon\d+\.com/gi) || []).map(h => "https://" + h.toLowerCase()))]
+            .filter(h => h !== current).sort((a, b) => num(b) - num(a));
+        for (const h of hosts) {
+            try {
+                const r = await this.client.get(h + AUTO_PROBE, { "Referer": h + "/" });
+                if (r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER)) return h;
+            } catch (e) {
+                // 다음 주소
+            }
+        }
         return null;
     }
 

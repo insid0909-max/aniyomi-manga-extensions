@@ -225,7 +225,7 @@ class NewXtoon(
     @Volatile
     private var lastDiscover = 0L
 
-    /** newxtoon{1..40}.com 중 응답하는 주소를 찾는다. 확인된 주소 > 인증창이 뜨는 주소, 번호가 큰 쪽 우선 */
+    /** 안내 페이지 → newxtoon{1..40}.com 중 응답하는 주소를 찾는다. 확인된 주소 > 인증창이 뜨는 주소, 번호가 큰 쪽 우선 */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -237,6 +237,28 @@ class NewXtoon(
             .callTimeout(8, TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        // 1) 최신 주소 안내 페이지(뉴엑스툰.com)에 적힌 주소 중 번호가 큰 것부터, 진짜 사이트면 바로 사용
+        try {
+            val r = Request.Builder().url(GUIDE_URL).header("User-Agent", ua).build()
+            val text = plain.newCall(r).execute().use { it.body?.string() ?: "" }
+            val hosts = Regex("newxtoon\\d+\\.com", RegexOption.IGNORE_CASE).findAll(text)
+                .map { it.value.lowercase() }.distinct().filter { it != currentHost }
+                .sortedByDescending { hostNumber(it) }.toList()
+            for (host in hosts) {
+                val ok = try {
+                    val q = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
+                    plain.newCall(q).execute().use { res ->
+                        res.code == 200 && HOST_REGEX.matches(res.request.url.host) &&
+                            (res.body?.string() ?: "").contains("뉴엑스툰")
+                    }
+                } catch (e: Exception) {
+                    false
+                }
+                if (ok) return@synchronized host
+            }
+        } catch (e: Exception) {
+            // 안내 페이지가 안 열리면 번호 주소 확인으로
+        }
         val pool = Executors.newFixedThreadPool(10)
         try {
             val futures = (1..40).map { "newxtoon$it.com" }.filter { it != currentHost }.map { host ->
@@ -598,6 +620,9 @@ class NewXtoon(
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://newxtoon3.com"
+
+        // 최신 접속 주소 안내 페이지 (뉴엑스툰.com, 사용자가 알려 줌 2026-10-29)
+        private const val GUIDE_URL = "https://xn--vg1b002axlc8ts.com/"
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_UA = "pref_user_agent"
         private const val KEY_AUTO = "pref_auto_domain"
