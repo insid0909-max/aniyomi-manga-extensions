@@ -100,7 +100,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/newxtoon.js",
   "apiUrl": "",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
