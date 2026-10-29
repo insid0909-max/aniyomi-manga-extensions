@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214009,
     "name": "툰코 웹툰",
     "lang": "ko",
-    "baseUrl": "https://toonkor7.org",
+    "baseUrl": "https://001.toonkor.net",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.36",
+    "version": "0.1.37",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -17,8 +17,11 @@ const mangayomiSources = [{
 
 const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
-const AUTO_HOST = /^(?:www\.)?toonkor\d+\.[a-z]{2,6}$/;
-const AUTO_NUM = /toonkor(\d+)/;
+// 지금 주소 ###.toonkor.net (예전 주소 toonkor#.org 는 새 주소로 넘겨 줌, 최신 주소 안내 toonkor.site)
+const AUTO_HOST = /^\d{3}\.toonkor\.[a-z]{2,6}$/;
+const ANY_HOST = /^(?:\d{3}\.toonkor|(?:www\.)?toonkor\d+)\.[a-z]{2,6}$/;
+const AUTO_NUM = /\/\/(\d+)\.toonkor/;
+const GUIDE_URL = "https://toonkor.site/";
 const GENRES = ["드라마", "판타지", "액션", "로맨스", "일상", "개그", "미스터리", "순정", "스포츠", "BL", "스릴러", "무협", "학원", "공포", "스토리"];
 // 작품 주소로 오인하지 않을 사이트 메뉴
 const NON_TITLE = ["웹툰", "망가", "단행본", "포토툰", "소설", "애니", "TV", "notice", "bbs", "코사이트", "주소안내", "토토보증업체"];
@@ -45,7 +48,7 @@ let lastSiteRequest = 0;
 const TK_MORE = {};
 async function siteWait(url) {
     const m = /^https?:\/\/([^/?#]+)([^?#]*)/.exec(String(url || ""));
-    if (!m || !AUTO_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
+    if (!m || !ANY_HOST.test(m[1]) || /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(m[2])) return;
     const wait = lastSiteRequest + 350 - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     lastSiteRequest = Date.now();
@@ -56,7 +59,7 @@ async function openByUrl(ext, query, toLink) {
     // 새 주소를 붙여 넣으면 그 주소로 바로 바꿈 (주소만이면 인기 목록)
     const adopted = await addrAdopt(ext, query);
     const m = /^(?:https?:\/\/)?([^/?#\s]+)(\/[^#\s]*)?$/.exec(String(query || "").trim());
-    if (!m || !AUTO_HOST.test(m[1].toLowerCase())) return null;
+    if (!m || !ANY_HOST.test(m[1].toLowerCase())) return null;
     const link = toLink(m[2] || "/");
     if (!link) return adopted ? await ext.getPopular(1) : null;
     const d = await ext.getDetail(link);
@@ -394,9 +397,10 @@ class DefaultExtension extends MProvider {
     }
 
     // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
+    // 예전 모양(toonkor#.org)으로 저장된 주소는 쓰지 않음 (번호 비교가 맞지 않아 새 주소로 안 바뀜) → 기본 주소
     cleanUrl(v) {
         v = String(v || "").trim().replace(/\/+$/, "");
-        return /^https?:\/\/[^\s/]+$/.test(v) ? v : "";
+        return /^https?:\/\/[^\s/]+$/.test(v) && AUTO_HOST.test(v.replace(/^https?:\/\//, "")) ? v : "";
     }
 
     get base() {
@@ -487,29 +491,54 @@ class DefaultExtension extends MProvider {
         return await this.client.get(found + url.substring(base.length), h);
     }
 
+    /**
+     * 최신 주소 안내(toonkor.site) → ###.toonkor.net(-2 ~ +30) → 예전 주소 toonkor1~40.org 화면에 적힌 주소 중
+     * 툰코가 열리는 가장 큰 번호 (망가요미는 넘어간 최종 주소를 알려 주지 않으므로 화면에 적힌 ###.toonkor.net 을 다시 확인)
+     */
     async discover(current) {
         const prefs = new SharedPreferences();
         const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
         if (Date.now() - last < 60 * 1000) return null;
         prefs.setString("auto_tried_at", String(Date.now()));
 
-        const num = (u) => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
-        const cur = num(current) || num(this.source.baseUrl);
-        const cands = [];
-        const tld = (current.match(/\.([a-z]{2,6})$/) || [0, "org"])[1];
-        for (let i = Math.max(1, cur - 2); i <= cur + 30; i++) {
-            const c = `https://toonkor${i}.${tld}`;
-            if (c !== current) cands.push(c);
-        }
-        const hits = await Promise.all(cands.map(async (c) => {
+        const num = (u) => parseInt((String(u).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        const check = async (c) => {
             try {
                 const r = await this.client.get(c + "/", { "User-Agent": MOBILE_UA });
                 return r.statusCode === 200 && String(r.body || "").includes("section-item") ? c : null;
             } catch (e) {
                 return null;
             }
-        }));
-        const ok = hits.filter((x) => x);
+        };
+        const listed = async (urls) => {
+            const bodies = await Promise.all(urls.map(async (u) => {
+                try {
+                    const r = await this.client.get(u, { "User-Agent": MOBILE_UA });
+                    return r.statusCode === 200 ? String(r.body || "") : "";
+                } catch (e) {
+                    return "";
+                }
+            }));
+            const seen = [...new Set((bodies.join(" ").match(/\d{3}\.toonkor\.[a-z]{2,6}/gi) || []).map((h) => "https://" + h.toLowerCase()))]
+                .filter((c) => c !== current);
+            return (await Promise.all(seen.map(check))).filter((x) => x);
+        };
+        let ok = await listed([GUIDE_URL]);
+        if (!ok.length) {
+            const cur = num(current) || num(this.source.baseUrl);
+            const tld = AUTO_HOST.test(current.replace(/^https?:\/\//, "")) ? current.split(".").pop() : "net";
+            const cands = [];
+            for (let i = Math.max(1, cur - 2); i <= cur + 30; i++) {
+                const c = `https://${String(i).padStart(3, "0")}.toonkor.${tld}`;
+                if (c !== current) cands.push(c);
+            }
+            ok = (await Promise.all(cands.map(check))).filter((x) => x);
+        }
+        if (!ok.length) {
+            const old = [];
+            for (let i = 1; i <= 40; i++) old.push(`https://toonkor${i}.org/`);
+            ok = await listed(old);
+        }
         ok.sort((a, b) => num(b) - num(a));
         const found = ok[0] || null;
         if (found) prefs.setString("auto_domain", found);
@@ -875,7 +904,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://toonkor7.org)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://001.toonkor.net)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
@@ -884,7 +913,7 @@ class DefaultExtension extends MProvider {
             key: "auto_on",
             switchPreferenceCompat: {
                 title: "도메인 자동 찾기",
-                summary: "접속이 안 되면 toonkor#.org 중 열리는 주소로 자동 변경",
+                summary: "접속이 안 되면 최신 주소 안내(toonkor.site)·###.toonkor.net·예전 주소(toonkor#.org)에 적힌 주소 중 열리는 주소로 자동 변경",
                 value: true
             }
         }];
