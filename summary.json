@@ -1,5 +1,63 @@
 {
- "changedFiles": [],
- "domainChanges": [],
+ "changedFiles": [
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+  "mangayomi/blacktoon.js",
+  "changelog.json",
+  "업데이트내역.md",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+  "mangayomi/wolftoon.js",
+  "mangayomi/wolftoon_comic.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+  "mangayomi/bookkor.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
+  "mangayomi/goraetoon.js"
+ ],
+ "domainChanges": [
+  {
+   "name": "블랙툰",
+   "from": "https://blacktoon425.com",
+   "to": "https://blacktoon426.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
+    "mangayomi/blacktoon.js",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  },
+  {
+   "name": "늑대닷컴",
+   "from": "https://wfwf523.com",
+   "to": "https://wfwf526.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+    "mangayomi/wolftoon.js",
+    "mangayomi/wolftoon_comic.js",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  },
+  {
+   "name": "북코 소설",
+   "from": "https://007.bookkor.com",
+   "to": "https://008.bookkor.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+    "mangayomi/bookkor.js",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  },
+  {
+   "name": "고래툰",
+   "from": "https://001.grtoon.com",
+   "to": "https://002.grtoon.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
+    "mangayomi/goraetoon.js",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  }
+ ],
  "notes": []
 }
