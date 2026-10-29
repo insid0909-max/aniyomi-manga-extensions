@@ -118,7 +118,7 @@ jobs:
                       ("11toon 만화", key_id("newxtoon.toon11/ko/1"), "https://update.spotv24.com"),
                       ("늑대닷컴 웹툰", key_id("newxtoon.wolftoon/ko/1"), "https://wfwf510.com"),
                       ("늑대닷컴 만화", key_id("newxtoon.wolftoon/ko/2"), "https://wfwf510.com"),
-                      ("툰코 웹툰", key_id("newxtoon.toonkor/ko/1"), "https://toonkor2.org"),
+                      ("툰코 웹툰", key_id("newxtoon.toonkor/ko/1"), "https://001.toonkor.net"),
                       ("고래툰 웹툰", key_id("newxtoon.goraetoon/ko/1"), "https://001.grtoon.com"),
                       ("북코 소설", key_id("newxtoon.bookkor/ko/1"), "https://002.bookkor.com"),
                       ("네이버웹툰", key_id("newxtoon.naverwebtoon/ko/1"), "https://comic.naver.com"),
