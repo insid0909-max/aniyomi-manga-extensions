@@ -160,12 +160,12 @@ internal object ChapterOrder {
         val titleWords = (listOf(norm(title)) + WORD.findAll(title.lowercase()).map { it.value }.filter { it.length >= 2 })
             .filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }
         // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
-        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords) })
+        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords, title) })
         val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
         val list = dedupe(input, fixed.keys, title, keepOldest)
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
-        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords).also { k -> fixedNum[c]?.let { k.num = it } } }
+        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title).also { k -> fixedNum[c]?.let { k.num = it } } }
         mergePrefixes(keys)
         // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
         keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }
@@ -259,9 +259,32 @@ internal object ChapterOrder {
     private val BRACKETS = Regex("""\([^)]*\)|\[[^\]]*]|（[^）]*）""")
     private val LETTER = Regex("""\p{L}""")
     private val UNIT_WORD = Regex("""화|권|호|話""")
+    private val DOT_NUM = Regex("""^(\d+)\.\s+(?=\S)""")
+    private val DOT_SEQ = Regex("""^\d+\.\s""")
+    private val UNIT_ANY = Regex("""\d+\s*(?:화|권|호|話)""")
 
-    private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
-        val name = rawName.trim().replace(LEADING_SEQ, "")
+    /**
+     * 사이트 순번을 빼고, "143. 제50장. 객잔의 밤 (3)"·"나노마신 248. 제84장 …" 처럼 맨 앞 "N." 이 회차 번호인 이름
+     * (뒤에 화·권·호 번호가 없을 때)은 "N화 …" 로 봄 (굿툰 나노마신: "나노마신 142화" 사이에 섞임)
+     */
+    private fun dotNumber(rawName: String, title: String): String {
+        var name = rawName.trim()
+        val seq = LEADING_SEQ.find(name)
+        if (seq != null) name = name.substring(seq.value.length)
+        val t = title.trim()
+        val body = if (t.isNotEmpty() && name.startsWith(t)) name.substring(t.length).trim() else name
+        val dot = DOT_NUM.find(body)
+        return when {
+            dot != null && !UNIT_ANY.containsMatchIn(body.substring(dot.value.length)) ->
+                "${dot.groupValues[1]}화 ${body.substring(dot.value.length)}"
+            seq != null && DOT_SEQ.containsMatchIn(seq.value) && dot == null && !UNIT_ANY.containsMatchIn(name) &&
+                LETTER.containsMatchIn(name) -> "${seq.value.takeWhile { it.isDigit() }.toInt()}화 $name"
+            else -> name
+        }
+    }
+
+    private fun keyOf(rawName: String, index: Int, titleWords: List<String>, title: String = ""): Key {
+        val name = dotNumber(rawName, title)
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
         // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커).
@@ -494,10 +517,19 @@ internal object ChapterPosition {
     }
 
     private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
+    private val DOT_SEQ = Regex("""^\d+\.\s""")
+    private val UNIT_ANY = Regex("""\d+\s*(?:화|권|호|話)""")
 
     /** 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목을 뺌 */
     fun shorten(name: String, title: String): String {
-        var n = name.trim().replace(LEADING_SEQ, "")
+        var n = name.trim()
+        // 사이트 순번은 빼되, 그 순번이 회차 번호인 이름("230. 제79장. …" 뒤에 화 번호도 숫자로 시작하지도 않음)은 둠
+        LEADING_SEQ.find(n)?.let { seq ->
+            val rest = n.substring(seq.value.length)
+            if (!DOT_SEQ.containsMatchIn(seq.value) || rest.firstOrNull()?.isDigit() == true || UNIT_ANY.containsMatchIn(rest)) {
+                n = rest
+            }
+        }
         val t = title.trim()
         if (t.isNotEmpty() && n.startsWith(t)) {
             val rest = n.substring(t.length).trimStart(' ', '-', '–', ':', '·', '.')
