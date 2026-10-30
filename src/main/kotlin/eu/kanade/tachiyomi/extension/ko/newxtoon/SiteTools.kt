@@ -257,17 +257,25 @@ internal object ChapterOrder {
     // (빈칸 없는 "259.1화"·"262-2화" 는 회차 번호)
     private val LEADING_SEQ = Regex("""^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*""")
     private val BRACKETS = Regex("""\([^)]*\)|\[[^\]]*]|（[^）]*）""")
+    private val LETTER = Regex("""\p{L}""")
+    private val UNIT_WORD = Regex("""화|권|호|話""")
 
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>): Key {
         val name = rawName.trim().replace(LEADING_SEQ, "")
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
         // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커).
+        // 단 맨 앞 번호 뒤에 제목 글자가 있고 그 뒤에 또 번호면 맨 앞 것 ("78화 우기명의 겨울 방학 1화" 는 78화, 블랙툰 복학왕)
         // 괄호 안 번호는 덧붙인 설명이라 빼고 봄 ("143화 (외전 2화)" 는 143화, 말단 병사에서 군주까지)
         val brackets = BRACKETS.findAll(name).map { it.range }.toList()
         val chapterUnits = units.filter { u -> u.groupValues[4] != "부" && brackets.none { u.range.first in it } }
             .ifEmpty { units.filter { it.groupValues[4] != "부" } }
-        val m = chapterUnits.lastOrNull { it.groupValues[4] == chapterUnits.first().groupValues[4] }
+        val same = chapterUnits.filter { it.groupValues[4] == chapterUnits.first().groupValues[4] }
+        val lead = same.size > 1 && !LETTER.containsMatchIn(name.substring(0, same.first().range.first)) &&
+            LETTER.containsMatchIn(
+                name.substring(same.first().range.last + 1, same.last().range.first).replace(UNIT_WORD, ""),
+            )
+        val m = (if (lead) same.firstOrNull() else same.lastOrNull())
             ?: units.firstOrNull() ?: ANY_NUM.find(name)
         if (m == null) {
             return if (PROLOGUE.containsMatchIn(name)) Key(PROLOGUE_KEY, "", 0.0, index) else Key("", "", -1.0, index)
