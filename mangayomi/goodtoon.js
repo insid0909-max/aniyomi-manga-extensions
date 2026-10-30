@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.38",
+    "version": "0.3.39",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -80,7 +80,19 @@ function orderChapters(list, title, keepOldest) {
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
     const keyOf = (c, i, arr) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
-        const name = String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
+        let name = String(c.name || "").trim();
+        const seq = /^(\d{2,})(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/.exec(name);
+        if (seq) name = name.substring(seq[0].length);
+        // "143. 제50장. 객잔의 밤 (3)"·"나노마신 248. 제84장 …" 처럼 맨 앞 "N." 이 회차 번호인 이름 (뒤에 화·권·호 번호가 없을 때)
+        // → "N화" 로 봄 (굿툰 나노마신: "나노마신 142화" 사이에 섞임). 사이트 순번만 "N." 이면 그 번호
+        {
+            const t = String(title || "").trim();
+            const body = t && name.startsWith(t) ? name.substring(t.length).trim() : name;
+            const dot = /^(\d+)\.\s+(?=\S)/.exec(body);
+            const noUnit = (s) => !/\d+\s*(?:화|권|호|話)/.test(s);
+            if (dot && noUnit(body.substring(dot[0].length))) name = `${dot[1]}화 ${body.substring(dot[0].length)}`;
+            else if (seq && /^\d+\.\s/.test(seq[0]) && !dot && noUnit(name) && /\p{L}/u.test(name)) name = `${parseInt(seq[1], 10)}화 ${name}`;
+        }
         const index = arr.length - 1 - i;
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
@@ -281,6 +293,24 @@ async function familyTarget(ext, body, base, marker, quiet) {
 
 // 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
 // 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+// 회차 이름의 숫자가 사이트 순서(과거 → 최신)대로 자꾸 줄거나 겹치면 이름 번호를 믿을 수 없는 작품
+// ("제40장. … (1)·(2)·(3)" 과 "290화" 가 섞인 나노마신 등). list: 사이트 순서 (최신 → 과거)
+function siteIndexNeeded(list, title) {
+    if (!list || list.length < 10) return false;
+    const t = String(title || "").trim();
+    let prev = -Infinity, breaks = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+        let n = String(list[i].name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
+        if (t && n.startsWith(t)) n = n.substring(t.length);
+        const m = /\d+/.exec(n);
+        if (!m) continue;
+        const v = parseInt(m[0], 10);
+        if (v <= prev) breaks++;
+        prev = v;
+    }
+    return breaks >= Math.max(3, Math.floor(list.length / 20));
+}
+
 function chapterPosition(list, title) {
     try {
         const v = new SharedPreferences().get("chapter_position");
@@ -290,7 +320,13 @@ function chapterPosition(list, title) {
     return list.map((c, i) => {
         // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
         const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
-        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
+        let n = String(c.name || "").trim().substring(lead.length);
+        // 사이트 순번은 빼되, 그 순번이 회차 번호인 이름("230. 제79장. …" 뒤에 화 번호도 숫자로 시작하지도 않음)은 둠
+        const seqm = /^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/.exec(n);
+        if (seqm) {
+            const rest = n.substring(seqm[0].length);
+            if (!/^\d+\.\s/.test(seqm[0]) || /^\d/.test(rest) || /\d+\s*(?:화|권|호|話)/.test(rest)) n = rest;
+        }
         if (t && n.startsWith(t)) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
@@ -700,7 +736,11 @@ class DefaultExtension extends MProvider {
             description: (doc.selectFirst("#manga-desc")?.text || "").trim(),
             genre,
             status,
-            chapters: chapterPosition(orderChapters(chapters, (doc.selectFirst("h1.summary-title")?.text || "").trim()), (doc.selectFirst("h1.summary-title")?.text || "").trim())
+            chapters: siteIndexNeeded(chapters, (doc.selectFirst("h1.summary-title")?.text || "").trim())
+                // 이름 번호가 뒤엉킨 작품(나노마신 "143. 제50장. … (3)"·"나노마신 142화"·"제107장. 특임대 (1)" 이 섞임)은
+                // 사이트 순서 그대로, 이름 앞에 사이트 일련번호 ("322. 제104장. …", 뉴엑스툰과 같은 방법)
+                ? chapterPosition(chapters, (doc.selectFirst("h1.summary-title")?.text || "").trim()).map((c, i, a) => Object.assign({}, c, { name: `${a.length - i}. ${c.name}` }))
+                : chapterPosition(orderChapters(chapters, (doc.selectFirst("h1.summary-title")?.text || "").trim()), (doc.selectFirst("h1.summary-title")?.text || "").trim())
         };
     }
 
