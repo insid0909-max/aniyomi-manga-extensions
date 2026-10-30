@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.6",
+    "version": "0.1.7",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -65,7 +65,13 @@ function chapterPosition(list, title) {
     return list.map((c, i) => {
         // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
         const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
-        let n = String(c.name || "").trim().substring(lead.length).replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
+        let n = String(c.name || "").trim().substring(lead.length);
+        // 사이트 순번은 빼되, 그 순번이 회차 번호인 이름("230. 제79장. …" 뒤에 화 번호도 숫자로 시작하지도 않음)은 둠
+        const seqm = /^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/.exec(n);
+        if (seqm) {
+            const rest = n.substring(seqm[0].length);
+            if (!/^\d+\.\s/.test(seqm[0]) || /^\d/.test(rest) || /\d+\s*(?:화|권|호|話)/.test(rest)) n = rest;
+        }
         if (t && n.startsWith(t)) {
             const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
             if (rest) n = rest;
