@@ -138,7 +138,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
     private fun hostNumber(host: String): Int =
         Regex("^(\\d+)\\.bookkor").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** 현재 번호 주변(-3 ~ +30)의 ###.bookkor.com 중 사이트가 열리는 주소를 찾음 (가장 큰 번호 우선) */
+    /** ① 최신 주소 안내(korsite.net) ② 현재 번호 주변(-3 ~ +30)의 ###.bookkor.com 중 사이트가 열리는 주소를 찾음 (가장 큰 번호 우선) */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -151,24 +151,36 @@ class Bookkor : HttpSource(), ConfigurableSource {
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        fun open(url: String): String? = try {
+            val r = Request.Builder().url(url).header("User-Agent", ua).build()
+            plain.newCall(r).execute().use { res ->
+                val fh = res.request.url.host
+                if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
+                if (res.body?.string().orEmpty().contains("data-page=\"app\"")) fh else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        // ① 최신 주소 안내 페이지에 적힌 주소 (번호가 큰 것부터, 진짜 사이트가 열리는지 확인)
+        for (g in GUIDE_URLS) {
+            val body = try {
+                plain.newCall(Request.Builder().url(g).header("User-Agent", ua).build()).execute()
+                    .use { if (it.code == 200) it.body?.string().orEmpty() else "" }
+            } catch (e: Exception) {
+                ""
+            }
+            Regex("""\d{3}\.bookkor\.com""", RegexOption.IGNORE_CASE).findAll(body).map { it.value.lowercase() }.distinct()
+                .filter { it != currentHost }.sortedByDescending { hostNumber(it) }.take(3)
+                .forEach { h -> open("https://$h/")?.let { return@synchronized it } }
+        }
+
+        // ② 지금 번호 주변
         val pool = java.util.concurrent.Executors.newFixedThreadPool(10)
         try {
             val futures = ((cur - 3).coerceAtLeast(1)..(cur + 30)).map { "%03d.bookkor.com".format(it) }
                 .filter { it != currentHost }
-                .map { host ->
-                    pool.submit<String?> {
-                        try {
-                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
-                            plain.newCall(r).execute().use { res ->
-                                val fh = res.request.url.host
-                                if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
-                                if (res.body?.string().orEmpty().contains("data-page=\"app\"")) fh else null
-                            }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                }
+                .map { host -> pool.submit<String?> { open("https://$host/") } }
             futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
         } finally {
             pool.shutdown()
@@ -579,6 +591,9 @@ class Bookkor : HttpSource(), ConfigurableSource {
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"
         private val HOST_REGEX = Regex("^\\d+\\.bookkor\\.com$")
+
+        // 최신 주소 안내 (코사이트: 툰코·북코·애니24·무비코·스포코, 2026-10-31 확인)
+        private val GUIDE_URLS = listOf("https://korsite.net/")
         private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
         private val PAGE_JSON = Regex("<script[^>]*data-page=\"app\"[^>]*>([\\s\\S]*?)</script>")
 
