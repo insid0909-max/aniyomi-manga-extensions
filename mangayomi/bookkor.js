@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.24",
+    "version": "0.1.25",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -19,6 +19,8 @@ const MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (
 
 const AUTO_HOST = /^\d+\.bookkor\.com$/;
 const AUTO_NUM = /\/\/(\d+)\.bookkor/;
+// 최신 주소 안내 (코사이트: 툰코·북코·애니24·무비코·스포코, 2026-10-31 확인)
+const BK_GUIDES = ["https://korsite.net/"];
 
 const LISTS = [["전체 (아래 장르·상태·정렬 적용)", ""], ["일반소설", "일반소설"], ["성인소설", "성인소설"], ["BL/GL", "BLGL"], ["완결소설", "완결소설"]];
 const GENRES = ["판타지", "무협", "19금", "현대", "로맨스", "로맨스 판타지", "BL", "라노벨", "드라마", "기타"];
@@ -332,6 +334,29 @@ class DefaultExtension extends MProvider {
 
         const num = (u) => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const cur = num(current) || num(this.source.baseUrl);
+        // ① 최신 주소 안내 페이지에 적힌 주소 (번호가 큰 것부터, 진짜 사이트가 열리는지 확인)
+        for (const g of BK_GUIDES) {
+            let body = "";
+            try {
+                body = String((await this.client.get(g, { "User-Agent": MOBILE_UA })).body || "");
+            } catch (e) {
+                continue;
+            }
+            const listed = [...new Set((body.match(/\d{3}\.bookkor\.com/gi) || []).map((h) => "https://" + h.toLowerCase()))]
+                .filter((h) => h !== current).sort((a, b) => num(b) - num(a));
+            for (const h of listed.slice(0, 3)) {
+                try {
+                    const r = await this.client.get(h + "/", { "User-Agent": MOBILE_UA });
+                    if (r.statusCode === 200 && String(r.body || "").includes('data-page="app"')) {
+                        prefs.setString("auto_domain", h);
+                        return h;
+                    }
+                } catch (e) {
+                    // 다음 주소
+                }
+            }
+        }
+        // ② 지금 번호 주변
         const cands = [];
         for (let i = Math.max(1, cur - 3); i <= cur + 30; i++) {
             const c = `https://${String(i).padStart(3, "0")}.bookkor.com`;

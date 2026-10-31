@@ -88,7 +88,8 @@
     -2,
     30
    ],
-   "key": "bookkor"
+   "key": "bookkor",
+   "guide": "https://korsite.net/"
   },
   {
    "name": "툰코",
@@ -123,7 +124,8 @@
     -2,
     30
    ],
-   "key": "goraetoon"
+   "key": "goraetoon",
+   "guide": "https://goraetoonurl.com/latest-address"
   }
  ],
  "replaceIn": [

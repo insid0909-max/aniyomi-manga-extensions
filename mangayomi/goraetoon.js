@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.3",
+    "version": "0.1.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goraetoon.js"
@@ -24,6 +24,8 @@ const AUTO_HOST = /^\d{3}\.grtoon\.com$/;
 const AUTO_NUM = /\/\/(\d+)\.grtoon/;
 // 진짜 사이트 화면마다 있는 글자 (로딩 그림 이름)
 const MARK = "goraetoon-loading.svg";
+// 최신 주소 안내 (사용자가 알려 줌, 2026-10-31, "고래툰 최신주소 https://NNN.grtoon.com/")
+const GR_GUIDES = ["https://goraetoonurl.com/latest-address"];
 const PAGE_SIZE = 30;
 const CATALOG = {};
 const BEST_PERIODS = ["day", "week", "month", "realtime"];
@@ -511,7 +513,7 @@ class DefaultExtension extends MProvider {
         return await this.client.get(found + url.substring(base.length), h);
     }
 
-    /** ###.grtoon.com(-2 ~ +30)과 예전 주소 goraetoon1~40.com 이 넘겨 주는 주소 중 고래툰이 열리는 가장 큰 번호 */
+    /** 최신 주소 안내(goraetoonurl.com) → ###.grtoon.com(-2 ~ +30)과 예전 주소 goraetoon1~40.com 이 넘겨 주는 주소 중 고래툰이 열리는 가장 큰 번호 */
     async discover(current) {
         const prefs = new SharedPreferences();
         const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
@@ -520,6 +522,29 @@ class DefaultExtension extends MProvider {
 
         const num = (u) => parseInt((String(u).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const cur = num(current) || num(this.source.baseUrl);
+        // ① 최신 주소 안내 페이지에 적힌 주소 (번호가 큰 것부터, 진짜 사이트가 열리는지 확인)
+        for (const g of GR_GUIDES) {
+            let body = "";
+            try {
+                body = String((await this.client.get(g, { "User-Agent": MOBILE_UA })).body || "");
+            } catch (e) {
+                continue;
+            }
+            const listed = [...new Set((body.match(/\d{3}\.grtoon\.com/gi) || []).map((h) => "https://" + h.toLowerCase()))]
+                .filter((h) => h !== current).sort((a, b) => num(b) - num(a));
+            for (const h of listed.slice(0, 3)) {
+                try {
+                    const r = await this.client.get(h + "/", { "User-Agent": MOBILE_UA });
+                    if (r.statusCode === 200 && String(r.body || "").includes(MARK)) {
+                        prefs.setString("auto_domain", h);
+                        return h;
+                    }
+                } catch (e) {
+                    // 다음 주소
+                }
+            }
+        }
+        // ② 지금 번호 주변
         const cands = [];
         for (let i = Math.max(1, cur - 2); i <= cur + 30; i++) {
             const c = `https://${String(i).padStart(3, "0")}.grtoon.com`;
