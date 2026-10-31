@@ -24,7 +24,7 @@
  {
   "name": "Goodtoon 웹툰",
   "id": 870214002,
-  "baseUrl": "https://www.goodtoon008.com",
+  "baseUrl": "https://www.goodtoon009.com",
   "lang": "ko",
   "typeSource": "single",
   "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
@@ -34,7 +34,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/goodtoon.js",
   "apiUrl": "",
-  "version": "0.3.39",
+  "version": "0.3.40",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
