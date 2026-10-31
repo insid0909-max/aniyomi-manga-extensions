@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.44",
+    "version": "0.3.45",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -21,6 +21,8 @@ const AUTO_HOST = /^(www\.)?blacktoon\d+\.com$/;
 const AUTO_NUM = /blacktoon(\d+)/;
 const AUTO_PROBE = "/";
 const AUTO_MARKER = "webtoon_";
+// 공식 주소 안내: 공지 페이지(사용자가 알려 줌, 2026-10-31), 블랙툰URL(blacktoonurl.net → blacktoongo.com)
+const BT_GUIDES = ["https://notice.blacktoongo.com/", "https://blacktoongo.com/", "https://blacktoonurl.net/"];
 
 // Blacktoon 웹툰 - Aniyomi 확장(Blacktoon.kt)과 같은 구조를 망가요미용으로 옮김
 // 사이트가 전체 작품 목록을 webtoon_0.js / webtoon_1.js 로 내려주므로 받아서 정렬/검색/필터
@@ -580,13 +582,29 @@ class DefaultExtension extends MProvider {
         return out;
     }
 
-    /** 공식 주소 안내(blacktoonurl.net)의 링크에서 최신 주소 확인 */
+    /** 공식 주소 안내(공지 페이지·블랙툰URL)에 적힌 번호 주소 중 열리는 것 (큰 번호부터) */
     async autoGuide(current) {
-        try {
-            return this.pickFrom((await this.client.get("https://blacktoonurl.net/", {})).body, current);
-        } catch (e) {
-            return null;
+        const re = new RegExp(AUTO_HOST.source.replace(/^\^/, "").replace(/\$$/, ""), "gi");
+        const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        for (const g of BT_GUIDES) {
+            let body = "";
+            try {
+                body = String((await this.client.get(g, {})).body || "");
+            } catch (e) {
+                continue;
+            }
+            const hosts = [...new Set((body.match(re) || []).map(h => "https://" + h.toLowerCase()))]
+                .filter(h => h !== current).sort((a, b) => num(b) - num(a));
+            for (const h of hosts.slice(0, 3)) {
+                try {
+                    const r = await this.client.get(h + AUTO_PROBE, { "Referer": h + "/" });
+                    if (r.statusCode === 200 && String(r.body || "").toLowerCase().includes(AUTO_MARKER)) return h;
+                } catch (e) {
+                    // 다음 주소
+                }
+            }
         }
+        return null;
     }
 
     getHeaders(url) {
@@ -1097,7 +1115,7 @@ class DefaultExtension extends MProvider {
             key: "auto_on",
             switchPreferenceCompat: {
                 title: "도메인 자동 찾기",
-                summary: "접속이 안 되면 blacktoonurl.net / 다음 번호 주소에서 새 주소로 자동 변경",
+                summary: "접속이 안 되면 블랙툰 공지 페이지 / 블랙툰URL / 다음 번호 주소에서 새 주소로 자동 변경",
                 value: true
             }
         }];
