@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214002,
     "name": "Goodtoon 웹툰",
     "lang": "ko",
-    "baseUrl": "https://www.goodtoon008.com",
+    "baseUrl": "https://www.goodtoon009.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.39",
+    "version": "0.3.40",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -22,7 +22,8 @@ const AUTO_NUM = /goodtoon(\d+)/;
 const AUTO_PROBE = "/";
 const AUTO_MARKER = "/manga/gt-";
 // 최신 주소로 넘겨 주는 안내 주소
-const AUTO_GUIDES = ["https://goodtoon.top/", "http://goodtoon.top/"];
+// 최신 주소 안내: goodtoon.top·goodtoon1.top(최신 주소로 넘겨 줌), 텔레그램 채널 공개 화면(사용자가 알려 줌, 2026-10-31)
+const AUTO_GUIDES = ["https://goodtoon.top/", "https://goodtoon1.top/", "https://t.me/s/goodtoonurl", "http://goodtoon.top/"];
 
 // Goodtoon 웹툰 - Aniyomi 확장(Goodtoon.kt)과 같은 구조를 망가요미용으로 옮김
 // ---------- Popular/Latest 규칙 ----------
@@ -590,8 +591,12 @@ class DefaultExtension extends MProvider {
                 if (r.statusCode !== 200) continue;
                 const pick = this.pickFrom(r.body, current);
                 if (!pick) continue;
-                const ok = await this.client.get(pick + AUTO_PROBE, { "Referer": pick + "/" });
-                if (ok.statusCode === 200 && String(ok.body || "").toLowerCase().includes(AUTO_MARKER)) return pick;
+                // 텔레그램 안내 글처럼 www 없이 적힌 주소는 www 주소도 확인 (www 없는 주소는 www 로 넘겨 줌)
+                for (const cand of pick.includes("://www.") ? [pick] : [pick.replace("://", "://www."), pick]) {
+                    if (cand === current) continue;
+                    const ok = await this.client.get(cand + AUTO_PROBE, { "Referer": cand + "/" });
+                    if (ok.statusCode === 200 && String(ok.body || "").toLowerCase().includes(AUTO_MARKER)) return cand;
+                }
             } catch (e) {
                 // 다음 안내 주소
             }
@@ -923,7 +928,7 @@ class DefaultExtension extends MProvider {
             key: "domain",
             editTextPreference: {
                 title: "도메인 주소 (수동)",
-                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://www.goodtoon008.com)",
+                summary: "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 그 주소를 우선 사용 (예: https://www.goodtoon009.com)",
                 value: "",
                 dialogTitle: "도메인 주소",
                 dialogMessage: "비워두면 자동"
