@@ -2,14 +2,14 @@ const mangayomiSources = [{
     "id": 870214010,
     "name": "늑대닷컴 만화",
     "lang": "ko",
-    "baseUrl": "https://wfwf526.com",
+    "baseUrl": "https://wfwf528.com",
     "apiUrl": "",
     "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.36",
+    "version": "0.1.37",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -23,6 +23,8 @@ const HOME_PATH = COMIC ? "/cm" : "/ing";
 const COMIC_GENRES = [["전체", ""], ["액션", "액션"], ["판타지", "판타지"], ["로맨스", "로맨스"], ["드라마", "드라마"], ["이세계", "이세계"], ["전생", "전생"], ["무협", "무협"], ["일상", "일상"], ["일상+치유", "일상 치유"], ["순정", "순정"], ["러브코미디", "러브코미디"], ["개그", "개그"], ["학원", "학원"], ["스포츠", "스포츠"], ["미스터리", "미스터리"], ["추리", "추리"], ["스릴러", "스릴러"], ["공포", "공포"], ["호러", "호러"], ["도박", "도박"], ["역사", "역사"], ["시대", "시대"], ["게임", "게임"], ["SF", "sf"], ["요리", "요리"], ["먹방", "먹방"], ["음악", "음악"], ["라노벨", "라노벨"], ["애니화", "애니화"], ["BL", "bl"], ["백합", "백합"], ["성인", "성인"], ["붕탁", "붕탁"], ["TS", "ts"], ["여장", "여장"], ["17", "17"]];
 const AUTO_HOST = /^wfwf\d+\.com$/;
 const AUTO_NUM = /wfwf(\d+)/;
+// 늑대닷컴 공식 텔레그램 채널 공개 화면 ("늑대닷컴 주소 https://wfwfNNN.com", 사용자가 알려 줌, 2026-10-31)
+const WOLF_GUIDE = "https://t.me/s/wfwf_999";
 const DETAIL_PATH = /^\/(list|cl)\?toon=\d+/;
 const GENRES = ["드라마", "판타지", "액션", "로맨스", "일상", "개그", "미스터리", "순정", "스포츠", "스릴러", "무협", "학원", "공포", "스토리"];
 
@@ -534,6 +536,26 @@ class DefaultExtension extends MProvider {
 
         const num = (u) => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const cur = num(current) || num(this.source.baseUrl);
+        // ① 공식 텔레그램 채널 공개 화면(WOLF_GUIDE)에 적힌 주소 (번호가 큰 것부터, 진짜 목록이 열리는지 확인)
+        try {
+            const g = await this.client.get(WOLF_GUIDE, { "User-Agent": MOBILE_UA });
+            const listed = [...new Set((String(g.body || "").match(/wfwf\d+\.com/g) || []))]
+                .map((h) => `https://${h}`).filter((h) => h !== current).sort((a, b) => num(b) - num(a));
+            for (const h of listed.slice(0, 3)) {
+                try {
+                    const r = await this.client.get(h + "/", { "User-Agent": MOBILE_UA });
+                    if (r.statusCode === 200 && String(r.body || "").includes("t-card")) {
+                        prefs.setString("auto_domain", h);
+                        return h;
+                    }
+                } catch (e) {
+                    // 다음 주소
+                }
+            }
+        } catch (e) {
+            // 번호 찾기로
+        }
+        // ② 지금 번호 주변 (-10 ~ +60)
         const cands = [];
         for (let i = Math.max(1, cur - 10); i <= cur + 60; i++) {
             const c = `https://wfwf${i}.com`;
