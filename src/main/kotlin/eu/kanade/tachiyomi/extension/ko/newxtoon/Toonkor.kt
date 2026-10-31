@@ -156,6 +156,16 @@ class Toonkor : HttpSource(), ConfigurableSource {
             null
         }
         open(GUIDE_URL)?.takeIf { it != currentHost }?.let { return@synchronized it }
+        // 코사이트(korsite.net)에 적힌 ###.toonkor.* (번호가 큰 것부터)
+        try {
+            val body = plain.newCall(Request.Builder().url(KORSITE_URL).header("User-Agent", ua).build()).execute()
+                .use { if (it.code == 200) it.body?.string().orEmpty() else "" }
+            Regex("""\d{3}\.toonkor\.[a-z]{2,6}""", RegexOption.IGNORE_CASE).findAll(body).map { it.value.lowercase() }.distinct()
+                .filter { it != currentHost }.sortedByDescending { hostNumber(it) }.take(3)
+                .forEach { h -> open("https://$h/")?.let { return@synchronized it } }
+        } catch (e: Exception) {
+            // 번호 찾기로
+        }
         val hosts = ((cur - 2).coerceAtLeast(1)..(cur + 30)).map { "%03d.toonkor.$tld".format(it) } +
             (1..40).map { "toonkor$it.org" }
         val pool = java.util.concurrent.Executors.newFixedThreadPool(12)
@@ -463,6 +473,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
 
         // 최신 주소 안내 페이지 (사용자가 알려 줌 2026-10-29, 지금 주소로 넘겨 줌)
         private const val GUIDE_URL = "https://toonkor.site/"
+
+        // 두 번째 최신 주소 안내 (코사이트: 툰코·북코·애니24·무비코·스포코, 2026-10-31 확인)
+        private const val KORSITE_URL = "https://korsite.net/"
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0.0.0 Mobile Safari/537.36"

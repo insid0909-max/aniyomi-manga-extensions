@@ -144,24 +144,36 @@ class Goraetoon : HttpSource(), ConfigurableSource {
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        fun open(url: String): String? = try {
+            val r = Request.Builder().url(url).header("User-Agent", ua).build()
+            plain.newCall(r).execute().use { res ->
+                val fh = res.request.url.host
+                if (!GRTOON_HOST.matches(fh) || res.code != 200) return@use null
+                if (res.peekBody(300_000).string().contains(MARKER)) fh else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        // ① 최신 주소 안내 페이지에 적힌 주소 (번호가 큰 것부터, 진짜 사이트가 열리는지 확인)
+        for (g in GUIDE_URLS) {
+            val body = try {
+                plain.newCall(Request.Builder().url(g).header("User-Agent", ua).build()).execute()
+                    .use { if (it.code == 200) it.body?.string().orEmpty() else "" }
+            } catch (e: Exception) {
+                ""
+            }
+            Regex("""\d{3}\.grtoon\.com""", RegexOption.IGNORE_CASE).findAll(body).map { it.value.lowercase() }.distinct()
+                .filter { it != currentHost }.sortedByDescending { hostNumber(it) }.take(3)
+                .forEach { h -> open("https://$h/")?.let { return@synchronized it } }
+        }
+
+        // ② 지금 번호 주변, 예전 주소 goraetoon##.com 이 넘겨 주는 주소
         val hosts = ((cur - 2).coerceAtLeast(1)..(cur + 30)).map { "%03d.grtoon.com".format(it) } +
             (1..40).map { "goraetoon%02d.com".format(it) }
         val pool = java.util.concurrent.Executors.newFixedThreadPool(12)
         try {
-            val futures = hosts.filter { it != currentHost }.map { host ->
-                pool.submit<String?> {
-                    try {
-                        val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
-                        plain.newCall(r).execute().use { res ->
-                            val fh = res.request.url.host
-                            if (!GRTOON_HOST.matches(fh) || res.code != 200) return@use null
-                            if (res.peekBody(300_000).string().contains(MARKER)) fh else null
-                        }
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-            }
+            val futures = hosts.filter { it != currentHost }.map { host -> pool.submit<String?> { open("https://$host/") } }
             futures.mapNotNull { it.get() }.distinct().maxByOrNull { hostNumber(it) }?.takeIf { it != currentHost }
         } finally {
             pool.shutdown()
@@ -568,6 +580,9 @@ class Goraetoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private const val DEFAULT = "https://002.grtoon.com"
+
+        // 최신 주소 안내 (사용자가 알려 줌, 2026-10-31, "고래툰 최신주소 https://NNN.grtoon.com/")
+        private val GUIDE_URLS = listOf("https://goraetoonurl.com/latest-address")
 
         /** 진짜 사이트 화면마다 있는 글자 (로딩 그림 이름) */
         private const val MARKER = "goraetoon-loading.svg"

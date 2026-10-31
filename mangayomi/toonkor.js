@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.39",
+    "version": "0.1.40",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -22,6 +22,8 @@ const AUTO_HOST = /^\d{3}\.toonkor\.[a-z]{2,6}$/;
 const ANY_HOST = /^(?:\d{3}\.toonkor|(?:www\.)?toonkor\d+)\.[a-z]{2,6}$/;
 const AUTO_NUM = /\/\/(\d+)\.toonkor/;
 const GUIDE_URL = "https://toonkor.site/";
+// 두 번째 최신 주소 안내 (코사이트: 툰코·북코·애니24·무비코·스포코, 2026-10-31 확인)
+const KORSITE_URL = "https://korsite.net/";
 const GENRES = ["드라마", "판타지", "액션", "로맨스", "일상", "개그", "미스터리", "순정", "스포츠", "BL", "스릴러", "무협", "학원", "공포", "스토리"];
 // 작품 주소로 오인하지 않을 사이트 메뉴
 const NON_TITLE = ["웹툰", "망가", "단행본", "포토툰", "소설", "애니", "TV", "notice", "bbs", "코사이트", "주소안내", "토토보증업체"];
@@ -545,7 +547,7 @@ class DefaultExtension extends MProvider {
                 .filter((c) => c !== current);
             return (await Promise.all(seen.map(check))).filter((x) => x);
         };
-        let ok = await listed([GUIDE_URL]);
+        let ok = await listed([GUIDE_URL, KORSITE_URL]);
         if (!ok.length) {
             const cur = num(current) || num(this.source.baseUrl);
             const tld = AUTO_HOST.test(current.replace(/^https?:\/\//, "")) ? current.split(".").pop() : "net";
