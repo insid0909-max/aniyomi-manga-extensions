@@ -168,7 +168,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
     }
 
     /**
-     * 새 주소 찾기: ① 안내 주소(goodtoon.top) ② 지금 번호보다 위(+1~+20) ③ 그래도 없으면 001~060 전체.
+     * 새 주소 찾기: ① 안내 주소(goodtoon.top·goodtoon1.top·텔레그램 goodtoonurl) ② 지금 번호보다 위(+1~+20) ③ 그래도 없으면 001~060 전체.
      * 여러 개 열리면 가장 큰 번호
      */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
@@ -436,10 +436,11 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private val HOST_REGEX = Regex("^(www\\.)?goodtoon\\d+\\.com$")
-        private const val DEFAULT = "https://www.goodtoon008.com"
+        private const val DEFAULT = "https://www.goodtoon009.com"
 
         /** 최신 주소로 넘겨 주는 안내 주소 */
-        private val GUIDE_URLS = listOf("https://goodtoon.top/", "http://goodtoon.top/")
+        // 최신 주소 안내: goodtoon.top·goodtoon1.top(최신 주소로 넘겨 줌), 텔레그램 채널 공개 화면(사용자가 알려 줌, 2026-10-31)
+        private val GUIDE_URLS = listOf("https://goodtoon.top/", "https://goodtoon1.top/", "https://t.me/s/goodtoonurl", "http://goodtoon.top/")
 
         /** 통신사 차단 안내 페이지 */
         private val BLOCK_HOST = Regex("warning\\.or\\.kr|warning\\.go\\.kr")
