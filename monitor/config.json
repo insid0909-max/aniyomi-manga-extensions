@@ -60,6 +60,7 @@
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
     "regex": "DEFAULT = \"(https://wfwf\\d+\\.com)\""
    },
+   "guide": "https://t.me/s/wfwf_999",
    "pattern": "^https://wfwf(\\d+)\\.com$",
    "format": "https://wfwf{n}.com",
    "pad": 0,

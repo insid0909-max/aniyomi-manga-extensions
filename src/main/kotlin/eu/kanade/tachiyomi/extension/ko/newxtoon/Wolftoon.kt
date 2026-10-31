@@ -151,7 +151,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
     private fun hostNumber(host: String): Int =
         Regex("wfwf(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** 현재 번호 주변(-10 ~ +60)의 wfwf###.com 중 늑대닷컴이 열리는 주소를 찾음 (가장 큰 번호 우선) */
+    /** ① 공식 텔레그램 채널에 적힌 주소 ② 현재 번호 주변(-10 ~ +60)의 wfwf###.com 중 늑대닷컴이 열리는 주소를 찾음 (가장 큰 번호 우선) */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -164,26 +164,35 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        fun open(host: String): String? = try {
+            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
+            plain.newCall(r).execute().use { res ->
+                val fh = res.request.url.host
+                if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
+                // 안내 페이지("늑대닷컴 접속 주소 안내")는 제외하고 진짜 목록이 있는 주소만
+                if (res.body?.bytes()?.let { decode(it) }.orEmpty().contains("t-card")) fh else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        // ① 공식 텔레그램 채널에 적힌 주소 (번호가 큰 것부터)
+        try {
+            val body = plain.newCall(Request.Builder().url(GUIDE_URL).header("User-Agent", ua).build()).execute()
+                .use { if (it.code == 200) it.body?.string().orEmpty() else "" }
+            Regex("""wfwf\d+\.com""").findAll(body).map { it.value }.distinct()
+                .filter { it != currentHost }.sortedByDescending { hostNumber(it) }.take(3)
+                .forEach { h -> open(h)?.let { return it } }
+        } catch (e: Exception) {
+            // 번호 찾기로
+        }
+
+        // ② 지금 번호 주변
         val pool = java.util.concurrent.Executors.newFixedThreadPool(10)
         try {
             val futures = ((cur - 10).coerceAtLeast(1)..(cur + 60)).map { "wfwf$it.com" }
                 .filter { it != currentHost }
-                .map { host ->
-                    pool.submit<String?> {
-                        try {
-                            val r = Request.Builder().url("https://$host/").header("User-Agent", ua).build()
-                            plain.newCall(r).execute().use { res ->
-                                val fh = res.request.url.host
-                                if (!HOST_REGEX.matches(fh) || res.code != 200) return@use null
-                                val body = res.body?.bytes()?.let { decode(it) }.orEmpty()
-                                // 안내 페이지("늑대닷컴 접속 주소 안내")는 제외하고 진짜 목록이 있는 주소만
-                                if (body.contains("t-card")) fh else null
-                            }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                }
+                .map { host -> pool.submit<String?> { open(host) } }
             futures.mapNotNull { it.get() }.maxByOrNull { hostNumber(it) }
         } finally {
             pool.shutdown()
@@ -488,7 +497,10 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://wfwf526.com"
+        private const val DEFAULT = "https://wfwf528.com"
+
+        // 늑대닷컴 공식 텔레그램 채널 공개 화면 ("늑대닷컴 주소 https://wfwfNNN.com", 사용자가 알려 줌, 2026-10-31)
+        private const val GUIDE_URL = "https://t.me/s/wfwf_999"
         private const val NOTICE_MAX_BYTES = 30_000L
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
