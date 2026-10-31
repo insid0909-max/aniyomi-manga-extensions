@@ -174,7 +174,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     private fun hostNumber(host: String): Int =
         Regex("blacktoon(\\d+)").find(host)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
-    /** 공식 주소 안내(blacktoonurl.net)에서 최신 주소 확인, 실패하면 현재 번호 다음 30개 중 열리는 주소 (큰 번호 우선) */
+    /** 공식 주소 안내(공지 페이지·blacktoonurl.net)에서 최신 주소 확인, 실패하면 현재 번호 다음 30개 중 열리는 주소 (큰 번호 우선) */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -195,14 +195,18 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             null
         }
 
-        // 1) 공식 주소 안내 사이트
-        fetch(GUIDE_URL)?.let { (_, html) ->
-            val found = Jsoup.parse(html, GUIDE_URL).select("a[href]")
-                .mapNotNull { it.absUrl("href").toHttpUrlOrNull()?.host }
-                .filter { HOST_REGEX.matches(it) && it != currentHost }
-                .maxByOrNull { hostNumber(it) }
-            if (found != null) return found
+        // 1) 공식 주소 안내: 공지 페이지·블랙툰URL 에 적힌 번호 주소 (큰 번호부터, 진짜 목록이 열리는지 확인)
+        //    + 번호 없는 현재 도메인(blacktoon.cc)이 넘겨 주는 번호 주소
+        fun real(host: String): String? = fetch("https://$host/")?.takeIf { (fh, body) -> HOST_REGEX.matches(fh) && body.contains("webtoon_") }?.first
+        for (g in GUIDE_URLS) {
+            val html = fetch(g)?.second ?: continue
+            val hosts = (
+                Jsoup.parse(html, g).select("a[href]").mapNotNull { it.absUrl("href").toHttpUrlOrNull()?.host } +
+                    Regex("""(?:www\.)?blacktoon\d+\.com""", RegexOption.IGNORE_CASE).findAll(html).map { it.value.lowercase() }
+                ).filter { HOST_REGEX.matches(it) && it != currentHost }.distinct().sortedByDescending { hostNumber(it) }
+            for (h in hosts.take(3)) real(h)?.let { return it }
         }
+        fetch(ALIAS_URL)?.let { (fh, body) -> if (HOST_REGEX.matches(fh) && fh != currentHost && body.contains("webtoon_")) return fh }
 
         // 2) 번호 주소 순회
         val start = hostNumber(currentHost).coerceAtLeast(1)
@@ -704,7 +708,13 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private const val DEFAULT = "https://blacktoon426.com"
-        private const val GUIDE_URL = "https://blacktoonurl.net/"
+
+        // 공식 주소 안내: 공지 페이지(사용자가 알려 줌, 2026-10-31, "현재 도메인"·바로가기 링크), 블랙툰URL(blacktoonurl.net → blacktoongo.com)
+        private val GUIDE_URLS = listOf("https://notice.blacktoongo.com/", "https://blacktoongo.com/", "https://blacktoonurl.net/")
+
+        // 공지의 "현재 도메인"(번호 없는 주소, 지금 번호 주소로 넘겨 줌)
+        private const val ALIAS_URL = "http://blacktoon.cc/"
+
         private const val CDN_URL = "https://aa3cc9.speedwebgo.com/"
         private const val POSTER_URL = "https://ttjsde.speedwebgo.com/"
         private const val COVER_MARK = "bt="
