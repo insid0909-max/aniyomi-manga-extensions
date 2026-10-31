@@ -25,6 +25,7 @@
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
     "regex": "DEFAULT = \"(https://www\\.goodtoon\\d+\\.com)\""
    },
+   "guide": "https://goodtoon.top/",
    "pattern": "^https://www\\.goodtoon(\\d+)\\.com$",
    "format": "https://www.goodtoon{n}.com",
    "pad": 3,
