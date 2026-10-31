@@ -43,6 +43,7 @@
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
     "regex": "DEFAULT = \"(https://blacktoon\\d+\\.com)\""
    },
+   "guide": "https://notice.blacktoongo.com/",
    "pattern": "^https://blacktoon(\\d+)\\.com$",
    "format": "https://blacktoon{n}.com",
    "pad": 0,
