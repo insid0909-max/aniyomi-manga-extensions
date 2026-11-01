@@ -469,7 +469,7 @@ class Toonkor : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://001.toonkor.net"
+        private const val DEFAULT = "https://002.toonkor.net"
 
         // 최신 주소 안내 페이지 (사용자가 알려 줌 2026-10-29, 지금 주소로 넘겨 줌)
         private const val GUIDE_URL = "https://toonkor.site/"
