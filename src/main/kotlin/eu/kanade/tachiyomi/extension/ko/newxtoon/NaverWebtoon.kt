@@ -15,8 +15,10 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -60,10 +62,37 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
             FALLBACK_UA
         }
 
+    /**
+     * 요일·신작 목록은 사이트가 한 번에 전부 줌(전체 요일 846개) → 앱이 카드를 한꺼번에 만드느라 첫 화면이 오래 걸림.
+     * 확장이 60개씩 나눠 쪽으로 보여 주고(주소의 page 는 사이트가 무시), 같은 목록 응답은 5분 동안 다시 받지 않음.
+     */
+    private val listCache = object : okhttp3.Interceptor {
+        private val map = HashMap<String, Pair<Long, ByteArray>>()
+        override fun intercept(chain: okhttp3.Interceptor.Chain): Response {
+            val req = chain.request()
+            if (!SLICED_PATH.matches(req.url.encodedPath)) return chain.proceed(req)
+            val key = req.url.newBuilder().removeAllQueryParameters("page").build().toString()
+            val now = System.currentTimeMillis()
+            synchronized(map) {
+                map.entries.removeAll { now - it.value.first > 5 * 60_000L }
+                map[key]?.let { (_, body) ->
+                    return Response.Builder().request(req).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                        .body(body.toResponseBody("application/json".toMediaTypeOrNull())).build()
+                }
+            }
+            val res = chain.proceed(req)
+            if (!res.isSuccessful) return res
+            val bytes = res.body?.bytes() ?: ByteArray(0)
+            synchronized(map) { map[key] = now to bytes }
+            return res.newBuilder().body(bytes.toResponseBody(res.body?.contentType())).build()
+        }
+    }
+
     override val client: okhttp3.OkHttpClient = network.client.newBuilder()
         // 맨 바깥: 오류를 쉬운 말로, 그다음: 실패한 그림 한 번 더 받기
         .apply { interceptors().add(0, FriendlyErrors) }
         .apply { interceptors().add(1, ImageRetry) }
+        .addInterceptor(listCache)
         .addInterceptor(SiteRateLimit(HOST_REGEX, RATE_GAP_MS))
         .build()
 
@@ -86,11 +115,11 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
     /** 목록 종류: 요일(week), 신작(new), 완결(finished), 장르(genre) */
     private fun listRequest(kind: String, order: String, page: Int): Request {
         val api = when {
-            kind == "new" -> "$baseUrl/api/webtoon/titlelist/new?order=$order"
+            kind == "new" -> "$baseUrl/api/webtoon/titlelist/new?order=$order&page=$page"
             kind == "finished" -> "$baseUrl/api/webtoon/titlelist/finished?order=${FINISHED_ORDER[order] ?: "VIEW"}&page=$page"
             kind.startsWith("genre:") -> "$baseUrl/api/webtoon/titlelist/genre?genre=${kind.substringAfter(':')}&order=$order&page=$page"
-            kind == "all" -> "$baseUrl/api/webtoon/titlelist/weekday?order=$order"
-            else -> "$baseUrl/api/webtoon/titlelist/weekday?week=$kind&order=$order"
+            kind == "all" -> "$baseUrl/api/webtoon/titlelist/weekday?order=$order&page=$page"
+            else -> "$baseUrl/api/webtoon/titlelist/weekday?week=$kind&order=$order&page=$page"
         }
         return GET(api, headers)
     }
@@ -118,6 +147,7 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
     override fun searchMangaParse(response: Response) = parseList(response)
 
     private fun parseList(response: Response): MangasPage {
+        val reqUrl = response.request.url
         val o = json(response)
         val items = mutableListOf<JSONObject>()
         fun addAll(arr: JSONArray?) {
@@ -149,6 +179,13 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
             }
         }.filter { it.title.isNotEmpty() }
         val info = o.optJSONObject("pageInfo")
+        if (info == null && SLICED_PATH.matches(reqUrl.encodedPath)) {
+            // 쪽 나눔이 없는 목록: 60개씩 잘라 보여 줌
+            val page = reqUrl.queryParameter("page")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+            val from = (page - 1) * SLICE
+            val part = if (from < mangas.size) mangas.subList(from, minOf(mangas.size, from + SLICE)) else emptyList()
+            return MangasPage(part, from + SLICE < mangas.size)
+        }
         val hasNext = info != null && info.optInt("page") < info.optInt("totalPages")
         return MangasPage(mangas, hasNext)
     }
@@ -336,6 +373,8 @@ class NaverWebtoon : HttpSource(), ConfigurableSource {
         private const val KEY_ADULT = "pref_show_adult"
         private const val MOBILE = "https://m.comic.naver.com"
         private const val RATE_GAP_MS = 150L
+        private const val SLICE = 60
+        private val SLICED_PATH = Regex("^/api/webtoon/titlelist/(weekday|new)$")
         private const val MAX_LIST_PAGES = 200
         private const val FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
