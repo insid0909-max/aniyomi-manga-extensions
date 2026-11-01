@@ -134,7 +134,7 @@
  {
   "name": "툰코 웹툰",
   "id": 870214009,
-  "baseUrl": "https://001.toonkor.net",
+  "baseUrl": "https://002.toonkor.net",
   "lang": "ko",
   "typeSource": "single",
   "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
@@ -144,7 +144,7 @@
   "hasCloudflare": false,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/toonkor.js",
   "apiUrl": "",
-  "version": "0.1.40",
+  "version": "0.1.41",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
