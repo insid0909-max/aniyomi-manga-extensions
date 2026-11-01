@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.7",
+    "version": "0.1.8",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -110,6 +110,9 @@ function dateOf(s) {
     return m ? String(new Date(`20${m[1]}-${m[2]}-${m[3]}T00:00:00+09:00`).valueOf()) : null;
 }
 
+const NW_SLICE = 60;
+const NW_LIST_CACHE = {};
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -169,6 +172,23 @@ class DefaultExtension extends MProvider {
         return `${this.base}/api/webtoon/titlelist/weekday?week=${kind}&order=${order}`;
     }
 
+    /**
+     * 요일·신작 목록은 사이트가 한 번에 전부 줌(전체 요일 846개) → 카드를 한꺼번에 만드느라 첫 화면이 오래 걸림.
+     * 60개씩 나눠 쪽으로 보여 주고, 같은 목록은 5분 동안 다시 받지 않음
+     */
+    async listPage(url, page) {
+        if (!/\/api\/webtoon\/titlelist\/(weekday|new)\?/.test(url)) return this.parseList(await this.json(url));
+        const now = Date.now();
+        let hit = NW_LIST_CACHE[url];
+        if (!hit || now - hit.at > 5 * 60000) {
+            hit = { at: now, list: this.parseList(await this.json(url)).list };
+            NW_LIST_CACHE[url] = hit;
+        }
+        const p = Math.max(1, Number(page) || 1);
+        const from = (p - 1) * NW_SLICE;
+        return { list: hit.list.slice(from, from + NW_SLICE), hasNextPage: from + NW_SLICE < hit.list.length };
+    }
+
     parseList(o) {
         let items = [].concat(o.titleList || [], o.searchList || []);
         // 전체 요일: 요일별 묶음을 월→일 순서로 이어 붙임
@@ -195,12 +215,12 @@ class DefaultExtension extends MProvider {
     }
 
     async basePopular(page) {
-        return this.parseList(await this.json(this.listUrl("all", "user", page)));
+        return this.listPage(this.listUrl("all", "user", page), page);
     }
 
     async baseLatest(page) {
         // 최신 = 오늘 요일 웹툰을 업데이트순으로
-        return this.parseList(await this.json(this.listUrl(todayWeek(), "update", page)));
+        return this.listPage(this.listUrl(todayWeek(), "update", page), page);
     }
 
     async baseSearch(query, page, filters) {
@@ -211,7 +231,7 @@ class DefaultExtension extends MProvider {
         for (const f of filters || []) {
             if (f.type_name === "SelectFilter" && f.param && f.values && f.values[f.state]) v[f.param] = f.values[f.state].value;
         }
-        return this.parseList(await this.json(this.listUrl(v.list || "all", v.order || "user", page)));
+        return this.listPage(this.listUrl(v.list || "all", v.order || "user", page), page);
     }
 
     // ---------- 상세 + 회차 (무료 회차 전부, 최신순) ----------
