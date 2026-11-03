@@ -619,7 +619,7 @@ class NewXtoon(
     }
 
     companion object {
-        private const val DEFAULT_BASE_URL = "https://newxtoon3.com"
+        private const val DEFAULT_BASE_URL = "https://newxtoon4.com"
 
         // 최신 접속 주소 안내 페이지 (뉴엑스툰.com, 사용자가 알려 줌 2026-10-29)
         private const val GUIDE_URL = "https://xn--vg1b002axlc8ts.com/"
