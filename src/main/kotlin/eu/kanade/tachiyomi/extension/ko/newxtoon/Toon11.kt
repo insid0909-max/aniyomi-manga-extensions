@@ -116,7 +116,7 @@ class Toon11 : HttpSource(), ConfigurableSource {
             throw IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
         }
         val finalHost = res.request.url.host
-        if (auto && finalHost != baseHost && HOST_REGEX.matches(finalHost) && hostNumber(finalHost) > 1) {
+        if (auto && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost) && hostNumber(finalHost) > 1) {
             saveDomain("${res.request.url.scheme}://$finalHost" + res.request.url.port.let { if (it == 80 || it == 443) "" else ":$it" })
         }
         return res

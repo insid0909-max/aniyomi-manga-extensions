@@ -106,7 +106,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             }
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         // 옛 주소가 끊기지 않고 "접속 주소 안내" 페이지(새 주소 링크만 있는 작은 페이지)를 보여 주는 경우

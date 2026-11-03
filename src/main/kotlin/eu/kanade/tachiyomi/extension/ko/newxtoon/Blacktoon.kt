@@ -116,7 +116,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
             throw IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         return res
