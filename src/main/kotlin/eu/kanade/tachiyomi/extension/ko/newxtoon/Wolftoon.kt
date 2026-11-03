@@ -176,6 +176,8 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
             null
         }
 
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("wolftoon")?.takeIf { it != currentHost }?.let { open(it) }?.takeIf { it != currentHost }?.let { return it }
         // ① 공식 텔레그램 채널에 적힌 주소 (번호가 큰 것부터)
         try {
             val body = plain.newCall(Request.Builder().url(GUIDE_URL).header("User-Agent", ua).build()).execute()

@@ -155,6 +155,8 @@ class Toonkor : HttpSource(), ConfigurableSource {
         } catch (e: Exception) {
             null
         }
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("toonkor")?.takeIf { it != currentHost }?.let { open("https://$it/") }?.takeIf { it != currentHost }?.let { return@synchronized it }
         open(GUIDE_URL)?.takeIf { it != currentHost }?.let { return@synchronized it }
         // 코사이트(korsite.net)에 적힌 ###.toonkor.* (번호가 큰 것부터)
         try {
