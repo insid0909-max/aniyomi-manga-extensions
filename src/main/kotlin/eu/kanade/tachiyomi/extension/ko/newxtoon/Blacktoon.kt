@@ -198,6 +198,8 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         // 1) 공식 주소 안내: 공지 페이지·블랙툰URL 에 적힌 번호 주소 (큰 번호부터, 진짜 목록이 열리는지 확인)
         //    + 번호 없는 현재 도메인(blacktoon.cc)이 넘겨 주는 번호 주소
         fun real(host: String): String? = fetch("https://$host/")?.takeIf { (fh, body) -> HOST_REGEX.matches(fh) && body.contains("webtoon_") }?.first
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("blacktoon")?.takeIf { it != currentHost }?.let { real(it) }?.takeIf { it != currentHost }?.let { return it }
         for (g in GUIDE_URLS) {
             val html = fetch(g)?.second ?: continue
             val hosts = (

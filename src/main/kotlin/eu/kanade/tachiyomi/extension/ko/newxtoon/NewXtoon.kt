@@ -274,6 +274,17 @@ class NewXtoon(
             .callTimeout(8, TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("newxtoon")?.takeIf { h ->
+            h != currentHost && HOST_REGEX.matches(h) && try {
+                val q = Request.Builder().url("https://$h/").header("User-Agent", ua).build()
+                plain.newCall(q).execute().use { res ->
+                    res.code == 200 && res.request.url.host == h && (res.body?.string() ?: "").contains("뉴엑스툰")
+                }
+            } catch (e: Exception) {
+                false
+            }
+        }?.let { return@synchronized it }
         // 1) 최신 주소 안내 페이지(뉴엑스툰.com)에 적힌 주소 중 번호가 큰 것부터, 진짜 사이트면 바로 사용
         try {
             val r = Request.Builder().url(GUIDE_URL).header("User-Agent", ua).build()

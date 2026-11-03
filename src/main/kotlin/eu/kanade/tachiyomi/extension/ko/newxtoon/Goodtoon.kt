@@ -183,6 +183,8 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val ua = userAgent
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("goodtoon")?.takeIf { it != currentHost }?.let { probe(plain, "https://$it/", ua) }?.takeIf { it != currentHost }?.let { return it }
         fromGuide(plain, ua, currentHost)?.let { return it }
 
         val cur = hostNumber(currentHost)

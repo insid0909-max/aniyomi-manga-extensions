@@ -162,6 +162,8 @@ class Bookkor : HttpSource(), ConfigurableSource {
             null
         }
 
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        DomainList.host("bookkor")?.takeIf { it != currentHost }?.let { open("https://$it/") }?.takeIf { it != currentHost }?.let { return@synchronized it }
         // ① 최신 주소 안내 페이지에 적힌 주소 (번호가 큰 것부터, 진짜 사이트가 열리는지 확인)
         for (g in GUIDE_URLS) {
             val body = try {

@@ -145,7 +145,8 @@
   "mangayomi/toonkor.js",
   "mangayomi/wolftoon_comic.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
-  "mangayomi/goraetoon.js"
+  "mangayomi/goraetoon.js",
+  "domains.json"
  ],
  "indexFiles": [],
  "health": [
