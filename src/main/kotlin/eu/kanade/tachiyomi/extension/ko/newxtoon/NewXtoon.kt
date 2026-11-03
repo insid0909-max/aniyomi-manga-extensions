@@ -123,6 +123,18 @@ class NewXtoon(
         true
     }
 
+    /** 안 열리는 자동 주소를 잊음 (번호 비교로 직접 넣은 칸에 옮겨졌으면 그것도) */
+    private fun forgetDomain(host: String) {
+        try {
+            val e = sp.edit().putString("${KEY_DOMAIN}_auto", "")
+            val manual = sp.getString(KEY_DOMAIN, "")?.trim()?.trimEnd('/').orEmpty()
+            if (manual.toHttpUrlOrNull()?.host == host) e.putString(KEY_DOMAIN, "")
+            e.apply()
+        } catch (e: Throwable) {
+            // 무시
+        }
+    }
+
     private fun saveDomain(url: String) {
         try {
             DomainGuard.saveAuto(sp, KEY_DOMAIN, url)
@@ -195,10 +207,35 @@ class NewXtoon(
             )
         }
 
-        // 옛 주소 -> 새 주소로 넘어간 경우 새 주소를 저장
+        // 옛 주소 -> 새 주소로 넘어간 경우, 새 주소가 진짜로 열릴 때(200 + "뉴엑스툰")만 저장.
+        // (2026-11-03: newxtoon4 가 아직 안 열리는 newxtoon5 로 넘겨 줘서 5 를 저장하고 못 들어가던 문제)
         val finalHost = response.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost) && response.code == 200 &&
+            runCatching { response.peekBody(500_000).string().contains(SITE_MARKER) }.getOrDefault(false)
+        ) {
             saveDomain("https://$finalHost")
+        }
+
+        // 자동으로 바뀐 주소(기본 주소보다 큰 번호)가 막히면(403·503) 자동 주소를 지우고 기본 주소로 다시 요청
+        val defaultHost = DEFAULT_BASE_URL.toHttpUrlOrNull()?.host
+        if (ours && (response.code == 403 || response.code == 503) && baseHost != null && defaultHost != null &&
+            baseHost != defaultHost && hostNumber(baseHost) > hostNumber(defaultHost)
+        ) {
+            // 원래 응답은 내용을 받아 두고 닫음 (기본 주소도 안 되면 원래 응답을 그대로 돌려줌)
+            val type = response.body?.contentType()
+            val bytes = runCatching { response.body?.bytes() }.getOrNull() ?: ByteArray(0)
+            response.close()
+            val kept = response.newBuilder().body(bytes.toResponseBody(type)).build()
+            val again = runCatching {
+                chain.proceed(req.newBuilder().url(req.url.newBuilder().host(defaultHost).build()).build())
+            }.getOrNull()
+            if (again != null && again.isSuccessful) {
+                forgetDomain(baseHost)
+                flushCookies()
+                return again
+            }
+            again?.close()
+            return kept
         }
 
         // 인증 통과 기록(쿠키)을 바로 저장해서 앱을 껐다 켜도 유지되게 함
@@ -624,6 +661,7 @@ class NewXtoon(
         // 최신 접속 주소 안내 페이지 (뉴엑스툰.com, 사용자가 알려 줌 2026-10-29)
         private const val GUIDE_URL = "https://xn--vg1b002axlc8ts.com/"
         private const val KEY_DOMAIN = "pref_domain_key"
+        private const val SITE_MARKER = "뉴엑스툰"
         private const val KEY_UA = "pref_user_agent"
         private const val KEY_AUTO = "pref_auto_domain"
         private val HOST_REGEX = Regex("^(www\\.)?newxtoon\\d*\\.com$")
