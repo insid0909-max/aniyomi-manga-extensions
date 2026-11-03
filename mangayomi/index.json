@@ -90,7 +90,7 @@
  {
   "name": "newxtoon 웹툰",
   "id": 870214001,
-  "baseUrl": "https://newxtoon3.com",
+  "baseUrl": "https://newxtoon4.com",
   "lang": "ko",
   "typeSource": "single",
   "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
@@ -100,7 +100,7 @@
   "hasCloudflare": true,
   "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/newxtoon.js",
   "apiUrl": "",
-  "version": "0.3.41",
+  "version": "0.3.42",
   "isManga": true,
   "itemType": 0,
   "isFullData": false,
