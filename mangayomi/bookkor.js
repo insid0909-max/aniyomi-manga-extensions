@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.31",
+    "version": "0.1.32",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -226,6 +226,20 @@ async function addrGuard(ext, page, fn) {
     throw new Error(ADDR_HELP + (err ? ` [${(err && err.message) || err}]` : ""));
 }
 
+// 저장소 주소 목록 파일(domains.json, 2026-11-03): 확장이 스스로 새 주소를 못 찾을 때를 대비해 저장소에 적어 둔 지금 주소.
+// 주소 찾기 때 먼저 확인하고, 진짜 사이트일 때만 씀
+const DOMAIN_LIST_URL = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
+async function listedDomain(client, key) {
+    try {
+        const r = await client.get(DOMAIN_LIST_URL + "?t=" + Math.floor(Date.now() / 60000), { "Cache-Control": "no-cache" });
+        if (Number(r.statusCode) !== 200) return "";
+        const u = String((((JSON.parse(String(r.body || "{}")).domains || {})[key]) || {}).baseUrl || "").trim().replace(/\/+$/, "");
+        return /^https:\/\/[A-Za-z0-9.-]+$/.test(u) ? u.toLowerCase() : "";
+    } catch (e) {
+        return "";
+    }
+}
+
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -331,6 +345,21 @@ class DefaultExtension extends MProvider {
         const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
         if (Date.now() - last < 60 * 1000) return null;
         prefs.setString("auto_tried_at", String(Date.now()));
+
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        const listedC = await listedDomain(this.client, "bookkor");
+        if (listedC && listedC !== current) {
+            const c = listedC;
+            try {
+                const r = await this.client.get(c + "/", { "User-Agent": MOBILE_UA });
+                if (r.statusCode === 200 && String(r.body || "").includes('data-page="app"')) {
+                    prefs.setString("auto_domain", c);
+                    return c;
+                }
+            } catch (e) {
+                // 원래 방법으로
+            }
+        }
 
         const num = (u) => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
         const cur = num(current) || num(this.source.baseUrl);
