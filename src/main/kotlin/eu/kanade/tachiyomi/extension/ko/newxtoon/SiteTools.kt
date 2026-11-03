@@ -617,7 +617,7 @@ internal object FriendlyErrors : Interceptor {
         if (m.contains("Cloudflare", ignoreCase = true)) return e
         val text = when (e) {
             is java.net.UnknownHostException ->
-                "사이트 주소에 접속할 수 없어요. 주소가 바뀌었을 수 있어요 — 설정에서 '도메인 자동 찾기'를 켜 두거나 새 주소를 넣어 주세요."
+                "사이트 주소를 찾지 못했어요. ① 잠시 뒤 다시 ② 앱을 완전히 껐다 켜기 ③ 유니콘 등 DNS 앱을 쓰면 DNS 를 Google 로 ④ 주소가 바뀌었으면 검색창에 새 주소 붙여 넣기"
             is java.net.SocketTimeoutException, is java.io.InterruptedIOException ->
                 "사이트 응답이 너무 늦어요 (시간 초과). 잠시 뒤 다시 시도해 주세요."
             is java.net.ConnectException, is javax.net.ssl.SSLException ->
