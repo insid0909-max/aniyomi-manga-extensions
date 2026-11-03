@@ -165,7 +165,9 @@ class Toon11 : HttpSource(), ConfigurableSource {
         } catch (e: Exception) {
             emptyList()
         }
-        (ALTERNATES + announced.map { "https://$it" }).filter { it != current }.firstOrNull { works(it) }?.let { return it }
+        // 저장소 주소 목록 파일(domains.json)에 적힌 주소 먼저 (진짜 사이트일 때만)
+        val listed = DomainList.host("toon11")?.let { "https://$it" }
+        (listOfNotNull(listed) + ALTERNATES + announced.map { "https://$it" }).filter { it != current }.firstOrNull { works(it) }?.let { return it }
 
         val currentHost = current.toHttpUrlOrNull()?.host ?: return null
         val cur = hostNumber(currentHost)
