@@ -124,7 +124,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
             }
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         return res
