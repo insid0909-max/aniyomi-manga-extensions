@@ -122,7 +122,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             throw java.io.IOException("굿툰 회차 요청 실패 HTTP $code $snippet")
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
+        if (ours && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         return res

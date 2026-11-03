@@ -114,7 +114,7 @@ class Goraetoon : HttpSource(), ConfigurableSource {
             }
         }
         val finalHost = res.request.url.host
-        if (ours && finalHost != baseHost && GRTOON_HOST.matches(finalHost)) {
+        if (ours && res.code == 200 && finalHost != baseHost && GRTOON_HOST.matches(finalHost)) {
             saveDomain("https://$finalHost")
         }
         return res
