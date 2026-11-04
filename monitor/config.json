@@ -126,22 +126,6 @@
    ],
    "key": "goraetoon",
    "guide": "https://goraetoonurl.com/latest-address"
-  },
-  {
-   "name": "뚜툰",
-   "currentFrom": {
-    "file": "mangayomi/ddtoon.js",
-    "regex": "\"baseUrl\": \"(https://ddtoon\\d+\\.com)\""
-   },
-   "pattern": "^https://ddtoon(\\d+)\\.com$",
-   "format": "https://ddtoon{n}.com",
-   "probe": "/mlist.php",
-   "marker": "fmans_",
-   "range": [
-    -3,
-    20
-   ],
-   "key": "ddtoon"
   }
  ],
  "replaceIn": [
@@ -162,8 +146,7 @@
   "mangayomi/wolftoon_comic.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
   "mangayomi/goraetoon.js",
-  "domains.json",
-  "mangayomi/ddtoon.js"
+  "domains.json"
  ],
  "indexFiles": [],
  "health": [
@@ -220,12 +203,6 @@
    "file": "mangayomi/goraetoon.js",
    "depth": "pages",
    "key": "goraetoon"
-  },
-  {
-   "name": "뚜툰 (망가요미)",
-   "file": "mangayomi/ddtoon.js",
-   "depth": "pages",
-   "key": "ddtoon"
   }
  ]
 }
