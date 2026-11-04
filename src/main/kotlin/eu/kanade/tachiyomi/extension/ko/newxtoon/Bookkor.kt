@@ -536,7 +536,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
-    // ---------- Popular/Latest 규칙 + 필터 ----------
+    // ---------- 인기/최신 탭 규칙 + 필터 ----------
     private val tabRules by lazy { TabRules(id) }
 
     override fun fetchLatestUpdates(page: Int): Observable<MangasPage> =

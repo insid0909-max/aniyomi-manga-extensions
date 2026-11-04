@@ -12,7 +12,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
-/** 상태 표시용 필터 항목 표시 (Popular/Latest 규칙 저장 위치 계산에서는 빠짐) */
+/** 상태 표시용 필터 항목 표시 (인기/최신 탭 규칙 저장 위치 계산에서는 빠짐) */
 internal interface StatusItem
 
 internal class StatusHeader(text: String) : Filter.Header(text), StatusItem

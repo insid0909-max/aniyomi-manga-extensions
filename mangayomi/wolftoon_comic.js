@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.47",
+    "version": "0.1.48",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -30,16 +30,16 @@ const GENRES = ["드라마", "판타지", "액션", "로맨스", "일상", "개�
 
 // 늑대닷컴 - Aniyomi 확장(Wolftoon.kt)과 같은 구조를 망가요미용으로 옮김
 // 사이트가 euc-kr 이라 망가요미가 Latin-1 로 받은 본문을 fixEucKr 로 한글로 되돌리고, 검색어·장르는 encodeEucKr 로 보냄
-// ---------- Popular/Latest 규칙 ----------
-const TAB_RULE_NAME = "Popular/Latest 규칙";
+// ---------- 인기/최신 탭 규칙 ----------
+const TAB_RULE_NAME = "인기/최신 탭 규칙";
 const TAB_KEY_POPULAR = "tab_rule_popular";
 const TAB_KEY_LATEST = "tab_rule_latest";
 const TAB_RULE_OPTIONS = [
     "저장하지 않음 (필터 결과만 보기)",
-    "현재 조건을 Popular 탭에 저장",
-    "현재 조건을 Latest 탭에 저장",
-    "Popular 탭을 기본값으로 복원",
-    "Latest 탭을 기본값으로 복원",
+    "현재 조건을 인기 탭에 저장",
+    "현재 조건을 최신 탭에 저장",
+    "인기 탭을 기본값으로 복원",
+    "최신 탭을 기본값으로 복원",
     "두 탭 모두 기본값으로 복원"
 ];
 
@@ -841,7 +841,7 @@ class DefaultExtension extends MProvider {
         ];
     }
 
-    // ---------- Popular/Latest 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
+    // ---------- 인기/최신 탭 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
     tabLoad(key) {
         try {
             const v = JSON.parse(new SharedPreferences().getString(key, "") || "null");
@@ -930,8 +930,8 @@ class DefaultExtension extends MProvider {
         const base = this.baseFilterList();
         return base.concat([
             { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
-            { type_name: "HeaderFilter", name: `현재 Popular: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (사이트 인기 목록)")}` },
-            { type_name: "HeaderFilter", name: `현재 Latest: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (사이트 최신 목록)")}` },
+            { type_name: "HeaderFilter", name: `현재 인기: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (사이트 인기 목록)")}` },
+            { type_name: "HeaderFilter", name: `현재 최신: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (사이트 최신 목록)")}` },
             {
                 type_name: "SelectFilter", name: TAB_RULE_NAME, state: 0,
                 values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))
