@@ -209,6 +209,13 @@ internal object ChapterOrder {
             else -> 2
         }
         val seasons = keys.any { it.num >= 0 && !isExtra(it.prefix) && seasonOf(it.prefix) > firstSeason }
+        if (seasons) {
+            // 시즌마다 번호가 다시 시작하고, 사이트가 시즌 표시를 빼먹거나 이어 붙인 번호를 쓰기도 함
+            // (굿툰 닥터 최태수: 시즌2 중간이 "61화~65화", 시즌5 뒤가 "126화~136화" → 시즌1 뒤에 붙어 순서가 섞이고 앱이 "Missing 93")
+            // → 사이트 순서(최신 → 과거) 그대로, 회차 번호는 오래된 것부터 1, 2, 3 … (2026-11-04)
+            list.forEachIndexed { i, c -> c.chapter_number = (list.size - i).toFloat() }
+            return list
+        }
 
         // 시즌 순서 (프롤로그는 맨 앞, 번외·외전은 모든 시즌 뒤)
         fun season(k: Key): Int = when {
