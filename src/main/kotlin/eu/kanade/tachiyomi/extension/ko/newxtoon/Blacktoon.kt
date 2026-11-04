@@ -684,7 +684,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 필터 ----------
-    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    // ---------- 인기/최신 탭 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
     private val tabRules by lazy { TabRules(id) }
 
     override fun getFilterList() = ExtStatus.prepend(

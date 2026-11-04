@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.16",
+    "version": "0.1.17",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -33,16 +33,16 @@ const FINISHED_ORDER = { user: "VIEW", update: "UPDATE", view: "VIEW", starScore
 // 네이버웹툰 (공식, 무료 회차만) - Aniyomi 확장(NaverWebtoon.kt)과 같은 구조를 망가요미용으로 옮김
 // 목록·작품·회차는 사이트가 쓰는 JSON(/api/...)을 읽고, 그림은 모바일 회차 화면(img.toon_image)에서 가져온다.
 // 미리보기·유료 회차(charge)는 넣지 않는다.
-// ---------- Popular/Latest 규칙 ----------
-const TAB_RULE_NAME = "Popular/Latest 규칙";
+// ---------- 인기/최신 탭 규칙 ----------
+const TAB_RULE_NAME = "인기/최신 탭 규칙";
 const TAB_KEY_POPULAR = "tab_rule_popular";
 const TAB_KEY_LATEST = "tab_rule_latest";
 const TAB_RULE_OPTIONS = [
     "저장하지 않음 (필터 결과만 보기)",
-    "현재 조건을 Popular 탭에 저장",
-    "현재 조건을 Latest 탭에 저장",
-    "Popular 탭을 기본값으로 복원",
-    "Latest 탭을 기본값으로 복원",
+    "현재 조건을 인기 탭에 저장",
+    "현재 조건을 최신 탭에 저장",
+    "인기 탭을 기본값으로 복원",
+    "최신 탭을 기본값으로 복원",
     "두 탭 모두 기본값으로 복원"
 ];
 
@@ -332,7 +332,7 @@ class DefaultExtension extends MProvider {
         ];
     }
 
-    // ---------- Popular/Latest 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
+    // ---------- 인기/최신 탭 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
     tabLoad(key) {
         try {
             const v = JSON.parse(new SharedPreferences().getString(key, "") || "null");
@@ -408,8 +408,8 @@ class DefaultExtension extends MProvider {
         const base = this.baseFilterList();
         return base.concat([
             { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
-            { type_name: "HeaderFilter", name: `현재 Popular: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (전체 요일 인기순)")}` },
-            { type_name: "HeaderFilter", name: `현재 Latest: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (오늘 요일 업데이트순)")}` },
+            { type_name: "HeaderFilter", name: `현재 인기: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (전체 요일 인기순)")}` },
+            { type_name: "HeaderFilter", name: `현재 최신: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (오늘 요일 업데이트순)")}` },
             {
                 type_name: "SelectFilter", name: TAB_RULE_NAME, state: 0,
                 values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))
