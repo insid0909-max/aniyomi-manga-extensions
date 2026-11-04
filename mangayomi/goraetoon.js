@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.14",
+    "version": "0.1.15",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goraetoon.js"
@@ -36,16 +36,16 @@ const SORTS = [["최신순", "new"], ["인기순", "hot"]];
 const PLATFORMS = ["네이버", "다음", "카카오", "레진", "투믹스", "탑툰", "코미카", "배틀코믹", "코믹GT", "케이툰", "애니툰", "폭스툰", "피너툰", "봄툰", "코미코", "무툰", "기타"];
 const GENRES = ["학원", "액션", "SF", "스토리", "판타지", "BL/백합", "개그/코미디", "연애/순정", "드라마", "로맨스", "시대극", "스포츠", "일상", "추리/미스터리", "공포/스릴러", "성인", "옴니버스", "에피소드", "무협", "소년", "기타"];
 
-// ---------- Popular/Latest 규칙 ----------
-const TAB_RULE_NAME = "Popular/Latest 규칙";
+// ---------- 인기/최신 탭 규칙 ----------
+const TAB_RULE_NAME = "인기/최신 탭 규칙";
 const TAB_KEY_POPULAR = "tab_rule_popular";
 const TAB_KEY_LATEST = "tab_rule_latest";
 const TAB_RULE_OPTIONS = [
     "저장하지 않음 (필터 결과만 보기)",
-    "현재 조건을 Popular 탭에 저장",
-    "현재 조건을 Latest 탭에 저장",
-    "Popular 탭을 기본값으로 복원",
-    "Latest 탭을 기본값으로 복원",
+    "현재 조건을 인기 탭에 저장",
+    "현재 조건을 최신 탭에 저장",
+    "인기 탭을 기본값으로 복원",
+    "최신 탭을 기본값으로 복원",
     "두 탭 모두 기본값으로 복원"
 ];
 
@@ -861,7 +861,7 @@ class DefaultExtension extends MProvider {
         ];
     }
 
-    // ---------- Popular/Latest 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
+    // ---------- 인기/최신 탭 규칙: 필터에서 고른 조건을 인기/최신 탭에 저장 ----------
     tabLoad(key) {
         try {
             const v = JSON.parse(new SharedPreferences().getString(key, "") || "null");
@@ -950,8 +950,8 @@ class DefaultExtension extends MProvider {
         const base = this.baseFilterList();
         return base.concat([
             { type_name: "HeaderFilter", name: "조건을 고른 뒤 Filter를 누르면 저장됩니다." },
-            { type_name: "HeaderFilter", name: `현재 Popular: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (실시간 BEST)")}` },
-            { type_name: "HeaderFilter", name: `현재 Latest: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (연재 오늘 업데이트)")}` },
+            { type_name: "HeaderFilter", name: `현재 인기: ${this.tabDescribe(TAB_KEY_POPULAR, base, "기본값 (실시간 BEST)")}` },
+            { type_name: "HeaderFilter", name: `현재 최신: ${this.tabDescribe(TAB_KEY_LATEST, base, "기본값 (연재 오늘 업데이트)")}` },
             {
                 type_name: "SelectFilter", name: TAB_RULE_NAME, state: 0,
                 values: TAB_RULE_OPTIONS.map((n, i) => ({ type_name: "SelectOption", name: n, value: String(i) }))

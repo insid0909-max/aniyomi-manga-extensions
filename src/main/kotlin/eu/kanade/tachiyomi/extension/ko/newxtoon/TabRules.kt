@@ -7,7 +7,7 @@ import eu.kanade.tachiyomi.source.model.FilterList
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-/** 필터 맨 아래의 "Popular/Latest 규칙" 선택 */
+/** 필터 맨 아래의 "인기/최신 탭 규칙" 선택 */
 internal class TabRuleFilter : Filter.Select<String>(TabRules.RULE_NAME, TabRules.OPTIONS)
 
 /**
@@ -31,8 +31,8 @@ internal class TabRules(private val sourceId: Long) {
         val extra = listOf(
             Filter.Separator(),
             Filter.Header("조건을 고른 뒤 Filter를 누르면 저장됩니다."),
-            Filter.Header("현재 Popular: ${describe(POPULAR, base, "기본값 (사이트 인기 목록)")}"),
-            Filter.Header("현재 Latest: ${describe(LATEST, base, "기본값 (사이트 최신 목록)")}"),
+            Filter.Header("현재 인기: ${describe(POPULAR, base, "기본값 (사이트 인기 목록)")}"),
+            Filter.Header("현재 최신: ${describe(LATEST, base, "기본값 (사이트 최신 목록)")}"),
             TabRuleFilter(),
         )
         return FilterList(base.list + extra)
@@ -131,13 +131,13 @@ internal class TabRules(private val sourceId: Long) {
     companion object {
         const val POPULAR = "tab_rule_popular"
         const val LATEST = "tab_rule_latest"
-        const val RULE_NAME = "Popular/Latest 규칙"
+        const val RULE_NAME = "인기/최신 탭 규칙"
         val OPTIONS = arrayOf(
             "저장하지 않음 (필터 결과만 보기)",
-            "현재 조건을 Popular 탭에 저장",
-            "현재 조건을 Latest 탭에 저장",
-            "Popular 탭을 기본값으로 복원",
-            "Latest 탭을 기본값으로 복원",
+            "현재 조건을 인기 탭에 저장",
+            "현재 조건을 최신 탭에 저장",
+            "인기 탭을 기본값으로 복원",
+            "최신 탭을 기본값으로 복원",
             "두 탭 모두 기본값으로 복원",
         )
     }

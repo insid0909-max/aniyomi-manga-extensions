@@ -577,7 +577,7 @@ class NewXtoon(
         throw UnsupportedOperationException()
 
     // ---------- 필터 (검색어 없을 때 사용) ----------
-    // ---------- Popular/Latest 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
+    // ---------- 인기/최신 탭 규칙 (필터 조건을 인기/최신 탭에 저장) ----------
     private val tabRules by lazy { TabRules(id) }
 
     override fun fetchPopularManga(page: Int): Observable<MangasPage> =
