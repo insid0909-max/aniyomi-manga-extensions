@@ -168,6 +168,7 @@ internal object ChapterOrder {
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title).also { k -> fixedNum[c]?.let { k.num = it } } }
         mergePrefixes(keys)
         fillUnnumbered(keys)
+        fillMislabeledExtras(keys)
         // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
         keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }
         var numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.group }
@@ -266,6 +267,41 @@ internal object ChapterOrder {
             k.unit = a.unit
             k.num = mid
             used += a.unit to mid
+        }
+    }
+
+    /**
+     * 본편 사이에 끼어 있는 "외전" 묶음이 그 자리의 빈 번호 수와 딱 맞으면 사이트가 잘못 적은 본편
+     * (굿툰 4000년 만에 귀환한 대마도사: 207화 · 외전 8화~11화 · 212화, 외전 1~7화는 없음 → 208~211화, 2026-11-04).
+     * 그 외전 묶음에 다른 회차가 없을 때만 (진짜 외전은 그대로 뒤로)
+     */
+    private fun fillMislabeledExtras(keys: List<Key>) {
+        val used = keys.filter { it.num >= 0 }.map { it.prefix to it.num }.toHashSet()
+        val byTime = keys.sortedBy { it.index }
+        var p = 0
+        while (p < byTime.size) {
+            val k = byTime[p]
+            if (!isExtra(k.prefix)) {
+                p++
+                continue
+            }
+            var q = p
+            while (q + 1 < byTime.size && byTime[q + 1].prefix == k.prefix) q++
+            val run = byTime.subList(p, q + 1)
+            val a = byTime.getOrNull(p - 1)
+            val b = byTime.getOrNull(q + 1)
+            val whole = keys.count { it.prefix == k.prefix } == run.size
+            if (whole && a != null && b != null && a.num >= 0 && b.num >= 0 && !isExtra(a.prefix) && a.prefix != PROLOGUE_KEY &&
+                a.prefix == b.prefix && a.unit == b.unit && a.num % 1.0 == 0.0 && b.num - a.num - 1 == run.size.toDouble() &&
+                (1..run.size).none { (a.prefix to a.num + it) in used }
+            ) {
+                run.forEachIndexed { j, r ->
+                    r.prefix = a.prefix
+                    r.unit = a.unit
+                    r.num = a.num + 1 + j
+                }
+            }
+            p = q + 1
         }
     }
 
