@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.33",
+    "version": "0.1.34",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -991,5 +991,42 @@ function notesFilters(key) {
     DefaultExtension.prototype.getFilterList = function () {
         const list = base.apply(this, arguments) || [];
         return list.concat([1, 2, 3].map(() => ({ type_name: "HeaderFilter", name: "\u3000", _status: true })));
+    };
+})();
+
+// ---------- 빠진 회차 번호 (2026-11-04) ----------
+// 망가요미는 "N화 누락됨" 개수만 보여 줌 → 작품 설명 맨 위에 빠진 회차 번호를 적음 (회차 이름 맨 앞 번호 기준)
+function missingNote(chapters) {
+    const nums = {};
+    let max = 0;
+    let min = Infinity;
+    for (const c of chapters || []) {
+        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim());
+        if (!m) continue;
+        const n = Number(m[1]);
+        if (!(n > 0) || n > 20000) continue;
+        nums[n] = true;
+        if (n > max) max = n;
+        if (n < min) min = n;
+    }
+    if (!max || max - Math.min(min, 1) > 5000) return "";
+    const miss = [];
+    for (let i = 1; i <= max; i++) if (!nums[i]) miss.push(i);
+    if (!miss.length || miss.length > max / 2) return "";
+    const shown = miss.slice(0, 10).map((n) => `${n}화`).join(", ");
+    return `⚠️ 빠진 회차: ${shown}${miss.length > 10 ? ` 외 ${miss.length - 10}개` : ""} (사이트에 없거나 확장이 못 받아 온 회차)`;
+}
+(function () {
+    const base = DefaultExtension.prototype.getDetail;
+    if (!base) return;
+    DefaultExtension.prototype.getDetail = async function () {
+        const d = await base.apply(this, arguments);
+        try {
+            const note = d ? missingNote(d.chapters) : "";
+            if (note) d.description = note + (d.description ? "\n\n" + d.description : "");
+        } catch (e) {
+            // 그대로
+        }
+        return d;
     };
 })();
