@@ -354,6 +354,11 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         timeZone = TimeZone.getTimeZone("Asia/Seoul")
     }
 
+    // 설명 맨 위에 빠진 회차 번호 (앱의 "N화 누락"이 몇 화인지)
+    @Suppress("DEPRECATION")
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
+        super.fetchMangaDetails(manga).map { MissingNote.apply(it) { fetchChapterList(manga).toBlocking().first() } }
+
     // 회차 순서: 본편 → 번외 → 외전 (앱의 회차 번호 정렬도 이 순서)
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
         super.fetchChapterList(manga).map {
