@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.15",
+    "version": "0.1.16",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -626,8 +626,6 @@ function notesFilters(key) {
 // ---------- 빠진 회차 번호 (2026-11-04) ----------
 // 망가요미는 "N화 누락됨" 개수만 보여 줌 → 작품 설명 맨 위에 빠진 회차 번호를 적음 (회차 이름 맨 앞 번호 기준)
 function missingNote(chapters) {
-    // 시즌·부가 있는 작품은 시즌마다 번호가 다시 시작해 빈 번호를 셀 수 없음
-    if ((chapters || []).some((c) => /(?:시즌|season)\s*\d|\d\s*부\s+\d/i.test(String((c && c.name) || "")))) return "";
     const nums = {};
     let max = 0;
     let min = Infinity;
@@ -640,10 +638,11 @@ function missingNote(chapters) {
         if (n > max) max = n;
         if (n < min) min = n;
     }
-    if (!max || max - Math.min(min, 1) > 5000) return "";
+    if (!max || max - min > 5000) return "";
+    // 가장 작은 번호 ~ 가장 큰 번호 사이만 (앞쪽 1~21화가 원래 없는 작품은 세지 않음, 애니요미와 같음)
     const miss = [];
-    for (let i = 1; i <= max; i++) if (!nums[i]) miss.push(i);
-    if (!miss.length || miss.length > max / 2) return "";
+    for (let i = min; i <= max; i++) if (!nums[i]) miss.push(i);
+    if (!miss.length || miss.length > (max - min + 1) / 2) return "";
     const shown = miss.slice(0, 10).map((n) => `${n}화`).join(", ");
     return `⚠️ 빠진 회차: ${shown}${miss.length > 10 ? ` 외 ${miss.length - 10}개` : ""} (사이트에 없거나 확장이 못 받아 온 회차)`;
 }
