@@ -691,3 +691,35 @@ internal object ChapterListCache {
         return merged.takeIf { it.size == total }
     }
 }
+
+/**
+ * 설명 맨 위에 빠진 회차 번호 (2026-11-04): 앱은 "N화 누락" 개수만 보여 줌 → 앱이 세는 것과 같은 회차 번호(chapter_number)로
+ * 가장 작은 번호 ~ 가장 큰 번호 사이 빈 번호를 찾아 "⚠️ 빠진 회차: 57화, 128화" (10개까지 + 외 N개, 절반 넘게 비면 안 씀).
+ * 시즌 작품은 ChapterOrder 가 1, 2, 3 … 으로 매겨 빈 번호가 없음
+ */
+internal object MissingNote {
+    fun text(chapters: List<SChapter>): String {
+        val nums = chapters.map { it.chapter_number }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
+        if (nums.size < 2) return ""
+        val min = nums.minOrNull() ?: return ""
+        val max = nums.maxOrNull() ?: return ""
+        val miss = (min..max).filter { it !in nums }
+        if (miss.isEmpty() || miss.size > (max - min + 1) / 2) return ""
+        val shown = miss.take(10).joinToString(", ") { "${it}화" }
+        return "⚠️ 빠진 회차: $shown" + (if (miss.size > 10) " 외 ${miss.size - 10}개" else "") + " (사이트에 없거나 확장이 못 받아 온 회차)"
+    }
+
+    /** 작품 정보에 빠진 회차 줄을 붙임. 회차 목록을 못 받으면 그대로 */
+    fun apply(details: SManga, chapters: () -> List<SChapter>): SManga {
+        val note = try {
+            text(chapters())
+        } catch (e: Throwable) {
+            ""
+        }
+        if (note.isNotEmpty()) {
+            val d = details.description.orEmpty()
+            if (!d.startsWith("⚠️ 빠진 회차")) details.description = if (d.isBlank()) note else "$note\n\n$d"
+        }
+        return details
+    }
+}
