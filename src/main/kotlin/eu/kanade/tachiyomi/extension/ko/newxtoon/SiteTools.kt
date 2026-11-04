@@ -91,7 +91,7 @@ internal object ChapterOrder {
     private fun seasonOf(prefix: String): Int =
         SEASON.find(prefix)?.groupValues?.let { it[1].ifEmpty { it[2] } }?.toIntOrNull() ?: 1
 
-    private class Key(var prefix: String, val unit: String, var num: Double, val index: Int) {
+    private class Key(var prefix: String, var unit: String, var num: Double, val index: Int) {
         var group = ""
     }
 
@@ -167,6 +167,7 @@ internal object ChapterOrder {
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title).also { k -> fixedNum[c]?.let { k.num = it } } }
         mergePrefixes(keys)
+        fillUnnumbered(keys)
         // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
         keys.forEach { it.group = if (isExtra(it.prefix)) it.prefix else it.prefix + "|" + it.unit }
         var numbered = keys.filter { it.num >= 0 && it.prefix != PROLOGUE_KEY }.groupBy { it.group }
@@ -244,6 +245,28 @@ internal object ChapterOrder {
             }.toFloat()
         }
         return sorted.reversed().map { list[it] }
+    }
+
+    /**
+     * 번호 없는 회차("0240 - 환골탈태 마지막화")가 앞뒤 회차(올라온 순서) 번호 사이의 빈 번호 하나에 딱 맞으면 그 번호
+     * (환골탈태: 239화 · 마지막화 · 241화 → 240화. 전엔 번호 없는 회차라 뒤로 빠져 앱이 "Missing 1", 2026-11-04)
+     */
+    private fun fillUnnumbered(keys: List<Key>) {
+        val used = keys.filter { it.num >= 0 }.map { it.unit to it.num }.toHashSet()
+        val byTime = keys.sortedBy { it.index }
+        byTime.forEachIndexed { p, k ->
+            if (k.num >= 0 || k.prefix == PROLOGUE_KEY) return@forEachIndexed
+            val a = byTime.getOrNull(p - 1)?.takeIf { it.num >= 0 && it.prefix != PROLOGUE_KEY } ?: return@forEachIndexed
+            val b = byTime.getOrNull(p + 1)
+                ?.takeIf { it.num >= 0 && it.prefix != PROLOGUE_KEY && it.prefix == a.prefix && it.unit == a.unit } ?: return@forEachIndexed
+            if (a.num % 1.0 != 0.0 || b.num - a.num != 2.0) return@forEachIndexed
+            val mid = a.num + 1
+            if ((a.unit to mid) in used) return@forEachIndexed
+            k.prefix = a.prefix
+            k.unit = a.unit
+            k.num = mid
+            used += a.unit to mid
+        }
     }
 
     /** 앞부분이 다른 앞부분으로 끝나면 같은 시리즈 ("스핀오프식극의상디" = "식극의상디"). 번외·외전끼리만 따로 */
