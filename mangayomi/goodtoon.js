@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.47",
+    "version": "0.3.48",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -1210,6 +1210,8 @@ function notesFilters(key) {
 // ---------- 빠진 회차 번호 (2026-11-04) ----------
 // 망가요미는 "N화 누락됨" 개수만 보여 줌 → 작품 설명 맨 위에 빠진 회차 번호를 적음 (회차 이름 맨 앞 번호 기준)
 function missingNote(chapters) {
+    // 시즌·부가 있는 작품은 시즌마다 번호가 다시 시작해 빈 번호를 셀 수 없음
+    if ((chapters || []).some((c) => /(?:시즌|season)\s*\d|\d\s*부\s+\d/i.test(String((c && c.name) || "")))) return "";
     const nums = {};
     let max = 0;
     let min = Infinity;
