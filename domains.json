@@ -2,13 +2,41 @@
  "schemaVersion": 1,
  "note": "소스별 지금 주소. 확장이 스스로 새 주소를 못 찾을 때 이 주소를 먼저 확인함(진짜 사이트일 때만 씀). 바뀌면 baseUrl 만 고치면 됨(확장 업데이트 불필요).",
  "domains": {
-  "newxtoon": {"baseUrl": "https://newxtoon4.com", "updated": "2026-11-03"},
-  "goodtoon": {"baseUrl": "https://www.goodtoon009.com", "updated": "2026-11-03"},
-  "blacktoon": {"baseUrl": "https://blacktoon426.com", "updated": "2026-11-03"},
-  "wolftoon": {"baseUrl": "https://wfwf528.com", "updated": "2026-11-03"},
-  "bookkor": {"baseUrl": "https://010.bookkor.com", "updated": "2026-11-03"},
-  "toonkor": {"baseUrl": "https://003.toonkor.net", "updated": "2026-11-03"},
-  "goraetoon": {"baseUrl": "https://002.grtoon.com", "updated": "2026-11-03"},
-  "toon11": {"baseUrl": "https://update.spotv24.com", "updated": "2026-11-03"}
+  "newxtoon": {
+   "baseUrl": "https://newxtoon4.com",
+   "updated": "2026-11-03"
+  },
+  "goodtoon": {
+   "baseUrl": "https://www.goodtoon009.com",
+   "updated": "2026-11-03"
+  },
+  "blacktoon": {
+   "baseUrl": "https://blacktoon426.com",
+   "updated": "2026-11-03"
+  },
+  "wolftoon": {
+   "baseUrl": "https://wfwf528.com",
+   "updated": "2026-11-03"
+  },
+  "bookkor": {
+   "baseUrl": "https://010.bookkor.com",
+   "updated": "2026-11-03"
+  },
+  "toonkor": {
+   "baseUrl": "https://003.toonkor.net",
+   "updated": "2026-11-03"
+  },
+  "goraetoon": {
+   "baseUrl": "https://002.grtoon.com",
+   "updated": "2026-11-03"
+  },
+  "toon11": {
+   "baseUrl": "https://update.spotv24.com",
+   "updated": "2026-11-03"
+  },
+  "ddtoon": {
+   "baseUrl": "https://ddtoon30.com",
+   "updated": "2026-11-04"
+  }
  }
 }
