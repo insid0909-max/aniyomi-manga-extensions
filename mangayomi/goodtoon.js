@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.48",
+    "version": "0.3.49",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -182,6 +182,35 @@ function orderChapters(list, title, keepOldest) {
         canon[p] = q ? (canon[q] || q) : p;
     });
     keys.forEach((k) => { if (canon[k.prefix]) k.prefix = canon[k.prefix]; });
+    // 올라온 순서(과거 → 최신)로 본 회차들
+    const byTime = keys.slice().sort((a, b) => a.index - b.index);
+    const usedNum = new Set(keys.filter((k) => k.num >= 0).map((k) => `${k.prefix}|${k.unit}|${k.num}`));
+    const okNum = (k) => k && k.num >= 0 && k.prefix !== PRO && !isExtra(k.prefix);
+    // 번호 없는 회차("0240 - 환골탈태 마지막화")가 앞뒤 회차 번호 사이 빈 번호 하나에 딱 맞으면 그 번호 (2026-11-04)
+    byTime.forEach((k, p) => {
+        if (k.num >= 0 || k.prefix === PRO) return;
+        const a = byTime[p - 1], b = byTime[p + 1];
+        if (!okNum(a) || !okNum(b) || a.prefix !== b.prefix || a.unit !== b.unit || a.num % 1 || b.num - a.num !== 2) return;
+        if (usedNum.has(`${a.prefix}|${a.unit}|${a.num + 1}`)) return;
+        k.prefix = a.prefix; k.unit = a.unit; k.num = a.num + 1; k.fixed = true;
+        usedNum.add(`${a.prefix}|${a.unit}|${k.num}`);
+    });
+    // 본편 사이에 끼어 있는 "외전" 묶음이 그 자리 빈 번호 수와 딱 맞으면 사이트가 잘못 적은 본편
+    // (굿툰 4000년 만에 귀환한 대마도사: 207화 · 외전 8~11화 · 212화, 외전 1~7화 없음 → 208~211화). 그 외전 묶음에 다른 회차가 없을 때만
+    for (let p = 0; p < byTime.length;) {
+        const k = byTime[p];
+        if (!isExtra(k.prefix)) { p++; continue; }
+        let q = p;
+        while (q + 1 < byTime.length && byTime[q + 1].prefix === k.prefix) q++;
+        const run = byTime.slice(p, q + 1);
+        const a = byTime[p - 1], b = byTime[q + 1];
+        const whole = keys.filter((x) => x.prefix === k.prefix).length === run.length;
+        if (whole && okNum(a) && okNum(b) && a.prefix === b.prefix && a.unit === b.unit && !(a.num % 1) && b.num - a.num - 1 === run.length &&
+            !run.some((_, j) => usedNum.has(`${a.prefix}|${a.unit}|${a.num + 1 + j}`))) {
+            run.forEach((r, j) => { r.prefix = a.prefix; r.unit = a.unit; r.num = a.num + 1 + j; r.fixed = true; });
+        }
+        p = q + 1;
+    }
     // 묶음 = 앞부분 + 단위 ("원피스 1화" 와 "원피스 1권" 은 다른 묶음). 번외·외전은 단위 상관없이 한 묶음
     keys.forEach((k) => { k.group = isExtra(k.prefix) ? k.prefix : `${k.prefix}|${k.unit}`; });
     const collect = () => {
@@ -229,6 +258,18 @@ function orderChapters(list, title, keepOldest) {
     const firstOf = (k) => (rank(k) >= 2 ? groups[k.group].first : 0);
     // 시즌 순서 (프롤로그는 맨 앞, 번외·외전은 모든 시즌 뒤)
     const seasons = keys.some((k) => k.num >= 0 && !isExtra(k.prefix) && seasonOf(k.prefix) > firstSeason);
+    if (seasons) {
+        // 시즌마다 번호가 다시 시작하고 사이트가 시즌 표시를 빼먹거나 이어 붙인 번호를 쓰기도 함
+        // (굿툰 닥터 최태수: 시즌2 중간이 "61화~65화", 시즌5 뒤가 "126화~136화") → 사이트 순서(최신 → 과거) 그대로,
+        // 망가요미가 읽는 이름 맨 앞 숫자가 순번과 다르면 "순번 · " 을 붙임 (2026-11-04)
+        const hasPro = keys.some((k) => k.prefix === PRO);
+        return list.map((c, i) => {
+            if (keys[i].prefix === PRO) return c;
+            const pos = keys[i].index + (hasPro ? 0 : 1);
+            const lead = /\d+/.exec(String(c.name || ""));
+            return lead && Number(lead[0]) === pos ? c : Object.assign({}, c, { name: `${pos} · ${String(c.name || "").trim()}` });
+        });
+    }
     const season = (k) => rank(k) === -1 ? -1e9 : rank(k) >= 3 ? 1e9 : !seasons ? 0 : seasonOf(k.prefix);
     const order = list.map((_, i) => i).sort((a, b) => {
         const x = keys[a], y = keys[b];
