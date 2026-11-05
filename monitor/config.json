@@ -126,6 +126,22 @@
    ],
    "key": "goraetoon",
    "guide": "https://goraetoonurl.com/latest-address"
+  },
+  {
+   "name": "코믹툰툰",
+   "currentFrom": {
+    "file": "mangayomi/comictt.js",
+    "regex": "\"baseUrl\": \"(https://comictt\\d+\\.com)\""
+   },
+   "pattern": "^https://comictt(\\d+)\\.com$",
+   "format": "https://comictt{n}.com",
+   "probe": "/mlist.php",
+   "marker": "fmans_",
+   "range": [
+    -3,
+    20
+   ],
+   "key": "comictt"
   }
  ],
  "replaceIn": [
@@ -146,7 +162,8 @@
   "mangayomi/wolftoon_comic.js",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
   "mangayomi/goraetoon.js",
-  "domains.json"
+  "domains.json",
+  "mangayomi/comictt.js"
  ],
  "indexFiles": [],
  "health": [
@@ -203,6 +220,12 @@
    "file": "mangayomi/goraetoon.js",
    "depth": "pages",
    "key": "goraetoon"
+  },
+  {
+   "name": "코믹툰툰 (망가요미)",
+   "file": "mangayomi/comictt.js",
+   "depth": "pages",
+   "key": "comictt"
   }
  ]
 }

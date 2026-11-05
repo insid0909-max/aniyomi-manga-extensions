@@ -33,6 +33,10 @@
   "toon11": {
    "baseUrl": "https://update.spotv24.com",
    "updated": "2026-11-03"
+  },
+  "comictt": {
+   "baseUrl": "https://comictt7.com",
+   "updated": "2026-11-05"
   }
  }
 }
