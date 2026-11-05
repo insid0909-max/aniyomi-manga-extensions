@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.39",
+    "version": "0.1.40",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -513,8 +513,40 @@ class DefaultExtension extends MProvider {
             chapters.push(it);
             return 1;
         };
-        (eps.data || []).forEach(add);
-        const last = Math.min(Number(eps.last_page) || 1, 100);
+        // 2026-11-05 사이트 변경: episodes 가 [id, "171화", 회차slug, "2026-05-10"] 짧은 목록(앞 10개),
+        // 전체는 화면처럼 Inertia 부분 새로고침(only=episodesAll)으로 받음 → props.episodesAll.rows (같은 모양)
+        if (Array.isArray(d.props.episodes)) {
+            let rows = d.props.episodes;
+            if ((Number(d.props.episodesTotal) || 0) > rows.length) {
+                try {
+                    const h = Object.assign(this.hdr(), {
+                        "X-Inertia": "true",
+                        "X-Inertia-Partial-Component": d.component || "contents/List",
+                        "X-Inertia-Partial-Data": "episodesAll",
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "text/html, application/xhtml+xml"
+                    });
+                    if (d.version) h["X-Inertia-Version"] = String(d.version);
+                    const r = await this.req(this.base + path, h);
+                    const all = ((JSON.parse(fixUtf8(r.body)).props || {}).episodesAll || {}).rows;
+                    if (Array.isArray(all) && all.length > rows.length) rows = all;
+                } catch (e) {}
+            }
+            const n = rows.length;
+            rows.forEach((r, i) => {
+                if (!Array.isArray(r) || !r[2]) return;
+                const title = String(r[1] || "");
+                const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(r[3] || ""));
+                add({
+                    title: /\d/.test(title) ? title : `${n - i}화` + (title ? ` ${title}` : ""),
+                    sort: n - i,
+                    slug: r[2],
+                    published_at: m ? `${m[1]}-${m[2]}-${m[3]}T00:00:00+09:00` : null
+                });
+            });
+        }
+        (Array.isArray(eps.data) ? eps.data : []).forEach(add);
+        const last = Array.isArray(eps) ? 1 : Math.min(Number(eps.last_page) || 1, 100);
         for (let p = 2; p <= last; p++) {
             let dd;
             try {
