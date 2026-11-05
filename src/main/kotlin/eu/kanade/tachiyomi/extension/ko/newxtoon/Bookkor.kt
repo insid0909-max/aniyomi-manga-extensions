@@ -256,11 +256,13 @@ class Bookkor : HttpSource(), ConfigurableSource {
     }
 
     // ---------- 화면 데이터(JSON) ----------
-    private fun Response.props(): JSONObject = use {
+    private fun Response.page(): JSONObject = use {
         val body = it.body?.string().orEmpty()
         val m = PAGE_JSON.find(body) ?: throw Exception("페이지 데이터를 찾을 수 없습니다 (상태 ${it.code})")
-        JSONObject(m.groupValues[1]).getJSONObject("props")
+        JSONObject(m.groupValues[1])
     }
+
+    private fun Response.props(): JSONObject = page().getJSONObject("props")
 
     private fun fetchProps(url: String): JSONObject = client.newCall(GET(url, headers)).execute().props()
 
@@ -378,10 +380,40 @@ class Bookkor : HttpSource(), ConfigurableSource {
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val path = response.request.url.encodedPath
-        val props = response.props()
+        val page = response.page()
+        val props = page.getJSONObject("props")
         val slug = props.optJSONObject("comic")?.str("slug").orEmpty()
         val seen = HashSet<String>()
         val out = ArrayList<SChapter>()
+        // 2026-11-05 사이트 변경: episodes 가 [id, "171화", 회차slug, "2026-05-10"] 짧은 목록(앞 10개)이고,
+        // 전체는 화면이 따로 받음(Inertia 부분 새로고침 only=episodesAll → props.episodesAll.rows, 같은 모양)
+        val shortList = props.opt("episodes") as? JSONArray
+        if (shortList != null) {
+            var rows: JSONArray = shortList
+            if (props.optInt("episodesTotal", rows.length()) > rows.length()) {
+                allEpisodeRows(path, page.str("version"), page.str("component"))?.let { if (it.length() > rows.length()) rows = it }
+            }
+            val n = rows.length()
+            for (i in 0 until n) {
+                val r = rows.optJSONArray(i) ?: continue
+                val url = "/" + seg(slug) + "/" + seg(r.optString(2))
+                if (r.optString(2).isEmpty() || !seen.add(url)) continue
+                val title = r.optString(1)
+                out.add(
+                    SChapter.create().apply {
+                        this.url = url
+                        name = title.ifEmpty { "${n - i}화" }
+                        chapter_number = NUM.find(title)?.value?.toFloatOrNull() ?: (n - i).toFloat()
+                        date_upload = try {
+                            dayFmt.parse(r.optString(3).take(10))?.time ?: 0L
+                        } catch (x: Exception) {
+                            0L
+                        }
+                    },
+                )
+            }
+            return out
+        }
         fun add(eps: JSONObject?): Int {
             val data = eps?.optJSONArray("data") ?: return 0
             var n = 0
@@ -417,6 +449,28 @@ class Bookkor : HttpSource(), ConfigurableSource {
             if (add(more) == 0) break
         }
         return out
+    }
+
+    private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Seoul")
+    }
+
+    /** 사이트 화면이 "전체 회차"를 받을 때와 같은 요청 (Inertia 부분 새로고침), 실패하면 null */
+    private fun allEpisodeRows(path: String, version: String, component: String): JSONArray? = try {
+        val h = headers.newBuilder()
+            .set("X-Inertia", "true")
+            .set("X-Inertia-Partial-Component", component.ifEmpty { "contents/List" })
+            .set("X-Inertia-Partial-Data", "episodesAll")
+            .set("X-Requested-With", "XMLHttpRequest")
+            .set("Accept", "text/html, application/xhtml+xml")
+            .apply { if (version.isNotEmpty()) set("X-Inertia-Version", version) }
+            .build()
+        client.newCall(GET(baseUrl + path, h)).execute().use { res ->
+            if (!res.isSuccessful) return@use null
+            JSONObject(res.body?.string().orEmpty()).optJSONObject("props")?.optJSONObject("episodesAll")?.optJSONArray("rows")
+        }
+    } catch (e: Exception) {
+        null
     }
 
     // ---------- 본문 → 그림 페이지 ----------
@@ -601,6 +655,7 @@ class Bookkor : HttpSource(), ConfigurableSource {
         // 최신 주소 안내 (코사이트: 툰코·북코·애니24·무비코·스포코, 2026-10-31 확인)
         private val GUIDE_URLS = listOf("https://korsite.net/")
         private val DOMAIN_REGEX = Regex("^https?://[^\\s/]+$")
+        private val NUM = Regex("""\d+(?:\.\d+)?""")
         private val PAGE_JSON = Regex("<script[^>]*data-page=\"app\"[^>]*>([\\s\\S]*?)</script>")
 
         private val MENUS = listOf(
