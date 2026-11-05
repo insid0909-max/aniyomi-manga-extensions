@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.50",
+    "version": "0.3.51",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -1300,5 +1300,35 @@ function missingNote(chapters) {
             // 그대로
         }
         return d;
+    };
+})();
+
+// ---------- 검색 띄어쓰기 (2026-11-05) ----------
+// 사이트 검색이 띄어쓰기를 구분해 "괴력난신" 으로는 "괴력 난신" 이 안 나오는 곳이 있음(블랙툰·굿툰·툰데이 등).
+// 결과가 0개일 때만: ① 띄어쓰기를 뺀 검색어 ② 검색어 앞부분(절반, 최소 2글자)으로 다시 찾아
+// 띄어쓰기·기호를 빼고 비교했을 때 검색어가 들어 있는 작품만 보여 줌. 결과가 있으면 원래 그대로
+(function () {
+    const base = DefaultExtension.prototype.search;
+    DefaultExtension.prototype.search = async function (query, page, filters) {
+        const r = await base.apply(this, arguments);
+        const q = String(query || "").trim();
+        if (!q || Number(page) > 1 || /[/.:]/.test(q) || (r && r.list && r.list.length)) return r;
+        const squash = (s) => String(s || "").normalize("NFC").replace(/[\s\-_:·.,!?~'"()[\]{}]/g, "").toLowerCase();
+        const want = squash(q);
+        if (want.length < 2) return r;
+        const joined = q.replace(/\s+/g, "");
+        const tries = [];
+        if (joined !== q) tries.push(joined);
+        if (joined.length > 2) tries.push(joined.substring(0, Math.max(2, Math.ceil(joined.length / 2))));
+        for (const t of tries) {
+            try {
+                const r2 = await base.call(this, t, 1, filters);
+                const hit = ((r2 && r2.list) || []).filter((x) => squash(x && x.name).includes(want));
+                if (hit.length) return { list: hit, hasNextPage: false };
+            } catch (e) {
+                // 다음 방법으로
+            }
+        }
+        return r;
     };
 })();
