@@ -142,23 +142,6 @@
     20
    ],
    "key": "comictt"
-  },
-  {
-   "name": "툰데이",
-   "currentFrom": {
-    "file": "mangayomi/toonday.js",
-    "regex": "\"baseUrl\": \"(https://toonday\\d+\\.com)\""
-   },
-   "pattern": "^https://toonday(\\d+)\\.com$",
-   "format": "https://toonday{n}.com",
-   "probe": "/",
-   "marker": "href=\"/comic/",
-   "range": [
-    -3,
-    20
-   ],
-   "key": "toonday",
-   "guide": "https://toonday.top/"
   }
  ],
  "replaceIn": [
@@ -180,8 +163,7 @@
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
   "mangayomi/goraetoon.js",
   "domains.json",
-  "mangayomi/comictt.js",
-  "mangayomi/toonday.js"
+  "mangayomi/comictt.js"
  ],
  "indexFiles": [],
  "health": [
@@ -244,12 +226,6 @@
    "file": "mangayomi/comictt.js",
    "depth": "pages",
    "key": "comictt"
-  },
-  {
-   "name": "툰데이 (망가요미)",
-   "file": "mangayomi/toonday.js",
-   "depth": "detail",
-   "key": "toonday"
   }
  ]
 }
