@@ -289,7 +289,11 @@ class Toon11 : HttpSource(), ConfigurableSource {
     /** 붙여 넣은 사이트 주소 → 작품 주소 (모르는 모양이면 null) */
     private fun urlToManga(u: okhttp3.HttpUrl): String? = mangaId(u.toString())?.let { mangaUrl(it) }
 
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+    // 검색 띄어쓰기: 결과가 없으면 띄어쓰기 뺀 검색어 등으로 다시 찾음(SearchSpacing)
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
+        SearchSpacing.wrap(page, query) { q, p -> fetchSearchMangaInner(p, q, filters) }
+
+    private fun fetchSearchMangaInner(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         tabRules.apply(filters)
         // 작품 주소를 붙여 넣으면 그 작품을 바로 보여 줌
         UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
