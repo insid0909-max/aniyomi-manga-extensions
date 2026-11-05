@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.50",
+    "version": "0.1.51",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -1373,8 +1373,8 @@ function missingNote(chapters) {
 })();
 
 // ---------- 검색 띄어쓰기 (2026-11-05) ----------
-// 사이트 검색이 띄어쓰기를 구분해 "괴력난신" 으로는 "괴력 난신" 이 안 나오는 곳이 있음(블랙툰·굿툰·툰데이 등).
-// 결과가 0개일 때만: ① 띄어쓰기를 뺀 검색어 ② 검색어 앞부분(절반, 최소 2글자)으로 다시 찾아
+// 사이트 검색이 띄어쓰기를 구분해 "괴력난신"·"나혼자만레벨업" 으로는 "괴력 난신"·"나 혼자만 레벨업" 이 안 나오는 곳이 있음.
+// 결과가 0개일 때만: ① 띄어쓰기를 뺀 검색어 ② 검색어 앞부분(절반) ③ 두 글자씩(앞에서부터) 으로 최대 6번 다시 찾아,
 // 띄어쓰기·기호를 빼고 비교했을 때 검색어가 들어 있는 작품만 보여 줌. 결과가 있으면 원래 그대로
 (function () {
     const base = DefaultExtension.prototype.search;
@@ -1387,9 +1387,11 @@ function missingNote(chapters) {
         if (want.length < 2) return r;
         const joined = q.replace(/\s+/g, "");
         const tries = [];
-        if (joined !== q) tries.push(joined);
-        if (joined.length > 2) tries.push(joined.substring(0, Math.max(2, Math.ceil(joined.length / 2))));
-        for (const t of tries) {
+        const add = (t) => { if (t && t.length >= 2 && t !== q && tries.indexOf(t) < 0) tries.push(t); };
+        add(joined);
+        if (joined.length > 2) add(joined.substring(0, Math.max(2, Math.ceil(joined.length / 2))));
+        for (let i = 0; i + 2 <= joined.length; i++) add(joined.substring(i, i + 2));
+        for (const t of tries.slice(0, 6)) {
             try {
                 const r2 = await base.call(this, t, 1, filters);
                 const hit = ((r2 && r2.list) || []).filter((x) => squash(x && x.name).includes(want));
