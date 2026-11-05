@@ -8,8 +8,8 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "hasCloudflare": false,
-    "version": "0.1.0",
+    "hasCloudflare": true,
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -397,6 +397,10 @@ function siteDate(t) {
     return null;
 }
 
+// Cloudflare 보안 확인 화면 (사이트가 Cloudflare 를 씀, 2026-11-06 휴대폰에서 목록 안 뜸)
+const CF_PAGE = /Just a moment|cf-chl|challenge-platform|cf_chl_opt/i;
+const CF_HELP = "사이트 보안 확인(Cloudflare)이 떴어요. 오른쪽 위 지구본(웹뷰) 버튼으로 사이트를 한 번 열어 확인을 통과한 뒤, 뒤로 와서 다시 불러와 주세요.";
+
 // 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
 function friendlyHttp(code) {
     if (code === 403) return "사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.";
@@ -471,7 +475,7 @@ async function addrGuard(ext, page, fn) {
     } catch (e) {
         err = e;
     }
-    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn()) {
+    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn() || (err && /Cloudflare/.test(String(err.message || err)))) {
         if (err) throw err;
         return r;
     }
@@ -553,6 +557,8 @@ class DefaultExtension extends MProvider {
         } catch (e) {
             throw new Error(friendlyError(e));
         }
+        // Cloudflare 보안 확인 화면("Just a moment")이면 주소 바뀜이 아님 → 웹뷰로 한 번 통과하라고 안내 (통과 쿠키는 앱이 같이 씀)
+        if (res && Number(res.statusCode) === 403 && CF_PAGE.test(String(res.body || "").substring(0, 4000))) throw new Error(CF_HELP);
         const msg = friendlyHttp(res && Number(res.statusCode));
         if (msg) throw new Error(msg);
         return res;
