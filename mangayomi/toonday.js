@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonday.js"
@@ -30,6 +30,8 @@ const AUTO_HOST = /^(?:www\.)?toonday\d+\.com$/;
 const AUTO_NUM = /toonday(\d+)\./;
 // 진짜 사이트 화면마다 있는 글자 (작품 링크)
 const MARK = 'href="/comic/';
+// 공식 주소 안내 페이지 (사이트 첫 화면 "새 주소 안내" 창에 적힘, 해외에서도 열림)
+const GUIDE_URL = "https://toonday.top/";
 const CATS = [["웹툰", "normal"], ["성인", "adult"], ["BL/GL", "blgl"]];
 const SORTS = [["최신순", "updatedAt"], ["인기순", "hits"]];
 const STATES = [["전체", ""], ["연재중", "0"], ["완결", "1"]];
@@ -570,7 +572,7 @@ class DefaultExtension extends MProvider {
         return await this.client.get(found + url.substring(base.length), h);
     }
 
-    /** 저장소 주소 목록 → toondayN.com (지금 번호 -3 ~ +20) 중 툰데이가 열리는 가장 큰 번호 */
+    /** 저장소 주소 목록 → 공식 안내 페이지(toonday.top) → toondayN.com (지금 번호 -3 ~ +20) 중 툰데이가 열리는 가장 큰 번호 */
     async discover(current) {
         const prefs = new SharedPreferences();
         const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
@@ -592,6 +594,20 @@ class DefaultExtension extends MProvider {
             return listedC;
         }
         const num = (u) => parseInt((String(u).match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
+        // 사이트가 알려 주는 공식 주소 안내 페이지(toonday.top)에 적힌 주소 (번호 큰 것부터, 진짜 사이트일 때만)
+        try {
+            const g = await this.client.get(GUIDE_URL, { "User-Agent": MOBILE_UA });
+            const listed = [...new Set((String(g.body || "").match(/toonday\d+\.com/gi) || []).map((x) => "https://" + x.toLowerCase()))]
+                .filter((c) => c !== current).sort((a, b) => num(b) - num(a)).slice(0, 3);
+            for (const c of listed) {
+                if (await real(c)) {
+                    prefs.setString("auto_domain", c);
+                    return c;
+                }
+            }
+        } catch (e) {
+            // 번호 찾기로
+        }
         const cur = num(current) || num(this.source.baseUrl);
         const cands = [];
         for (let i = Math.max(1, cur - 3); i <= cur + 20; i++) {
