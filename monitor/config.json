@@ -142,6 +142,22 @@
     20
    ],
    "key": "comictt"
+  },
+  {
+   "name": "머니툰",
+   "currentFrom": {
+    "file": "mangayomi/mtoon.js",
+    "regex": "\"baseUrl\": \"(https://mtoon\\d+\\.asia)\""
+   },
+   "pattern": "^https://mtoon(\\d+)\\.asia$",
+   "format": "https://mtoon{n}.asia",
+   "probe": "/",
+   "marker": "money_toon.png",
+   "range": [
+    -3,
+    20
+   ],
+   "key": "mtoon"
   }
  ],
  "replaceIn": [
@@ -163,7 +179,8 @@
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
   "mangayomi/goraetoon.js",
   "domains.json",
-  "mangayomi/comictt.js"
+  "mangayomi/comictt.js",
+  "mangayomi/mtoon.js"
  ],
  "indexFiles": [],
  "health": [
@@ -226,6 +243,12 @@
    "file": "mangayomi/comictt.js",
    "depth": "pages",
    "key": "comictt"
+  },
+  {
+   "name": "머니툰 (망가요미)",
+   "file": "mangayomi/mtoon.js",
+   "depth": "pages",
+   "key": "mtoon"
   }
  ]
 }

@@ -37,6 +37,10 @@
   "comictt": {
    "baseUrl": "https://comictt7.com",
    "updated": "2026-11-05"
+  },
+  "mtoon": {
+   "baseUrl": "https://mtoon165.asia",
+   "updated": "2026-11-06"
   }
  }
 }
