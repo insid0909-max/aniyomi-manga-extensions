@@ -154,28 +154,6 @@
   "notes": ""
  },
  {
-  "name": "툰데이 웹툰",
-  "id": 870214018,
-  "baseUrl": "https://toonday1.com",
-  "lang": "ko",
-  "typeSource": "single",
-  "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
-  "dateFormat": "",
-  "dateFormatLocale": "",
-  "isNsfw": true,
-  "hasCloudflare": false,
-  "sourceCodeUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/toonday.js",
-  "apiUrl": "",
-  "version": "0.1.1",
-  "isManga": true,
-  "itemType": 0,
-  "isFullData": false,
-  "appMinVerReq": "0.5.0",
-  "additionalParams": "",
-  "sourceCodeLanguage": 1,
-  "notes": ""
- },
- {
   "name": "툰코 웹툰",
   "id": 870214009,
   "baseUrl": "https://003.toonkor.net",
