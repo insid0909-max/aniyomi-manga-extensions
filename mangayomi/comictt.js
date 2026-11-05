@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "comictt.js"
@@ -742,8 +742,13 @@ class DefaultExtension extends MProvider {
     siteOrder(chapters, title) {
         const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; return o; });
         if (chapters.length < 2 || chapters.some((c) => !(c.seq >= 0))) return orderChapters(clean(chapters), title);
-        const list = chapters.slice().sort((a, b) => b.seq - a.seq);
         const t = String(title || "").trim();
+        // 같은 회차를 사이트가 다시 올린 것(에이블 68~70화, 무련전봉 1977~1985화)은 가장 최근 업로드(순번 큰 것) 하나만
+        // — 남겨 두면 맨 앞 번호가 겹쳐 망가요미가 하나로 합침. 빈칸·맨 앞 작품 제목은 빼고 비교
+        const squash = (v) => { let k = String(v || "").normalize("NFC").replace(/\s+/g, "").toLowerCase(); const tk = t.replace(/\s+/g, "").toLowerCase(); if (tk && k.length > tk.length && k.startsWith(tk)) k = k.substring(tk.length); return k; };
+        const best = {};
+        chapters.forEach((c) => { const k = squash(c.name); if (!best[k] || c.seq > best[k].seq) best[k] = c; });
+        const list = chapters.filter((c) => best[squash(c.name)] === c).sort((a, b) => b.seq - a.seq);
         let last = 0;
         let step = 0;
         for (let i = list.length - 1; i >= 0; i--) {
