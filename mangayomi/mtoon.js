@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.4",
+    "version": "0.1.5",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -403,6 +403,12 @@ function siteDate(t) {
 // → ① 기본 통신 8초 ② 연결을 재사용하지 않는 별도 통신 12초 ③ Dart 통신 12초 차례로 (애니24 dcVideos 와 같은 방법)
 // 한 번 된 통신은 기억해 다음부터 그것부터 씀. 모두 응답 없으면 어느 주소인지 오류로
 let MT_WAY = 0;
+let MORE_BROKEN = false;
+async function limitedGet(c, url, headers, ms) {
+    let timer = null;
+    const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error("시간 초과")), ms); });
+    return Promise.race([c.get(url, headers), limit]).finally(() => { try { if (typeof clearTimeout === "function") clearTimeout(timer); } catch (e) {} });
+}
 let MT_ALT = null;
 let MT_DART = null;
 function timedClient(c, ms) {
@@ -572,6 +578,8 @@ class DefaultExtension extends MProvider {
         // + 요청마다 15초 제한 (망가요미는 40초에서 끊고 어디서 멈췄는지 안 알려 줌)
         APP_NO_UA = true;
         this.client = timedClient(appClient(new Client()), 15000);
+        // 목록 자료(more.php)는 기본 통신으로만 짧게 시도 (Glitch 에서 멈추면 바로 웹페이지로)
+        this.raw = appClient(new Client());
     }
 
     // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
@@ -778,7 +786,57 @@ class DefaultExtension extends MProvider {
 
     /** 더보기 자료(JSON) → 작품 카드. 작가·장르·상태는 작품 화면에 없어 기억해 둠 */
     async listPage(url) {
-        const body = String((await this.req(url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }))).body || "").trim();
+        // Glitch 앱은 more.php(더보기 자료) 요청에서 멈춤(2026-11-06, 통신 방식 3가지 모두) → 한 번 멈추면 그 뒤로는 사이트 웹페이지(index.php·?search=)에서 첫 30개를 읽음
+        if (!MORE_BROKEN) {
+            try {
+                const r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 10000);
+                if (r && Number(r.statusCode) === 200) return this.listJson(String(r.body || "").trim());
+                if (r && Number(r.statusCode) === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
+            } catch (e) {
+                if (/Cloudflare/.test(String((e && e.message) || e))) throw e;
+            }
+            MORE_BROKEN = true;
+        }
+        const c = Number((/[?&]c=(\d+)/.exec(url) || [0, "0"])[1]) || 0;
+        if (c > 0) return { list: [], hasNextPage: false };
+        const html = String((await this.req(this.htmlUrl(url), this.hdr())).body || "");
+        const list = this.htmlCards(html);
+        // 연재/완결은 목록 조건에서 (검색은 알 수 없음)
+        const fin = (/[?&]wt_fin=([^&]+)/.exec(url) || [0, ""])[1];
+        if (fin) {
+            const v = decodeURIComponent(fin);
+            for (const x of list) { const id = (/i=(\d+)/.exec(x.link) || [0, ""])[1]; if (META[id] && !META[id].wt_fin) META[id].wt_fin = v; }
+        }
+        return { list, hasNextPage: false };
+    }
+
+    /** more.php 주소 → 같은 조건의 사이트 웹페이지 (첫 30개가 들어 있음) */
+    htmlUrl(url) {
+        const q = url.substring(url.indexOf("?") + 1).replace(/&?c=\d+/, "");
+        return /(?:^|&)search=/.test(q) ? `${this.base}/?${q}` : `${this.base}/index.php?${q}`;
+    }
+
+    /** 사이트 웹페이지의 작품 카드 (div.list_item … list.php?i=N, img, p.item_title, .item_category) */
+    htmlCards(html) {
+        const out = [];
+        const seen = {};
+        const parts = String(html || "").split(/<div class="col-[^"]*list_item[^"]*"/).slice(1);
+        for (const part of parts) {
+            const m = /list\.php\?i=(\d+)/.exec(part);
+            if (!m || seen[m[1]]) continue;
+            seen[m[1]] = true;
+            const img = (/<img[^>]+src=["']([^"']+)["']/.exec(part) || [0, ""])[1];
+            const tp = (/<p class="item_title">([\s\S]*?)<\/p>/.exec(part) || [0, ""])[1];
+            const name = this.unesc(tp.replace(/<span[\s\S]*?<\/span>/g, "").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+            const genre = this.unesc(((/<div class="item_category">\s*<p>([\s\S]*?)<\/p>/.exec(part) || [0, ""])[1]).replace(/<[^>]+>/g, "")).trim();
+            if (!name) continue;
+            if (!META[m[1]]) META[m[1]] = { wt_idx: m[1], wt_title: name, wt_genre: genre };
+            out.push({ name, imageUrl: img ? this.abs(this.unesc(img).replace(/^\.\//, "/")) : "", link: `/list.php?i=${m[1]}` });
+        }
+        return out;
+    }
+
+    listJson(body) {
         let arr = [];
         try {
             const v = JSON.parse(body || "[]");
@@ -837,9 +895,8 @@ class DefaultExtension extends MProvider {
         let meta = META[id];
         if (!meta && title) {
             try {
-                const r = await this.req(this.listUrl({ search: title }, 1), this.hdr());
-                const v = JSON.parse(String(r.body || "[]"));
-                for (const o of Array.isArray(v) ? v : Object.values(v || {})) if (o && o.wt_idx) META[String(o.wt_idx)] = o;
+                // 목록과 같은 길(더보기 자료, Glitch 면 웹페이지)로 검색 — 결과가 META 에 남음
+                await this.listPage(this.listUrl({ search: title }, 1));
                 meta = META[id];
             } catch (e) {}
         }
