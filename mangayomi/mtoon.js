@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.7",
+    "version": "0.1.8",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -830,7 +830,16 @@ class DefaultExtension extends MProvider {
             try {
                 const r = await limitedGet(client, u, headers, 8000);
                 const sec = ((Date.now() - t) / 1000).toFixed(1);
-                return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초`;
+                let what = "";
+                if (label === "http") {
+                    // http 로 받은 페이지가 무엇인지 (진짜 머니툰 / 통신사 차단 안내 / 보안 확인 화면)
+                    const b = String(r.body || "");
+                    const title = ((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(b) || [0, ""])[1]).replace(/\s+/g, " ").trim().substring(0, 20);
+                    const kind = /warning\.or\.kr|warning\.go\.kr|불법|차단|방송통신심의/.test(b) ? "차단안내" : b.indexOf(MARK) >= 0 ? "머니툰" : CF_PAGE.test(b) ? "보안확인" : "기타";
+                    const loc = (/(?:url=|href=["']?|location\.(?:href|replace)\(?\s*=?\s*["'])(https?:\/\/[^"'\s>]{4,40})/i.exec(b) || [0, ""])[1];
+                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""}」`;
+                }
+                return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초${what}`;
             } catch (e) {
                 const m = String((e && e.message) || e);
                 return /시간 초과/.test(m) ? `${label}✗멈춤` : `${label}✗${m.replace(/\s+/g, " ").substring(0, 30)}`;
