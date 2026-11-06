@@ -494,6 +494,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
                 )
             },
         ),
+        twin = !comic,
     )
 
     class Pick(name: String, val param: String, val pairs: List<Pair<String, String>>) :
