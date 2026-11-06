@@ -709,6 +709,11 @@ class NewXtoonFactory : SourceFactory {
             list.add(ErrorSource("newxtoon 오류", e))
         }
         try {
+            list.add(Goodtoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("Goodtoon 오류", e))
+        }
+        try {
             list.add(Blacktoon())
         } catch (e: Throwable) {
             list.add(ErrorSource("Blacktoon 오류", e))
@@ -728,6 +733,11 @@ class NewXtoonFactory : SourceFactory {
             list.add(Toonkor())
         } catch (e: Throwable) {
             list.add(ErrorSource("툰코 오류", e))
+        }
+        try {
+            list.add(Goraetoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("고래툰 오류", e))
         }
         try {
             list.add(NaverWebtoon())
