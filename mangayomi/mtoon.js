@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.10",
+    "version": "0.1.11",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -843,6 +843,9 @@ class DefaultExtension extends MProvider {
                     const head = b.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 40);
                     const fin = String((r.request && r.request.url) || r.url || "").replace(/^https?:\/\//, "").substring(0, 40);
                     // 짧은 응답(1000자 미만)은 내용 전체를 그대로 (0.1.10 — 0.1.9 에서 438자·글자 없음)
+                    // 0초 넘김(meta refresh) 주소를 맨 앞에 (0.1.11 — 0.1.10 에서 438자 넘김 페이지, 주소가 화면에서 잘림)
+                    const refresh = (/http-equiv=["']?refresh["']?[^>]*content=["']?\s*\d+\s*;\s*url=['"]?([^'">\s]+)/i.exec(b) || [0, ""])[1];
+                    if (refresh) return `${label}✓ ${sec}초 「넘김 → ${refresh.substring(0, 80)}」`;
                     const raw = b.length < 1000 ? " · 내용: " + b.replace(/\s+/g, " ").trim() : "";
                     what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""} · ${b.length}자${raw}${head && !raw ? " · " + head : ""}${hv("server") ? " · 서버 " + hv("server").substring(0, 20) : ""}${hv("location") ? " · 넘김 " + hv("location").substring(0, 40) : ""}${fin ? " · 최종 " + fin : ""}」`;
                 }
