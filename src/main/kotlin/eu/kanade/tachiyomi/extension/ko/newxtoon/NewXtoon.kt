@@ -749,6 +749,11 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("북코 소설 오류", e))
         }
+        try {
+            list.add(Mtoon())
+        } catch (e: Throwable) {
+            list.add(ErrorSource("머니툰 오류", e))
+        }
         return list
     }
 }
