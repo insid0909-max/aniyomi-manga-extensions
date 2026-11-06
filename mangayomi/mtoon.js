@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.9",
+    "version": "0.1.10",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -842,7 +842,9 @@ class DefaultExtension extends MProvider {
                     const hv = (k) => { for (const x in hd) if (x.toLowerCase() === k) return String(hd[x]); return ""; };
                     const head = b.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 40);
                     const fin = String((r.request && r.request.url) || r.url || "").replace(/^https?:\/\//, "").substring(0, 40);
-                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""} · ${b.length}자${head ? " · " + head : ""}${hv("server") ? " · 서버 " + hv("server").substring(0, 20) : ""}${hv("location") ? " · 넘김 " + hv("location").substring(0, 40) : ""}${fin ? " · 최종 " + fin : ""}」`;
+                    // 짧은 응답(1000자 미만)은 내용 전체를 그대로 (0.1.10 — 0.1.9 에서 438자·글자 없음)
+                    const raw = b.length < 1000 ? " · 내용: " + b.replace(/\s+/g, " ").trim() : "";
+                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""} · ${b.length}자${raw}${head && !raw ? " · " + head : ""}${hv("server") ? " · 서버 " + hv("server").substring(0, 20) : ""}${hv("location") ? " · 넘김 " + hv("location").substring(0, 40) : ""}${fin ? " · 최종 " + fin : ""}」`;
                 }
                 return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초${what}`;
             } catch (e) {
