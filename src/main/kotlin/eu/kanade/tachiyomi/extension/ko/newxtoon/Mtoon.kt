@@ -369,13 +369,15 @@ class Mtoon : HttpSource(), ConfigurableSource {
             val a = li.selectFirst(".l_d_t a[href*=detail.php]") ?: return@mapNotNull null
             val wi = Regex("wi=(\\d+)").find(a.attr("href"))?.groupValues?.get(1) ?: return@mapNotNull null
             if (!seen.add(wi)) return@mapNotNull null
-            Triple("/detail.php?wi=$wi", chapterName(a.text(), title), siteDate(li.selectFirst(".l_d_d")?.text()?.trim().orEmpty()))
+            Triple("/detail.php?wi=$wi", a.text().replace(Regex("\\s+"), " ").trim(), siteDate(li.selectFirst(".l_d_d")?.text()?.trim().orEmpty()))
         }
+        messyOrder(raw, title)?.let { return it }
         fun numOf(name: String): Float? =
             if (EXTRA.containsMatchIn(name)) null else Regex("^(\\d+(?:\\.\\d+)?)화").find(name)?.groupValues?.get(1)?.toFloatOrNull()
         // 같은 번호가 또 올라왔으면 최근 것(위쪽) 하나만 — 번호가 겹치면 앱이 하나로 합침
         val kept = HashSet<Float>()
-        val list = raw.filter { (_, name, _) -> numOf(name)?.let { kept.add(it) } ?: true }
+        val list = raw.map { (u, name, date) -> Triple(u, chapterName(name, title), date) }
+            .filter { (_, name, _) -> numOf(name)?.let { kept.add(it) } ?: true }
         // 번호 없는 회차(외전·후기 등)는 바로 앞(과거) 회차 번호 + 0.5, 0.6 …
         val out = ArrayList<SChapter>(list.size)
         var last = 0f
@@ -404,6 +406,52 @@ class Mtoon : HttpSource(), ConfigurableSource {
             )
         }
         return out.asReversed()
+    }
+
+    /**
+     * 회차 이름이 뒤죽박죽인 작품 (2026-11-06, 망가요미 mtoon.js 0.1.13 orderChapters 와 같은 규칙).
+     * 선을 넘는 짐승들: 1부 "N화" → 2부 "빈집털이 2"·"은밀한 왁싱 케어 7" 처럼 '화' 없이 에피소드 이름+숫자, 같은 번호 다시 올림.
+     * '화' 없는 회차(외전·후기 등 제외)가 3개 이상이거나 번호가 거꾸로 가면 → 같은 이름 다시 올린 것은 최근 것만,
+     * 올라온 순서대로 차례 번호 ("45화 : 빈집털이 2"). 아니면 null (예전 방식)
+     */
+    private fun messyOrder(raw: List<Triple<String, String, Long>>, title: String): List<SChapter>? {
+        val t = title.replace(Regex("\\s+"), " ").trim()
+        fun strip(v: String): String {
+            val x = v.replace(Regex("\\s+"), " ").trim()
+            if (t.isNotEmpty() && x.startsWith(t)) return x.substring(t.length).replace(Regex("^[\\s\\-–:·.]+"), "").trim().ifEmpty { x }
+            return x
+        }
+        val extra = Regex("외전|번외|특별|후기|에필로그|프롤로그|공지|휴재")
+        fun numIn(v: String): Float? =
+            if (extra.containsMatchIn(v)) null else Regex("(\\d+(?:\\.\\d+)?)\\s*화").find(v)?.groupValues?.get(1)?.toFloatOrNull()
+        var unnumbered = 0
+        var backwards = false
+        var maxSeen = -1f
+        for ((_, name, _) in raw.asReversed()) {
+            val v = numIn(strip(name))
+            if (v == null) {
+                if (!extra.containsMatchIn(name)) unnumbered++
+                continue
+            }
+            if (v < maxSeen) backwards = true
+            maxSeen = maxOf(maxSeen, v)
+        }
+        if (unnumbered < 3 && !backwards) return null
+        val seenKey = HashSet<String>()
+        val kept = raw.filter { (_, name, _) -> seenKey.add(strip(name).replace(Regex("\\s+"), "").lowercase()) }
+        val total = kept.size
+        return kept.mapIndexed { i, (u, name, date) ->
+            val no = total - i
+            var rest = strip(name)
+            val lead = Regex("^$no\\s*화\\s*[:：\\-–.]?\\s*")
+            while (lead.containsMatchIn(rest)) rest = rest.replaceFirst(lead, "")
+            SChapter.create().apply {
+                url = u
+                this.name = if (rest.isEmpty()) "${no}화" else "${no}화 : $rest"
+                chapter_number = no.toFloat()
+                date_upload = date
+            }
+        }
     }
 
     // ---------- 이미지 ----------
