@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.5",
+    "version": "0.1.6",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -797,8 +797,7 @@ class DefaultExtension extends MProvider {
             }
             MORE_BROKEN = true;
         }
-        const c = Number((/[?&]c=(\d+)/.exec(url) || [0, "0"])[1]) || 0;
-        if (c > 0) return { list: [], hasNextPage: false };
+        // 웹페이지도 c=30·60… 으로 다음 쪽을 줌 (2026-11-06 확인, 끝나면 0개)
         const html = String((await this.req(this.htmlUrl(url), this.hdr())).body || "");
         const list = this.htmlCards(html);
         // 연재/완결은 목록 조건에서 (검색은 알 수 없음)
@@ -807,12 +806,12 @@ class DefaultExtension extends MProvider {
             const v = decodeURIComponent(fin);
             for (const x of list) { const id = (/i=(\d+)/.exec(x.link) || [0, ""])[1]; if (META[id] && !META[id].wt_fin) META[id].wt_fin = v; }
         }
-        return { list, hasNextPage: false };
+        return { list, hasNextPage: list.length >= PAGE_SIZE };
     }
 
     /** more.php 주소 → 같은 조건의 사이트 웹페이지 (첫 30개가 들어 있음) */
     htmlUrl(url) {
-        const q = url.substring(url.indexOf("?") + 1).replace(/&?c=\d+/, "");
+        const q = url.substring(url.indexOf("?") + 1).replace(/&c=0$/, "");
         return /(?:^|&)search=/.test(q) ? `${this.base}/?${q}` : `${this.base}/index.php?${q}`;
     }
 
