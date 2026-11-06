@@ -1,40 +1,5 @@
 {
- "changedFiles": [
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-  "mangayomi/goodtoon.js",
-  "domains.json",
-  "changelog.json",
-  "업데이트내역.md",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
-  "mangayomi/wolftoon.js",
-  "mangayomi/wolftoon_comic.js"
- ],
- "domainChanges": [
-  {
-   "name": "굿툰",
-   "from": "https://www.goodtoon009.com",
-   "to": "https://www.goodtoon010.com",
-   "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-    "mangayomi/goodtoon.js",
-    "domains.json",
-    "changelog.json",
-    "업데이트내역.md"
-   ]
-  },
-  {
-   "name": "늑대닷컴",
-   "from": "https://wfwf528.com",
-   "to": "https://wfwf531.com",
-   "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
-    "mangayomi/wolftoon.js",
-    "mangayomi/wolftoon_comic.js",
-    "domains.json",
-    "changelog.json",
-    "업데이트내역.md"
-   ]
-  }
- ],
+ "changedFiles": [],
+ "domainChanges": [],
  "notes": []
 }
