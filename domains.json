@@ -6,10 +6,6 @@
    "baseUrl": "https://newxtoon4.com",
    "updated": "2026-11-03"
   },
-  "goodtoon": {
-   "baseUrl": "https://www.goodtoon010.com",
-   "updated": "2026-11-03"
-  },
   "blacktoon": {
    "baseUrl": "https://blacktoon426.com",
    "updated": "2026-11-03"
@@ -24,10 +20,6 @@
   },
   "toonkor": {
    "baseUrl": "https://003.toonkor.net",
-   "updated": "2026-11-03"
-  },
-  "goraetoon": {
-   "baseUrl": "https://002.grtoon.com",
    "updated": "2026-11-03"
   },
   "toon11": {
