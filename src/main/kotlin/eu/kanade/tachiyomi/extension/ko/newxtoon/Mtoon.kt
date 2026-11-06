@@ -415,7 +415,46 @@ class Mtoon : HttpSource(), ConfigurableSource {
             listOf("data-src", "data-original", "src").firstNotNullOfOrNull { k -> img.absUrl(k).takeIf { it.isNotEmpty() } }.orEmpty()
         }.filter { it.contains("/data/file/") && !it.contains("/ban/") && !it.contains("/assets/") }.distinct()
         if (urls.isEmpty()) throw Exception("이미지를 찾을 수 없어요 — 막 올라온 회차면 사이트가 그림을 아직 안 올렸을 수 있어요")
+        warm(urls)
         return urls.mapIndexed { i, u -> Page(i, "", u) }
+    }
+
+    /**
+     * 그림 미리 준비 (2026-11-06): 그림 서버(Cloudflare)는 처음 요청된 그림을 원래 서버에서 가져오느라 한 장에 1.5~2초,
+     * 저장된 그림은 0.2초. 애니요미는 그림을 한 장씩 차례로 받아 느림(망가요미는 여러 장 동시라 괜찮음)
+     * → 회차를 열 때 모든 그림에 HEAD(내용 없이 머리만) 를 6장씩 동시에 뒤에서 보내 서버가 미리 가져다 두게 함
+     */
+    private val warmClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val warmPool by lazy {
+        java.util.concurrent.Executors.newFixedThreadPool(6) { r -> Thread(r, "mtoon-warm").apply { isDaemon = true } }
+    }
+
+    private fun warm(urls: List<String>) {
+        val h = try {
+            headersBuilder().set("Referer", "$baseUrl/").build()
+        } catch (e: Throwable) {
+            return
+        }
+        urls.forEach { u ->
+            try {
+                warmPool.execute {
+                    try {
+                        warmClient.newCall(Request.Builder().url(u).headers(h).head().build()).execute().close()
+                    } catch (e: Exception) {
+                        // 미리 준비 실패는 무시 (읽을 때 그냥 받음)
+                    }
+                }
+            } catch (e: Throwable) {
+                return
+            }
+        }
     }
 
     override fun imageRequest(page: Page): Request =
