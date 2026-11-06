@@ -8,8 +8,8 @@ const mangayomiSources = [{
     "typeSource": "single",
     "itemType": 0,
     "isNsfw": true,
-    "hasCloudflare": true,
-    "version": "0.1.2",
+    "hasCloudflare": false,
+    "version": "0.1.3",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -397,6 +397,21 @@ function siteDate(t) {
     return null;
 }
 
+// 요청마다 시간 제한 — 응답이 없으면 어느 주소가 몇 초 동안 응답 없었는지 오류로
+function timedClient(c, ms) {
+    const wrap = (p, url) => {
+        let timer = null;
+        const limit = new Promise((_, rej) => {
+            timer = setTimeout(() => { const e = new Error(`사이트가 ${Math.round(ms / 1000)}초 동안 응답하지 않아요 [${String(url || "").replace(/^https?:\/\//, "").substring(0, 70)}]`); e.mtTimeout = true; rej(e); }, ms);
+        });
+        return Promise.race([p, limit]).finally(() => { try { if (typeof clearTimeout === "function") clearTimeout(timer); } catch (e) {} });
+    };
+    return {
+        get: (url, headers) => wrap(c.get(url, headers), url),
+        post: (url, headers, body) => wrap(c.post(url, headers, body), url),
+    };
+}
+
 // Cloudflare 보안 확인 화면 (사이트가 Cloudflare 를 씀, 2026-11-06 휴대폰에서 목록 안 뜸)
 const CF_PAGE = /Just a moment|cf-chl|challenge-platform|cf_chl_opt/i;
 const CF_HELP = "사이트 보안 확인(Cloudflare)이 떴어요. 오른쪽 위 지구본(웹뷰) 버튼으로 사이트를 한 번 열어 확인을 통과한 뒤, 뒤로 와서 다시 불러와 주세요.";
@@ -475,7 +490,7 @@ async function addrGuard(ext, page, fn) {
     } catch (e) {
         err = e;
     }
-    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn() || (err && /Cloudflare/.test(String(err.message || err)))) {
+    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn() || (err && /Cloudflare|응답하지 않아요/.test(String(err.message || err)))) {
         if (err) throw err;
         return r;
     }
@@ -506,7 +521,10 @@ async function listedDomain(client, key) {
 class DefaultExtension extends MProvider {
     constructor() {
         super();
-        this.client = appClient(new Client());
+        // 머니툰은 User-Agent 없는 요청을 Cloudflare 확인 화면(403)으로 막음 → 처음부터 휴대폰 UA 를 넣어 보냄 (2026-11-06, 0.1.3)
+        // + 요청마다 15초 제한 (망가요미는 40초에서 끊고 어디서 멈췄는지 안 알려 줌)
+        APP_NO_UA = true;
+        this.client = timedClient(appClient(new Client()), 15000);
     }
 
     // ---------- 도메인: 수동 주소 > 자동으로 찾은 주소 > 기본 주소 ----------
@@ -591,7 +609,8 @@ class DefaultExtension extends MProvider {
             if (!notice && (!ours || !(res.statusCode >= 500))) return res;
             failed = res;
         } catch (e) {
-            if (!ours) throw e;
+            // 응답 없음(시간 제한)은 주소 바뀜이 아님 → 주소 찾기 없이 바로 알림
+            if (!ours || (e && e.mtTimeout)) throw e;
             error = e;
         }
         const found = notice || await this.discover(base);
