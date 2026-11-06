@@ -128,22 +128,6 @@
    "guide": "https://goraetoonurl.com/latest-address"
   },
   {
-   "name": "코믹툰툰",
-   "currentFrom": {
-    "file": "mangayomi/comictt.js",
-    "regex": "\"baseUrl\": \"(https://comictt\\d+\\.com)\""
-   },
-   "pattern": "^https://comictt(\\d+)\\.com$",
-   "format": "https://comictt{n}.com",
-   "probe": "/mlist.php",
-   "marker": "fmans_",
-   "range": [
-    -3,
-    20
-   ],
-   "key": "comictt"
-  },
-  {
    "name": "머니툰",
    "currentFrom": {
     "file": "mangayomi/mtoon.js",
@@ -179,7 +163,6 @@
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
   "mangayomi/goraetoon.js",
   "domains.json",
-  "mangayomi/comictt.js",
   "mangayomi/mtoon.js"
  ],
  "indexFiles": [],
@@ -237,12 +220,6 @@
    "file": "mangayomi/goraetoon.js",
    "depth": "pages",
    "key": "goraetoon"
-  },
-  {
-   "name": "코믹툰툰 (망가요미)",
-   "file": "mangayomi/comictt.js",
-   "depth": "pages",
-   "key": "comictt"
   },
   {
    "name": "머니툰 (망가요미)",

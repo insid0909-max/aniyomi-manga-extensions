@@ -754,11 +754,6 @@ class NewXtoonFactory : SourceFactory {
         } catch (e: Throwable) {
             list.add(ErrorSource("머니툰 오류", e))
         }
-        try {
-            list.add(Comictt())
-        } catch (e: Throwable) {
-            list.add(ErrorSource("코믹툰툰 오류", e))
-        }
         return list
     }
 }
