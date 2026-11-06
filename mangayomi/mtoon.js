@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.8",
+    "version": "0.1.9",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -837,7 +837,12 @@ class DefaultExtension extends MProvider {
                     const title = ((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(b) || [0, ""])[1]).replace(/\s+/g, " ").trim().substring(0, 20);
                     const kind = /warning\.or\.kr|warning\.go\.kr|불법|차단|방송통신심의/.test(b) ? "차단안내" : b.indexOf(MARK) >= 0 ? "머니툰" : CF_PAGE.test(b) ? "보안확인" : "기타";
                     const loc = (/(?:url=|href=["']?|location\.(?:href|replace)\(?\s*=?\s*["'])(https?:\/\/[^"'\s>]{4,40})/i.exec(b) || [0, ""])[1];
-                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""}」`;
+                    // 응답 크기·앞부분 글자·서버·최종 주소 (「기타」 였던 응답이 무엇인지 보려고, 0.1.9)
+                    const hd = r.headers || {};
+                    const hv = (k) => { for (const x in hd) if (x.toLowerCase() === k) return String(hd[x]); return ""; };
+                    const head = b.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 40);
+                    const fin = String((r.request && r.request.url) || r.url || "").replace(/^https?:\/\//, "").substring(0, 40);
+                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""} · ${b.length}자${head ? " · " + head : ""}${hv("server") ? " · 서버 " + hv("server").substring(0, 20) : ""}${hv("location") ? " · 넘김 " + hv("location").substring(0, 40) : ""}${fin ? " · 최종 " + fin : ""}」`;
                 }
                 return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초${what}`;
             } catch (e) {
