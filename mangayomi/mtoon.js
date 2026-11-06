@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.15",
+    "version": "0.1.16",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -986,9 +986,9 @@ class DefaultExtension extends MProvider {
         }
         const h = { "Referer": this.base + "/", "User-Agent": MOBILE_UA };
         // 그림 서버는 처음 받는 그림이 약 2초(서버 저장 전), 저장된 뒤엔 0.25초(30일 보관) → 회차 그림을 한꺼번에 미리 요청(맨 앞 1바이트만).
-        // 1초만 기다리면 확장이 끝나며 요청이 끊기는 듯(내릴 때 느림, 2026-11-06) → 모두 끝날 때까지 최대 3초 기다림(첫 그림은 어차피 ~2초)
+        // 1초만 기다리면 확장이 끝나며 요청이 끊기는 듯(내릴 때 느림, 2026-11-06) → 모두 끝날 때까지 최대 2초 기다림(0.1.15 3초 → 첫 그림이 늦다고 해서 2초, 대부분 1.5~2초 안에 끝남)
         const jobs = urls.map((u) => this.raw.get(u, Object.assign({ "Range": "bytes=0-0" }, h)).catch(() => null));
-        await Promise.race([Promise.all(jobs), new Promise((res) => setTimeout(res, 3000))]);
+        await Promise.race([Promise.all(jobs), new Promise((res) => setTimeout(res, 2000))]);
         return urls.map((u) => ({ url: u, headers: h }));
     }
 
