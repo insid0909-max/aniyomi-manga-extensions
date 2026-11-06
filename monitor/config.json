@@ -20,24 +20,6 @@
    "key": "newxtoon"
   },
   {
-   "name": "굿툰",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-    "regex": "DEFAULT = \"(https://www\\.goodtoon\\d+\\.com)\""
-   },
-   "guide": "https://goodtoon.top/",
-   "pattern": "^https://www\\.goodtoon(\\d+)\\.com$",
-   "format": "https://www.goodtoon{n}.com",
-   "pad": 3,
-   "probe": "/",
-   "marker": "goodtoon",
-   "range": [
-    -3,
-    40
-   ],
-   "key": "goodtoon"
-  },
-  {
    "name": "블랙툰",
    "currentFrom": {
     "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
@@ -110,24 +92,6 @@
    "key": "toonkor"
   },
   {
-   "name": "고래툰",
-   "currentFrom": {
-    "file": "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
-    "regex": "DEFAULT = \"(https://\\d+\\.grtoon\\.com)\""
-   },
-   "pattern": "^https://(\\d+)\\.grtoon\\.com$",
-   "format": "https://{n}.grtoon.com",
-   "pad": 3,
-   "probe": "/",
-   "marker": "goraetoon-loading\\.svg",
-   "range": [
-    -2,
-    30
-   ],
-   "key": "goraetoon",
-   "guide": "https://goraetoonurl.com/latest-address"
-  },
-  {
    "name": "머니툰",
    "currentFrom": {
     "file": "mangayomi/mtoon.js",
@@ -146,12 +110,10 @@
  ],
  "replaceIn": [
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Blacktoon.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toon11.kt",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
   "mangayomi/newxtoon.js",
-  "mangayomi/goodtoon.js",
   "mangayomi/blacktoon.js",
   "mangayomi/toon11.js",
   "mangayomi/wolftoon.js",
@@ -160,8 +122,6 @@
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
   "mangayomi/toonkor.js",
   "mangayomi/wolftoon_comic.js",
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
-  "mangayomi/goraetoon.js",
   "domains.json",
   "mangayomi/mtoon.js"
  ],
@@ -172,12 +132,6 @@
    "file": "mangayomi/newxtoon.js",
    "depth": "pages",
    "key": "newxtoon"
-  },
-  {
-   "name": "굿툰 (망가요미)",
-   "file": "mangayomi/goodtoon.js",
-   "depth": "pages",
-   "key": "goodtoon"
   },
   {
    "name": "블랙툰 (망가요미)",
@@ -214,12 +168,6 @@
    "file": "mangayomi/wolftoon_comic.js",
    "depth": "pages",
    "key": "wolftoon_comic"
-  },
-  {
-   "name": "고래툰 (망가요미)",
-   "file": "mangayomi/goraetoon.js",
-   "depth": "pages",
-   "key": "goraetoon"
   },
   {
    "name": "머니툰 (망가요미)",
