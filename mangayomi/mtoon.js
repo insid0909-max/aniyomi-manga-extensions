@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.1",
+    "version": "0.1.2",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -611,9 +611,16 @@ class DefaultExtension extends MProvider {
         const last = Number(prefs.getString("auto_tried_at", "0")) || 0;
         if (Date.now() - last < 60 * 1000) return null;
         prefs.setString("auto_tried_at", String(Date.now()));
+        // 없는 주소가 응답 없이 오래 붙잡지 않게 짧게 기다리는 통신으로 확인 (망가요미는 목록을 40초까지만 기다림)
+        let quick = null;
+        try {
+            quick = new Client({ persistentConnection: false, timeout: 8, connectTimeout: 5 });
+        } catch (e) {
+            quick = null;
+        }
         const real = async (c) => {
             try {
-                const r = await this.client.get(c + "/", { "User-Agent": MOBILE_UA });
+                const r = await (quick || this.client).get(c + "/", { "User-Agent": MOBILE_UA });
                 const b = String(r.body || "");
                 return r.statusCode === 200 && b.includes(MARK) && b.includes("list.php?i=") ? c : null;
             } catch (e) {
@@ -633,7 +640,13 @@ class DefaultExtension extends MProvider {
             const c = `https://mtoon${i}.asia`;
             if (c !== current) cands.push(c);
         }
-        const ok = (await Promise.all(cands.map(real))).filter((x) => x).sort((a, b) => num(b) - num(a));
+        // 전체 15초 안에 끝냄 (그 안에 확인된 주소만)
+        const done = [];
+        await Promise.race([
+            Promise.all(cands.map(async (c) => { const r = await real(c); if (r) done.push(r); })),
+            new Promise((res) => setTimeout(res, 15000)),
+        ]);
+        const ok = done.sort((a, b) => num(b) - num(a));
         const found = ok[0] || null;
         if (found) prefs.setString("auto_domain", found);
         return found;
