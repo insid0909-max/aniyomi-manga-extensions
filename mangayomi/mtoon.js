@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.6",
+    "version": "0.1.7",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -789,7 +789,7 @@ class DefaultExtension extends MProvider {
         // Glitch 앱은 more.php(더보기 자료) 요청에서 멈춤(2026-11-06, 통신 방식 3가지 모두) → 한 번 멈추면 그 뒤로는 사이트 웹페이지(index.php·?search=)에서 첫 30개를 읽음
         if (!MORE_BROKEN) {
             try {
-                const r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 10000);
+                const r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 7000);
                 if (r && Number(r.statusCode) === 200) return this.listJson(String(r.body || "").trim());
                 if (r && Number(r.statusCode) === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
             } catch (e) {
@@ -798,7 +798,18 @@ class DefaultExtension extends MProvider {
             MORE_BROKEN = true;
         }
         // 웹페이지도 c=30·60… 으로 다음 쪽을 줌 (2026-11-06 확인, 끝나면 0개)
-        const html = String((await this.req(this.htmlUrl(url), this.hdr())).body || "");
+        // 망가요미는 목록을 40초까지만 기다림 → 웹페이지도 9초만, 안 되면 진단(최대 9초) 결과를 오류에 보여 줌 (2026-11-06, 0.1.7)
+        let html = "";
+        try {
+            const r = await limitedGet(this.raw, this.htmlUrl(url), this.hdr(), 9000);
+            const code = Number(r && r.statusCode);
+            if (code === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
+            if (code !== 200) throw new Error(`HTTP ${code}`);
+            html = String(r.body || "");
+        } catch (e) {
+            if (/Cloudflare/.test(String((e && e.message) || e))) throw e;
+            throw new Error(`사이트가 응답하지 않아요 — 목록을 못 불러왔어요 [진단 ${await this.diag(url)}]`);
+        }
         const list = this.htmlCards(html);
         // 연재/완결은 목록 조건에서 (검색은 알 수 없음)
         const fin = (/[?&]wt_fin=([^&]+)/.exec(url) || [0, ""])[1];
@@ -807,6 +818,34 @@ class DefaultExtension extends MProvider {
             for (const x of list) { const id = (/i=(\d+)/.exec(x.link) || [0, ""])[1]; if (META[id] && !META[id].wt_fin) META[id].wt_fin = v; }
         }
         return { list, hasNextPage: list.length >= PAGE_SIZE };
+    }
+
+    /** 진단: 비교용 주소·머니툰 주소·통신 방식별로 동시에 열어 보고 결과를 한 줄로 (각 8초) */
+    async diag(url) {
+        const h = this.hdr();
+        const mk = (o) => { try { return new Client(o); } catch (e) { return null; } };
+        const tryOne = async (label, client, u, headers) => {
+            if (!client) return `${label}✗없음`;
+            const t = Date.now();
+            try {
+                const r = await limitedGet(client, u, headers, 8000);
+                const sec = ((Date.now() - t) / 1000).toFixed(1);
+                return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초`;
+            } catch (e) {
+                const m = String((e && e.message) || e);
+                return /시간 초과/.test(m) ? `${label}✗멈춤` : `${label}✗${m.replace(/\s+/g, " ").substring(0, 30)}`;
+            }
+        };
+        const home = this.base + "/";
+        const results = await Promise.all([
+            tryOne("깃허브", this.raw, DOMAIN_LIST_URL, {}),
+            tryOne("첫화면", this.raw, home, h),
+            tryOne("목록", this.raw, url, h),
+            tryOne("http", this.raw, home.replace(/^https:/, "http:"), h),
+            tryOne("별도", mk({ persistentConnection: false, noProxy: true, timeout: 8, connectTimeout: 6 }), home, h),
+            tryOne("Dart", mk({ useDartHttpClient: true }), home, h),
+        ]);
+        return results.join(" · ");
     }
 
     /** more.php 주소 → 같은 조건의 사이트 웹페이지 (첫 30개가 들어 있음) */
