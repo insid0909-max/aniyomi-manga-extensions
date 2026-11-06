@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.11",
+    "version": "0.1.12",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -403,7 +403,6 @@ function siteDate(t) {
 // → ① 기본 통신 8초 ② 연결을 재사용하지 않는 별도 통신 12초 ③ Dart 통신 12초 차례로 (애니24 dcVideos 와 같은 방법)
 // 한 번 된 통신은 기억해 다음부터 그것부터 씀. 모두 응답 없으면 어느 주소인지 오류로
 let MT_WAY = 0;
-let MORE_BROKEN = false;
 async function limitedGet(c, url, headers, ms) {
     let timer = null;
     const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error("시간 초과")), ms); });
@@ -467,6 +466,7 @@ function timedClient(c, ms) {
 
 // Cloudflare 보안 확인 화면 (사이트가 Cloudflare 를 씀, 2026-11-06 휴대폰에서 목록 안 뜸)
 const CF_PAGE = /Just a moment|cf-chl|challenge-platform|cf_chl_opt/i;
+const BLOCK_HELP = "사이트에 연결되지 않아요. 이 앱의 연결 방식으로는 이 사이트 접속이 막혀 있어요 (응답 없음).";
 const CF_HELP = "사이트 보안 확인(Cloudflare)이 떴어요. 오른쪽 위 지구본(웹뷰) 버튼으로 사이트를 한 번 열어 확인을 통과한 뒤, 뒤로 와서 다시 불러와 주세요.";
 
 // 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
@@ -543,7 +543,7 @@ async function addrGuard(ext, page, fn) {
     } catch (e) {
         err = e;
     }
-    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn() || (err && /Cloudflare|응답하지 않아요/.test(String(err.message || err)))) {
+    if (page !== 1 || (r && r.list && r.list.length) || !ext.autoOn() || (err && /Cloudflare|응답하지 않아요|연결되지 않아요/.test(String(err.message || err)))) {
         if (err) throw err;
         return r;
     }
@@ -786,111 +786,18 @@ class DefaultExtension extends MProvider {
 
     /** 더보기 자료(JSON) → 작품 카드. 작가·장르·상태는 작품 화면에 없어 기억해 둠 */
     async listPage(url) {
-        // Glitch 앱은 more.php(더보기 자료) 요청에서 멈춤(2026-11-06, 통신 방식 3가지 모두) → 한 번 멈추면 그 뒤로는 사이트 웹페이지(index.php·?search=)에서 첫 30개를 읽음
-        if (!MORE_BROKEN) {
-            try {
-                const r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 7000);
-                if (r && Number(r.statusCode) === 200) return this.listJson(String(r.body || "").trim());
-                if (r && Number(r.statusCode) === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
-            } catch (e) {
-                if (/Cloudflare/.test(String((e && e.message) || e))) throw e;
-            }
-            MORE_BROKEN = true;
-        }
-        // 웹페이지도 c=30·60… 으로 다음 쪽을 줌 (2026-11-06 확인, 끝나면 0개)
-        // 망가요미는 목록을 40초까지만 기다림 → 웹페이지도 9초만, 안 되면 진단(최대 9초) 결과를 오류에 보여 줌 (2026-11-06, 0.1.7)
-        let html = "";
+        // 2026-11-06 원인 확인: 머니툰은 한국에서 저작권 침해 사이트로 접속 차단(한국저작권보호원 warninge.kcopa.or.kr) —
+        // 일부 앱(Mangayomi Glitch)의 연결 방식은 https 가 응답 없이 멈춤. 차단을 피해 가는 기능은 만들지 않음 → 20초 안에 안내만
+        let r;
         try {
-            const r = await limitedGet(this.raw, this.htmlUrl(url), this.hdr(), 9000);
-            const code = Number(r && r.statusCode);
-            if (code === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
-            if (code !== 200) throw new Error(`HTTP ${code}`);
-            html = String(r.body || "");
+            r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 20000);
         } catch (e) {
-            if (/Cloudflare/.test(String((e && e.message) || e))) throw e;
-            throw new Error(`사이트가 응답하지 않아요 — 목록을 못 불러왔어요 [진단 ${await this.diag(url)}]`);
+            throw new Error(BLOCK_HELP);
         }
-        const list = this.htmlCards(html);
-        // 연재/완결은 목록 조건에서 (검색은 알 수 없음)
-        const fin = (/[?&]wt_fin=([^&]+)/.exec(url) || [0, ""])[1];
-        if (fin) {
-            const v = decodeURIComponent(fin);
-            for (const x of list) { const id = (/i=(\d+)/.exec(x.link) || [0, ""])[1]; if (META[id] && !META[id].wt_fin) META[id].wt_fin = v; }
-        }
-        return { list, hasNextPage: list.length >= PAGE_SIZE };
-    }
-
-    /** 진단: 비교용 주소·머니툰 주소·통신 방식별로 동시에 열어 보고 결과를 한 줄로 (각 8초) */
-    async diag(url) {
-        const h = this.hdr();
-        const mk = (o) => { try { return new Client(o); } catch (e) { return null; } };
-        const tryOne = async (label, client, u, headers) => {
-            if (!client) return `${label}✗없음`;
-            const t = Date.now();
-            try {
-                const r = await limitedGet(client, u, headers, 8000);
-                const sec = ((Date.now() - t) / 1000).toFixed(1);
-                let what = "";
-                if (label === "http") {
-                    // http 로 받은 페이지가 무엇인지 (진짜 머니툰 / 통신사 차단 안내 / 보안 확인 화면)
-                    const b = String(r.body || "");
-                    const title = ((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(b) || [0, ""])[1]).replace(/\s+/g, " ").trim().substring(0, 20);
-                    const kind = /warning\.or\.kr|warning\.go\.kr|불법|차단|방송통신심의/.test(b) ? "차단안내" : b.indexOf(MARK) >= 0 ? "머니툰" : CF_PAGE.test(b) ? "보안확인" : "기타";
-                    const loc = (/(?:url=|href=["']?|location\.(?:href|replace)\(?\s*=?\s*["'])(https?:\/\/[^"'\s>]{4,40})/i.exec(b) || [0, ""])[1];
-                    // 응답 크기·앞부분 글자·서버·최종 주소 (「기타」 였던 응답이 무엇인지 보려고, 0.1.9)
-                    const hd = r.headers || {};
-                    const hv = (k) => { for (const x in hd) if (x.toLowerCase() === k) return String(hd[x]); return ""; };
-                    const head = b.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 40);
-                    const fin = String((r.request && r.request.url) || r.url || "").replace(/^https?:\/\//, "").substring(0, 40);
-                    // 짧은 응답(1000자 미만)은 내용 전체를 그대로 (0.1.10 — 0.1.9 에서 438자·글자 없음)
-                    // 0초 넘김(meta refresh) 주소를 맨 앞에 (0.1.11 — 0.1.10 에서 438자 넘김 페이지, 주소가 화면에서 잘림)
-                    const refresh = (/http-equiv=["']?refresh["']?[^>]*content=["']?\s*\d+\s*;\s*url=['"]?([^'">\s]+)/i.exec(b) || [0, ""])[1];
-                    if (refresh) return `${label}✓ ${sec}초 「넘김 → ${refresh.substring(0, 80)}」`;
-                    const raw = b.length < 1000 ? " · 내용: " + b.replace(/\s+/g, " ").trim() : "";
-                    what = ` 「${kind}${title ? " · " + title : ""}${loc ? " · " + loc.replace(/^https?:\/\//, "") : ""} · ${b.length}자${raw}${head && !raw ? " · " + head : ""}${hv("server") ? " · 서버 " + hv("server").substring(0, 20) : ""}${hv("location") ? " · 넘김 " + hv("location").substring(0, 40) : ""}${fin ? " · 최종 " + fin : ""}」`;
-                }
-                return `${label}${Number(r.statusCode) === 200 ? "✓" : "✗" + r.statusCode} ${sec}초${what}`;
-            } catch (e) {
-                const m = String((e && e.message) || e);
-                return /시간 초과/.test(m) ? `${label}✗멈춤` : `${label}✗${m.replace(/\s+/g, " ").substring(0, 30)}`;
-            }
-        };
-        const home = this.base + "/";
-        const results = await Promise.all([
-            tryOne("깃허브", this.raw, DOMAIN_LIST_URL, {}),
-            tryOne("첫화면", this.raw, home, h),
-            tryOne("목록", this.raw, url, h),
-            tryOne("http", this.raw, home.replace(/^https:/, "http:"), h),
-            tryOne("별도", mk({ persistentConnection: false, noProxy: true, timeout: 8, connectTimeout: 6 }), home, h),
-            tryOne("Dart", mk({ useDartHttpClient: true }), home, h),
-        ]);
-        return results.join(" · ");
-    }
-
-    /** more.php 주소 → 같은 조건의 사이트 웹페이지 (첫 30개가 들어 있음) */
-    htmlUrl(url) {
-        const q = url.substring(url.indexOf("?") + 1).replace(/&c=0$/, "");
-        return /(?:^|&)search=/.test(q) ? `${this.base}/?${q}` : `${this.base}/index.php?${q}`;
-    }
-
-    /** 사이트 웹페이지의 작품 카드 (div.list_item … list.php?i=N, img, p.item_title, .item_category) */
-    htmlCards(html) {
-        const out = [];
-        const seen = {};
-        const parts = String(html || "").split(/<div class="col-[^"]*list_item[^"]*"/).slice(1);
-        for (const part of parts) {
-            const m = /list\.php\?i=(\d+)/.exec(part);
-            if (!m || seen[m[1]]) continue;
-            seen[m[1]] = true;
-            const img = (/<img[^>]+src=["']([^"']+)["']/.exec(part) || [0, ""])[1];
-            const tp = (/<p class="item_title">([\s\S]*?)<\/p>/.exec(part) || [0, ""])[1];
-            const name = this.unesc(tp.replace(/<span[\s\S]*?<\/span>/g, "").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
-            const genre = this.unesc(((/<div class="item_category">\s*<p>([\s\S]*?)<\/p>/.exec(part) || [0, ""])[1]).replace(/<[^>]+>/g, "")).trim();
-            if (!name) continue;
-            if (!META[m[1]]) META[m[1]] = { wt_idx: m[1], wt_title: name, wt_genre: genre };
-            out.push({ name, imageUrl: img ? this.abs(this.unesc(img).replace(/^\.\//, "/")) : "", link: `/list.php?i=${m[1]}` });
-        }
-        return out;
+        const code = Number(r && r.statusCode);
+        if (code === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
+        if (code !== 200) throw new Error(friendlyHttp(code) || `목록을 불러오지 못했어요 (HTTP ${code})`);
+        return this.listJson(String(r.body || "").trim());
     }
 
     listJson(body) {
