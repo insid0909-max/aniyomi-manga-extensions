@@ -210,6 +210,7 @@ class Mtoon : HttpSource(), ConfigurableSource {
         val b = "$baseUrl/more.php".toHttpUrl().newBuilder()
         if (search.isNotEmpty()) {
             b.addQueryParameter("search", search)
+            if (fin == "완결") b.addQueryParameter("wt_fin", fin)
         } else {
             b.addQueryParameter("wt_fin", fin.ifEmpty { "연재중" })
             if (cate.isNotEmpty()) b.addQueryParameter("cate", cate) else b.addQueryParameter("w", if (w.isEmpty() || w == "today") today() else w)
@@ -308,7 +309,7 @@ class Mtoon : HttpSource(), ConfigurableSource {
     private fun findMeta(idx: String, title: String): JSONObject? {
         if (idx.isEmpty() || title.isEmpty()) return null
         return try {
-            client.newCall(moreReq(1, search = title)).execute().use { parseMore(it) }
+            searchBoth(1, title)
             META[idx]
         } catch (e: Exception) {
             null
@@ -532,7 +533,20 @@ class Mtoon : HttpSource(), ConfigurableSource {
     private fun fetchSearchMangaInner(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         tabRules.apply(filters)
         UrlOpen.open(query, HOST_REGEX, ::urlToManga, ::fetchMangaDetails)?.let { return it }
+        if (query.isNotBlank()) return Observable.fromCallable { searchBoth(page, query.trim()) }
         return super.fetchSearchManga(page, query, filters)
+    }
+
+    /**
+     * 사이트 검색은 기본으로 연재 중 작품만 찾음(완결작 "키메이커 작업의신" 0개, 2026-11-06 검색 검사)
+     * → 연재·완결을 같이 찾아 합침 (완결 쪽이 실패하면 연재 결과만)
+     */
+    private fun searchBoth(page: Int, kw: String): MangasPage {
+        val ing = client.newCall(moreReq(page, search = kw)).execute().use { parseMore(it) }
+        val fin = runCatching { client.newCall(moreReq(page, fin = "완결", search = kw)).execute().use { parseMore(it) } }.getOrNull()
+        val seen = HashSet<String>()
+        val list = (ing.mangas + fin?.mangas.orEmpty()).filter { seen.add(it.url) }
+        return MangasPage(list, ing.hasNextPage || fin?.hasNextPage == true)
     }
 
     override fun getFilterList() = ExtStatus.prepend(
