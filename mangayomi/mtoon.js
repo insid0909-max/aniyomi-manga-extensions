@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.12",
+    "version": "0.1.13",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -797,7 +797,21 @@ class DefaultExtension extends MProvider {
         const code = Number(r && r.statusCode);
         if (code === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
         if (code !== 200) throw new Error(friendlyHttp(code) || `목록을 불러오지 못했어요 (HTTP ${code})`);
-        return this.listJson(String(r.body || "").trim());
+        const page = this.listJson(String(r.body || "").trim());
+        await this.warmCovers(page.list.map((x) => x.imageUrl));
+        return page;
+    }
+
+    /**
+     * 표지 미리 준비 (2026-11-06): 그림 서버(Cloudflare)는 처음 불리는 표지를 원래 서버에서 가져오느라 한 장 1.3~1.7초(MISS),
+     * 준비된 표지는 0.26초 — 망가요미가 표지를 몇 장씩 차례로 받아 카드가 하나씩 나타남.
+     * → 목록을 돌려주기 전에 그 쪽 표지 전부에 첫 1바이트만(Range) 동시에 요청해 서버가 준비해 두게 함 (최대 1.2초만 기다림)
+     */
+    async warmCovers(urls) {
+        const h = Object.assign(this.hdr(), { "Range": "bytes=0-0" });
+        const jobs = (urls || []).filter((u) => u).map((u) => this.raw.get(u, h).catch(() => null));
+        if (!jobs.length) return;
+        await Promise.race([Promise.all(jobs), new Promise((res) => setTimeout(res, 1200))]);
     }
 
     listJson(body) {
@@ -880,7 +894,7 @@ class DefaultExtension extends MProvider {
             genre,
             status: meta.wt_fin === "완결" ? 1 : meta.wt_fin === "연재중" ? 0 : 5,
             link: this.base + detailPath,
-            chapters: chapterPosition(this.siteOrder(chapters.map((c, i) => Object.assign(c, { seq: n - i, name: chapterName(c.name, title) })), title), title)
+            chapters: chapterPosition(this.orderChapters(chapters, title), title)
         };
     }
 
@@ -888,6 +902,53 @@ class DefaultExtension extends MProvider {
      * 사이트 순서 그대로 (최신 → 과거). 같은 번호 회차가 또 올라온 경우(이름 모양만 다름)는 최근 것 하나만 — 망가요미가 같은 번호를 하나로 합침.
      * 번호 없는 회차는 바로 앞(과거) 회차 번호 + 0.5 ("35.5 · 후기") — 앱이 맨 앞 숫자를 회차 번호로 씀.
      */
+    /**
+     * 회차 정리 (2026-11-06). chapters: 사이트 순서(최신 → 과거), 이름은 사이트 그대로.
+     * 이름이 뒤죽박죽인 작품(선을 넘는 짐승들: 1부 "N화" → 2부 "빈집털이 2"·"은밀한 왁싱 케어 7" 처럼 "화" 없이 에피소드 이름+숫자,
+     * 같은 번호 다시 올림)은 "화" 없는 회차가 3개 이상이거나 번호가 거꾸로 가면 → 같은 이름 다시 올린 것은 최근 것만,
+     * 올라온 순서대로 1화·2화… 차례 번호 ("45화 : 빈집털이 2"). 번호가 깔끔한 작품은 예전 방식(siteOrder)
+     */
+    orderChapters(chapters, title) {
+        const n = chapters.length;
+        const t = String(title || "").replace(/\s+/g, " ").trim();
+        const strip = (v) => {
+            let x = String(v || "").replace(/\s+/g, " ").trim();
+            if (t && x.startsWith(t)) x = x.substring(t.length).replace(/^[\s\-–:·.]+/, "").trim() || x;
+            return x;
+        };
+        const extra = /외전|번외|특별|후기|에필로그|프롤로그|공지|휴재/;
+        const numIn = (v) => { const m = /(\d+(?:\.\d+)?)\s*화/.exec(v); return m && !extra.test(v) ? parseFloat(m[1]) : null; };
+        const oldFirst = chapters.slice().reverse();
+        let unnumbered = 0;
+        let backwards = false;
+        let maxSeen = -1;
+        for (const c of oldFirst) {
+            const v = numIn(strip(c.name));
+            if (v === null) { if (!extra.test(c.name)) unnumbered++; continue; }
+            if (v < maxSeen) backwards = true;
+            maxSeen = Math.max(maxSeen, v);
+        }
+        if (unnumbered < 3 && !backwards) {
+            return this.siteOrder(chapters.map((c, i) => Object.assign(c, { seq: n - i, name: chapterName(c.name, title) })), title);
+        }
+        // 같은 이름(빈칸·작품 제목 빼고)으로 다시 올린 것은 최근 것(목록에서 위)만
+        const key = (v) => strip(v).replace(/\s+/g, "").toLowerCase();
+        const seen = {};
+        const kept = chapters.filter((c) => { const k = key(c.name); if (seen[k]) return false; seen[k] = true; return true; });
+        const total = kept.length;
+        return kept.map((c, i) => {
+            const no = total - i;
+            const name = strip(c.name);
+            const o = Object.assign({}, c);
+            // 이름이 같은 번호 "N화" 로 시작하면 그 부분은 빼고 ("33화 - 여름의 짐승 6" → "33화 : 여름의 짐승 6", "1화 - 1화" → "1화")
+            let rest = name;
+            const lead = new RegExp(`^${no}\\s*화\\s*[:：\\-–.]?\\s*`);
+            while (lead.test(rest)) rest = rest.replace(lead, "");
+            o.name = rest ? `${no}화 : ${rest}` : `${no}화`;
+            return o;
+        });
+    }
+
     siteOrder(chapters, title) {
         const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; return o; });
         const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)화/.exec(c.name); return x && !/외전|번외|특별/.test(c.name) ? x[1] : null; };
