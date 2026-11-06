@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.3",
+    "version": "0.1.4",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -398,17 +398,64 @@ function siteDate(t) {
 }
 
 // 요청마다 시간 제한 — 응답이 없으면 어느 주소가 몇 초 동안 응답 없었는지 오류로
+// 요청마다 시간 제한 + 대체 통신 (2026-11-06, 0.1.4)
+// 망가요미 순정 앱은 열리는데 변형 앱 Mangayomi Glitch 는 목록(more.php) 요청이 응답 없이 멈춤(사용자 확인)
+// → ① 기본 통신 8초 ② 연결을 재사용하지 않는 별도 통신 12초 ③ Dart 통신 12초 차례로 (애니24 dcVideos 와 같은 방법)
+// 한 번 된 통신은 기억해 다음부터 그것부터 씀. 모두 응답 없으면 어느 주소인지 오류로
+let MT_WAY = 0;
+let MT_ALT = null;
+let MT_DART = null;
 function timedClient(c, ms) {
-    const wrap = (p, url) => {
+    const ua = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+    const withUa = (h) => {
+        const o = Object.assign({}, h || {});
+        if (!Object.keys(o).some((k) => k.toLowerCase() === "user-agent")) o["User-Agent"] = ua;
+        return o;
+    };
+    const mk = (opts) => {
+        try {
+            return new Client(opts);
+        } catch (e) {
+            return null;
+        }
+    };
+    const ways = [
+        { name: "기본", wait: Math.min(ms, 8000), client: () => c, fix: (h) => h },
+        { name: "별도", wait: 12000, client: () => MT_ALT || (MT_ALT = mk({ persistentConnection: false, noProxy: true, timeout: 12, connectTimeout: 8 })), fix: withUa },
+        { name: "Dart", wait: 12000, client: () => MT_DART || (MT_DART = mk({ useDartHttpClient: true })), fix: withUa },
+    ];
+    const limited = (p, wait) => {
         let timer = null;
         const limit = new Promise((_, rej) => {
-            timer = setTimeout(() => { const e = new Error(`사이트가 ${Math.round(ms / 1000)}초 동안 응답하지 않아요 [${String(url || "").replace(/^https?:\/\//, "").substring(0, 70)}]`); e.mtTimeout = true; rej(e); }, ms);
+            timer = setTimeout(() => { const e = new Error("시간 초과"); e.mtTimeout = true; rej(e); }, wait);
         });
         return Promise.race([p, limit]).finally(() => { try { if (typeof clearTimeout === "function") clearTimeout(timer); } catch (e) {} });
     };
+    const send = async (method, url, headers, body) => {
+        const order = [MT_WAY].concat([0, 1, 2].filter((i) => i !== MT_WAY));
+        const tried = [];
+        let lastErr = null;
+        for (const i of order) {
+            const w = ways[i];
+            const cl = w.client();
+            if (!cl) continue;
+            try {
+                const h = w.fix(headers);
+                const r = await limited(method === "post" ? cl.post(url, h, body) : cl.get(url, h), w.wait);
+                MT_WAY = i;
+                return r;
+            } catch (e) {
+                lastErr = e;
+                tried.push(`${w.name} ${e && e.mtTimeout ? Math.round(w.wait / 1000) + "초" : "실패"}`);
+            }
+        }
+        const e = new Error(`사이트가 응답하지 않아요 [${String(url || "").replace(/^https?:\/\//, "").substring(0, 70)}] (${tried.join(" · ")})`);
+        e.mtTimeout = !!(lastErr && lastErr.mtTimeout);
+        throw e;
+    };
     return {
-        get: (url, headers) => wrap(c.get(url, headers), url),
-        post: (url, headers, body) => wrap(c.post(url, headers, body), url),
+        get: (url, headers) => send("get", url, headers),
+        post: (url, headers, body) => send("post", url, headers, body),
     };
 }
 
