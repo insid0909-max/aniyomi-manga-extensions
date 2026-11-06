@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.58",
+    "version": "0.3.59",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -1405,6 +1405,8 @@ function verLine(key, note) {
     return { type_name: "HeaderFilter", name, _status: true };
 }
 
+const TWIN_NOTE = "고래툰과 같은 사이트예요 — 작품·회차가 같아서 한쪽이 막히면 다른 쪽에서 보세요";
+
 function notesFilters(key) {
     let list = [];
     try {
@@ -1412,7 +1414,10 @@ function notesFilters(key) {
     } catch (e) {
         list = [];
     }
-    return [verLine(key, list.filter((n) => n && n.t)[0])];
+    const out = [verLine(key, list.filter((n) => n && n.t)[0])];
+    // 같은 작품·회차를 가진 확장 안내 (전체 웹툰 비교, 2026-11-06) — 확장 이름은 바꾸지 않음(서재 연결)
+    if (TWIN_NOTE) out.push({ type_name: "HeaderFilter", name: "📝 🔗 " + TWIN_NOTE, _status: true });
+    return out;
 }
 
 // ---------- 필터 맨 끝 빈 줄 (2026-11-03) ----------

@@ -138,7 +138,18 @@ internal object ExtStatus {
         return out
     }
 
-    /** 상태 줄을 필터 목록 맨 앞에 붙임 */
-    fun prepend(key: String, baseUrl: String, autoDomain: Boolean, base: FilterList): FilterList =
-        FilterList(lines(key, baseUrl, autoDomain).map { StatusHeader(it) } + StatusSeparator() + base.list)
+    /** 같은 작품·회차를 가진 확장 안내 (전체 웹툰 비교, 2026-11-06) — 확장 이름은 바꾸지 않음(서재 연결) */
+    private val twinNotes = mapOf(
+        "goraetoon" to "블랙툰과 같은 사이트예요 — 작품·회차가 같아서 한쪽이 막히면 다른 쪽에서 보세요",
+        "blacktoon" to "고래툰과 같은 사이트예요 — 작품·회차가 같아서 한쪽이 막히면 다른 쪽에서 보세요",
+        "goodtoon" to "늑대닷컴 웹툰에 모든 작품이 있어요 — 회차도 같아서 한쪽이 막히면 다른 쪽에서 보세요",
+        "wolftoon" to "굿툰 작품이 모두 여기에도 있어요 — 회차도 같아서 한쪽이 막히면 다른 쪽에서 보세요",
+    )
+
+    /** 상태 줄을 필터 목록 맨 앞에 붙임 (twin = false 면 같은 확장 안내 줄은 뺌) */
+    fun prepend(key: String, baseUrl: String, autoDomain: Boolean, base: FilterList, twin: Boolean = true): FilterList {
+        val extra = if (twin) listOfNotNull(twinNotes[key]?.let { "📝 🔗 $it" }) else emptyList()
+        val head = (lines(key, baseUrl, autoDomain) + extra).map { StatusHeader(it) }
+        return FilterList(head + StatusSeparator() + base.list)
+    }
 }
