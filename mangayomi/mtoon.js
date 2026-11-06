@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.16",
+    "version": "0.1.17",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -766,7 +766,7 @@ class DefaultExtension extends MProvider {
     listUrl(q, page) {
         const c = (Math.max(1, page) - 1) * PAGE_SIZE;
         const e = encodeURIComponent;
-        if (q.search) return `${this.base}/more.php?search=${e(q.search)}&c=${c}`;
+        if (q.search) return `${this.base}/more.php?search=${e(q.search)}${q.wt_fin ? `&wt_fin=${e(q.wt_fin)}` : ""}&c=${c}`;
         const fin = q.wt_fin || "연재중";
         if (q.cate) return `${this.base}/more.php?wt_fin=${e(fin)}&cate=${e(q.cate)}&c=${c}`;
         const w = !q.w || q.w === "today" ? this.today() : q.w;
@@ -839,9 +839,23 @@ class DefaultExtension extends MProvider {
         return this.listPage(this.listUrl({ w: "8" }, page));
     }
 
+    /**
+     * 사이트 검색은 기본으로 연재 중 작품만 찾음(완결작 "키메이커 작업의신" 0개, 2026-11-06 검색 검사)
+     * → 연재·완결을 같이 찾아 합침 (완결 쪽이 실패하면 연재 결과만)
+     */
+    async searchBoth(kw, page) {
+        const [ing, fin] = await Promise.all([
+            this.listPage(this.listUrl({ search: kw }, page)),
+            this.listPage(this.listUrl({ search: kw, wt_fin: "완결" }, page)).catch(() => ({ list: [], hasNextPage: false })),
+        ]);
+        const seen = {};
+        const list = ing.list.concat(fin.list).filter((x) => !seen[x.link] && (seen[x.link] = true));
+        return { list, hasNextPage: ing.hasNextPage || fin.hasNextPage };
+    }
+
     async baseSearch(query, page, filters) {
         const kw = String(query || "").trim();
-        if (kw) return this.listPage(this.listUrl({ search: kw }, page));
+        if (kw) return this.searchBoth(kw, page);
         const q = {};
         for (const f of filters || []) {
             if (f && f.type_name === "SelectFilter" && f.param && f.values && f.values[f.state]) q[f.param] = f.values[f.state].value;
@@ -874,7 +888,7 @@ class DefaultExtension extends MProvider {
         if (!meta && title) {
             try {
                 // 목록과 같은 길(더보기 자료, Glitch 면 웹페이지)로 검색 — 결과가 META 에 남음
-                await this.listPage(this.listUrl({ search: title }, 1));
+                await this.searchBoth(title, 1);
                 meta = META[id];
             } catch (e) {}
         }
@@ -1432,17 +1446,24 @@ function missingNote(chapters) {
     DefaultExtension.prototype.search = async function (query, page, filters) {
         const r = await base.apply(this, arguments);
         const q = String(query || "").trim();
-        if (!q || Number(page) > 1 || /[/.:]/.test(q) || (r && r.list && r.list.length)) return r;
-        const squash = (s) => String(s || "").normalize("NFC").replace(/[\s\-_:·.,!?~'"()[\]{}]/g, "").toLowerCase();
+        if (!q || Number(page) > 1 || /^(?:https?:\/\/|[\w-]+(?:\.[\w-]+)+(?:[/?#]|$))/i.test(q) || (r && r.list && r.list.length)) return r;
+        const squash = (s) => String(s || "").normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
         const want = squash(q);
         if (want.length < 2) return r;
         const joined = q.replace(/\s+/g, "");
         const tries = [];
         const add = (t) => { if (t && t.length >= 2 && t !== q && tries.indexOf(t) < 0) tries.push(t); };
+        // 사이트 검색은 쉼표·쌍점·물결·괄호·한자 같은 기호가 있으면 못 찾음("밑도 끝도 없이, 너다" 0개, 2026-11-06 검색 검사)
+        // → 기호를 뺀 검색어, 앞쪽 단어만으로 먼저 찾아 봄
+        const plain = q.replace(/[^\p{L}\p{N}\s]+/gu, " ").replace(/[\u3400-\u9fff]+/g, " ").replace(/\s+/g, " ").trim();
+        const words = plain.split(" ").filter((w) => w);
+        add(plain);
+        if (words.length > 2) add(words.slice(0, words.length - 1).join(" "));
+        if (words.length > 1) add(words.slice(0, Math.ceil(words.length / 2)).join(" "));
         add(joined);
         if (joined.length > 2) add(joined.substring(0, Math.max(2, Math.ceil(joined.length / 2))));
         for (let i = 0; i + 2 <= joined.length; i++) add(joined.substring(i, i + 2));
-        for (const t of tries.slice(0, 6)) {
+        for (const t of tries.slice(0, 8)) {
             try {
                 const r2 = await base.call(this, t, 1, filters);
                 const hit = ((r2 && r2.list) || []).filter((x) => squash(x && x.name).includes(want));
