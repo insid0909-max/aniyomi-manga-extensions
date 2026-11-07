@@ -253,10 +253,12 @@ class Toon11 : HttpSource(), ConfigurableSource {
             .build()
         val doc = client.newCall(GET(url, headers)).execute().use { it.asDoc() }
         val mangas = parseCards(doc)
-        // 다음 쪽 링크가 있을 때만 더 있음
-        val hasNext = mangas.isNotEmpty() && doc.select("a[href*=page=]").any {
-            Regex("[?&]page=(\\d+)").find(it.attr("href"))?.groupValues?.get(1)?.toIntOrNull()?.let { n -> n > page } == true
+        // 다음 쪽 링크가 있으면 더 있음. 완결만화처럼 쪽 번호 없이 "더보기"로 이어지는 목록은 쪽이 차 있으면(30개 이상) 더 있음 (2026-11-07 목록 점검)
+        val pages = doc.select("a[href*=page=]").mapNotNull {
+            Regex("[?&]page=(\\d+)").find(it.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
         }
+        val noPager = pages.none { it != page }
+        val hasNext = mangas.isNotEmpty() && (pages.any { it > page } || (noPager && mangas.size >= 30))
         return MangasPage(mangas, hasNext)
     }
 
