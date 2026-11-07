@@ -111,9 +111,16 @@ class Toon11 : HttpSource(), ConfigurableSource {
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().scheme(f.scheme).host(f.host).port(f.port).build()).build())
         }
 
+        // 접근 차단(451): 이 주소가 막힌 것 → 바로 새 주소를 찾아 다시 요청 (굿툰과 같게, 2026-11-07)
         if (res.code == 451) {
             res.close()
-            throw IOException("접근 차단됨 (HTTP 451). 확장 설정에서 도메인 주소를 확인하세요.")
+            val found = if (auto) discoverDomain(baseUrl) else null
+            if (found != null) {
+                saveDomain(found)
+                val f = found.toHttpUrl()
+                return chain.proceed(req.newBuilder().url(req.url.newBuilder().scheme(f.scheme).host(f.host).port(f.port).build()).build())
+            }
+            throw IOException("접근 차단됨 (HTTP 451). 새 주소를 찾지 못했어요. 잠시 뒤 다시 시도하거나, 새 주소를 검색창에 붙여 넣거나 확장 설정에 넣어 주세요.")
         }
         val finalHost = res.request.url.host
         if (auto && res.code == 200 && finalHost != baseHost && HOST_REGEX.matches(finalHost) && hostNumber(finalHost) > 1) {
