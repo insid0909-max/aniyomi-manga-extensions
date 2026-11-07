@@ -115,7 +115,8 @@ class Bookkor : HttpSource(), ConfigurableSource {
             saveDomain("https://$found")
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
         }
-        if (ours && res.code >= 500) {
+        // 5xx·접근 차단(451)이면 새 주소 찾기 (2026-11-07)
+        if (ours && (res.code >= 500 || res.code == 451)) {
             val found = discoverDomain(baseHost!!)
             if (found != null) {
                 res.close()

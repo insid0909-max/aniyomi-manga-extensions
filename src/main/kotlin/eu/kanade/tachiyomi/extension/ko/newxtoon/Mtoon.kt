@@ -113,7 +113,8 @@ class Mtoon : HttpSource(), ConfigurableSource {
                 throw java.io.IOException("사이트 보안 확인(Cloudflare)이 떴어요. 오른쪽 위 웹뷰로 사이트를 한 번 열어 통과한 뒤 다시 불러와 주세요.")
             }
         }
-        if (ours && res.code >= 500) {
+        // 5xx·접근 차단(451)이면 새 주소 찾기 (2026-11-07)
+        if (ours && (res.code >= 500 || res.code == 451)) {
             val found = discoverDomain(baseHost!!)
             if (found != null) {
                 res.close()
