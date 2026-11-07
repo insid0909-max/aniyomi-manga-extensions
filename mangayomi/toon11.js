@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.54",
+    "version": "0.3.55",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -753,11 +753,19 @@ class DefaultExtension extends MProvider {
     /** query: 목록 종류(tablename 등), genre: 사이트 sca 값 */
     async listPage(query, genre, page) {
         const url = `${this.base}/bbs/board.php?bo_table=toon_c&${query}` + (genre ? `&sca=${encodeURIComponent(genre)}` : "") + (page > 1 ? `&page=${page}` : "");
-        const html = (await this.req(url, this.hdr())).body;
+        let html;
+        try {
+            html = (await this.req(url, this.hdr())).body;
+        } catch (e) {
+            // 최신만화는 사이트가 100쪽부터 막음(403) → 오류 대신 목록 끝 (2026-11-07 목록 점검)
+            if (page > 1 && /403/.test(String((e && e.message) || e))) return { list: [], hasNextPage: false };
+            throw e;
+        }
         const list = this.parseCards(html);
-        // 다음 쪽 링크가 있을 때만 더 있음
+        // 다음 쪽 링크가 있으면 더 있음. 완결만화처럼 쪽 번호 없이 "더보기"로 이어지는 목록은 쪽이 차 있으면(30개 이상) 더 있음
         const pages = (String(html).match(/[?&](?:amp;)?page=(\d+)/g) || []).map(x => parseInt(x.replace(/\D+/g, ""), 10));
-        return { list, hasNextPage: list.length > 0 && pages.some(n => n > page) };
+        const noPager = !pages.some((n) => n !== page);
+        return { list, hasNextPage: list.length > 0 && (pages.some(n => n > page) || (noPager && list.length >= 30)) };
     }
 
     async getPopular(page) {
