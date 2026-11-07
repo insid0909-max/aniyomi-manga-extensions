@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.18",
+    "version": "0.1.19",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -661,7 +661,8 @@ class DefaultExtension extends MProvider {
                 const self = await selfTarget(this, res.body, base, MARK);
                 if (self) new SharedPreferences().setString("auto_domain", self);
             }
-            if (!notice && (!ours || !(res.statusCode >= 500))) return res;
+            // 접근 차단(451)도 새 주소 찾기 (2026-11-07)
+            if (!notice && (!ours || !(res.statusCode >= 500 || res.statusCode === 451))) return res;
             failed = res;
         } catch (e) {
             // 응답 없음(시간 제한)은 주소 바뀜이 아님 → 주소 찾기 없이 바로 알림
