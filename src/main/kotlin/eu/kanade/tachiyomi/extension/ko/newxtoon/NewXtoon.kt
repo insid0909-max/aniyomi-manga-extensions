@@ -199,12 +199,15 @@ class NewXtoon(
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
         }
 
+        // 접근 차단(451): 이 주소가 막힌 것 → 바로 새 주소를 찾아 다시 요청 (2026-11-07)
         if (response.code == 451) {
             response.close()
-            throw IOException(
-                "접근 차단됨 (HTTP 451: 법적 사유로 이용 불가). " +
-                    "확장 설정에서 도메인 주소를 확인하세요.",
-            )
+            val found = if (ours) discoverDomain(baseHost!!) else null
+            if (found != null) {
+                saveDomain("https://$found")
+                return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
+            }
+            throw IOException("접근 차단됨 (HTTP 451). 새 주소를 찾지 못했어요. 잠시 뒤 다시 시도하거나, 새 주소를 검색창에 붙여 넣거나 확장 설정에 넣어 주세요.")
         }
 
         // 옛 주소 -> 새 주소로 넘어간 경우, 새 주소가 진짜로 열릴 때(200 + "뉴엑스툰")만 저장.
