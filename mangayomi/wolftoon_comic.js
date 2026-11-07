@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.54",
+    "version": "0.1.55",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -567,7 +567,8 @@ class DefaultExtension extends MProvider {
                     }
                 }
             }
-            if (!ours || !(res.statusCode >= 500)) return res;
+            // 접근 차단(451)도 새 주소 찾기 (2026-11-07)
+            if (!ours || !(res.statusCode >= 500 || res.statusCode === 451)) return res;
             failed = res;
         } catch (e) {
             if (!ours) throw e;
