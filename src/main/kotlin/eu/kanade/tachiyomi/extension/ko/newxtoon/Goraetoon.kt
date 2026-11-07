@@ -591,7 +591,7 @@ class Goraetoon : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://002.grtoon.com"
+        private const val DEFAULT = "https://003.grtoon.com"
 
         // 최신 주소 안내 (사용자가 알려 줌, 2026-10-31, "고래툰 최신주소 https://NNN.grtoon.com/")
         private val GUIDE_URLS = listOf("https://goraetoonurl.com/latest-address")
