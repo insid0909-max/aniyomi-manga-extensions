@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.55",
+    "version": "0.3.56",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -574,7 +574,8 @@ class DefaultExtension extends MProvider {
                 const self = await selfTarget(this, res.body, base, AUTO_MARKER);
                 if (self) new SharedPreferences().setString(T11_AUTO_KEY, self);
             }
-            if (!notice && (!ours || !(res.statusCode >= 500))) return res;
+            // 접근 차단(451)도 새 주소 찾기 (2026-11-07)
+            if (!notice && (!ours || !(res.statusCode >= 500 || res.statusCode === 451))) return res;
             failed = res;
         } catch (e) {
             if (!ours) throw e;
