@@ -1,0 +1,56 @@
+name: Mtoon republish 0.1.23 once
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+concurrency:
+  group: mtoon-republish-once
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 0.1.23 재배포 준비' ]; then
+            echo 'apply=true' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD:mangayomi/mtoon.js)" = "$(git rev-parse 13e5388c154dc7d6790a75c14317b9e025f9a4a2:mangayomi/mtoon.js)"
+          test "$(git rev-parse origin/main:mangayomi/mtoon.js)" = "$(git rev-parse HEAD:mangayomi/mtoon.js)"
+          git worktree add -b mtoon-republish ../mtoon-republish origin/gh-pages
+          cp mangayomi/mtoon.js ../mtoon-republish/mangayomi/mtoon.js
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+          source=Path('../mtoon-republish/mangayomi/mtoon.js').read_text()
+          assert '"version": "0.1.23"' in source
+          assert 'return timedClient(c, ms).get(url, headers);' in source
+          p=Path('../mtoon-republish/mangayomi/index.json')
+          rows=json.loads(p.read_text())
+          target=[r for r in rows if r.get('id')==870214019]
+          assert len(target)==1
+          assert target[0]['version'] in ('0.1.22','0.1.23')
+          target[0]['version']='0.1.23'
+          p.write_text(json.dumps(rows,ensure_ascii=False,indent=1)+'\n')
+          PY
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git -C ../mtoon-republish add mangayomi/mtoon.js mangayomi/index.json
+          git -C ../mtoon-republish diff --cached --check
+          if ! git -C ../mtoon-republish diff --cached --quiet; then
+            git -C ../mtoon-republish commit -m '머니툰 0.1.23 재배포 [skip ci]'
+            git -C ../mtoon-republish push origin HEAD:gh-pages
+          fi
+          git fetch origin gh-pages
+          test "$(git rev-parse origin/gh-pages:mangayomi/mtoon.js)" = "$(git rev-parse HEAD:mangayomi/mtoon.js)"
