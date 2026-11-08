@@ -1,0 +1,51 @@
+name: Mtoon diagnostic 24
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 0.1.24 진단 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-diag24 ../mtoon-diag24 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),vm=require('node:vm'),cp=require('node:child_process');
+          const p='mangayomi/mtoon.js',before=fs.readFileSync(p,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');
+          assert.equal(hash(before),'6d953e70403c683f89b4138a214dd4f64af33c87');assert.equal(fs.readFileSync('../mtoon-diag24/'+p,'utf8'),before);
+          let out=before;function swap(a,b){assert.equal(out.split(a).length,2);out=out.replace(a,b)}
+          swap('e.mtTimeout = !!(lastErr && lastErr.mtTimeout);','e.mtResults = tried.slice();\n        e.mtTimeout = !!(lastErr && lastErr.mtTimeout);');
+          const a=out.indexOf('function mtoonDiagnostic('),b=out.indexOf('\nclass DefaultExtension',a);assert(a>=0&&b>a);
+          const helper='function mtoonDiagnostic(e,url,startedAt){const rows=e&&e.mtResults;const elapsed=Math.max(0,Date.now()-Number(startedAt));if(Array.isArray(rows)&&rows.length)return "MT 0.1.24 | "+rows.map(x=>String(x).slice(0,36)).join(" | ")+" | "+(elapsed/1000).toFixed(1)+"초";return "MT 0.1.24 | "+mtDiagText(e&&e.name||"Error",24)+": "+mtDiagText(e&&e.message||e,96);}';
+          out=out.slice(0,a)+helper+out.slice(b);swap('"version": "0.1.23"','"version": "0.1.24"');
+          const ctx={Date,Array,String,Number,Math,mtDiagText:()=>''};vm.createContext(ctx);vm.runInContext(helper+';globalThis.diag=mtoonDiagnostic;',ctx);const msg=ctx.diag({mtResults:['기본 8초 시간 초과','별도 12초 시간 초과','Dart 12초 시간 초과']},'PRIVATE_URL',Date.now());assert(msg.includes('기본')&&msg.includes('별도')&&msg.includes('Dart'));assert(!msg.includes('PRIVATE_URL'));assert(msg.length<150);
+          fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');
+          const ip='../mtoon-diag24/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214019);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.1.23');rows[0].version='0.1.24';fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-diag24/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon.js
+          git diff --cached --check
+          git commit -m '머니툰 0.1.24 경로별 짧은 진단 [skip ci]'
+          git -C ../mtoon-diag24 add mangayomi/mtoon.js mangayomi/index.json
+          git -C ../mtoon-diag24 diff --cached --check
+          git -C ../mtoon-diag24 commit -m '머니툰 0.1.24 진단 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-diag24:gh-pages
