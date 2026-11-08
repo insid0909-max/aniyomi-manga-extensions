@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.23",
+    "version": "0.1.24",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -456,6 +456,7 @@ function timedClient(c, ms) {
             }
         }
         const e = new Error(`사이트가 응답하지 않아요 [${String(url || "").replace(/^https?:\/\//, "").substring(0, 70)}] (${tried.join(" · ")})`);
+        e.mtResults = tried.slice();
         e.mtTimeout = !!(lastErr && lastErr.mtTimeout);
         throw e;
     };
@@ -635,7 +636,7 @@ async function listedDomain(client, key) {
 }
 
 function mtDiagText(v,max){try{return String(v==null?'':v).replace(/https?:\/\/[^\s"'<>)]*/gi,u=>{const m=/^(https?:\/\/)(?:[^/@]+@)?([^/?#]+)/i.exec(u);return m?m[1]+m[2]+'/[주소 생략]':'[주소 숨김]'}).replace(/["']?(?:authorization|cookie|set-cookie)["']?\s*[:=]\s*[^\r\n]*/gi,'[인증 정보 숨김]').replace(/["']?(?:access_token|refresh_token|token|password|passwd|session|sessionid|sid|signature|sig|search)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,'[민감 값 숨김]').replace(/\s+/g,' ').trim().slice(0,max)}catch(_){return '표시 불가'}}
-function mtoonDiagnostic(e,url,startedAt){try{const kind=mtDiagText(e&&e.name||'Error',24),message=mtDiagText(e&&e.message||e,96)||'원래 오류 없음',code=Number(e&&(e.statusCode||(e.response&&e.response.statusCode))),elapsed=Math.max(0,Date.now()-Number(startedAt)),request=String(url||'').replace(/[?#].*$/,'').replace(/^(https?:\/\/)[^/@]+@/i,'$1[숨김]@').slice(0,100);return '[MT 0.1.22] '+kind+': '+message+' · '+(Number.isFinite(elapsed)?(elapsed/1000).toFixed(1):'?')+'초 · HTTP '+(code>=100&&code<=599?code:'미확인')+' · GET '+request}catch(_){return '[MT 0.1.22] 진단 표시 실패'}}
+function mtoonDiagnostic(e,url,startedAt){const rows=e&&e.mtResults;const elapsed=Math.max(0,Date.now()-Number(startedAt));if(Array.isArray(rows)&&rows.length)return "MT 0.1.24 | "+rows.map(x=>String(x).slice(0,36)).join(" | ")+" | "+(elapsed/1000).toFixed(1)+"초";return "MT 0.1.24 | "+mtDiagText(e&&e.name||"Error",24)+": "+mtDiagText(e&&e.message||e,96);}
 class DefaultExtension extends MProvider {
     constructor() {
         super();
