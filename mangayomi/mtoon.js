@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.23",
+    "version": "0.1.22",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -407,7 +407,9 @@ function siteDate(t) {
 // 한 번 된 통신은 기억해 다음부터 그것부터 씀. 모두 응답 없으면 어느 주소인지 오류로
 let MT_WAY = 0;
 async function limitedGet(c, url, headers, ms) {
-    return timedClient(c, ms).get(url, headers);
+    let timer = null;
+    const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error("시간 초과")), ms); });
+    return Promise.race([c.get(url, headers), limit]).finally(() => { try { if (typeof clearTimeout === "function") clearTimeout(timer); } catch (e) {} });
 }
 let MT_ALT = null;
 let MT_DART = null;
@@ -443,16 +445,16 @@ function timedClient(c, ms) {
         let lastErr = null;
         for (const i of order) {
             const w = ways[i];
+            const cl = w.client();
+            if (!cl) continue;
             try {
-                const cl = w.client();
-                if (!cl) { tried.push(`${w.name} 초기화 실패 또는 미지원`); continue; }
                 const h = w.fix(headers);
                 const r = await limited(method === "post" ? cl.post(url, h, body) : cl.get(url, h), w.wait);
                 MT_WAY = i;
                 return r;
             } catch (e) {
                 lastErr = e;
-                tried.push(`${w.name} ${e && e.mtTimeout ? Math.round(w.wait / 1000) + "초 시간 초과" : "요청 실패"}`);
+                tried.push(`${w.name} ${e && e.mtTimeout ? Math.round(w.wait / 1000) + "초" : "실패"}`);
             }
         }
         const e = new Error(`사이트가 응답하지 않아요 [${String(url || "").replace(/^https?:\/\//, "").substring(0, 70)}] (${tried.join(" · ")})`);
