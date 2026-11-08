@@ -1,37 +1,41 @@
-const mangayomiSources = [{"id":870214020,"name":"머니툰 웹뷰 연결시험","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.0.1","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon_webview_probe.js"}];
-let MT_PROBE_PENDING = null;
-async function mtWebviewProbe() {
-    if (typeof evaluateJavascriptViaWebview !== "function") return "웹뷰 함수 없음";
-    const marker = "MT_WV_PROBE_1";
-    const script = '(function(){if(window.__mtProbeSent)return;if(window.flutter_inappwebview&&typeof window.flutter_inappwebview.callHandler==="function"){window.__mtProbeSent=true;window.flutter_inappwebview.callHandler("setResponse","MT_WV_PROBE_1");}})();';
-    let timer;
-    try {
-        const value = await Promise.race([
-            evaluateJavascriptViaWebview("https://mtoon165.asia/", {}, [script], 8),
-            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("MT_PROBE_TIMEOUT")), 12000); })
-        ]);
-        if (value === marker) return "성공: 웹뷰 실행·문자열 반환 확인";
-        if (typeof value === "string") {
-            try { if (JSON.parse(value) === marker) return "성공: 웹뷰 실행·문자열 반환 확인"; } catch (_) {}
-        }
-        if (value === "" || value == null) return "빈 응답: 페이지 실행 또는 결과 반환 미확인";
-        return "예상 밖 반환값: " + typeof value;
-    } catch (e) {
-        if (e && e.message === "MT_PROBE_TIMEOUT") return "12초 시간 초과: 완료 여부 미확인";
-        return "호출 실패: " + String(e && e.name || "Error").replace(/[^A-Za-z0-9_]/g, "").slice(0, 32);
-    } finally {
-        if (timer && typeof clearTimeout === "function") clearTimeout(timer);
-    }
+const mangayomiSources = [{"id":870214020,"name":"머니툰 웹뷰 연결시험","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.0.2","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon_webview_probe.js"}];
+let MT_WV_PENDING = null;
+function mtListScript(){return '('+function(){
+    if(window.__mtListStarted)return;window.__mtListStarted=true;
+    let done=false;const send=x=>{if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',JSON.stringify(x));};
+    if(location.origin!=='https://mtoon165.asia'){send({stage:'주소 변경 또는 리다이렉트'});return;}
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),8000);
+    const path='/more.php?wt_fin='+encodeURIComponent('연재중')+'&w=8&c=0';
+    fetch(path,{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},signal:controller.signal}).then(async r=>{
+        if(!r.ok){send({stage:'목록 HTTP 오류',status:r.status});return;}
+        let data;try{data=JSON.parse(await r.text());}catch(_){send({stage:'목록 JSON 아님',status:r.status});return;}
+        if(!Array.isArray(data)){send({stage:'목록 배열 아님',status:r.status});return;}
+        const rows=data.slice(0,30).map(x=>{
+            let image='';try{const u=new URL(String(x.wt_thumb||''),location.origin+'/');if(/^https?:$/.test(u.protocol))image=u.href;}catch(_){}
+            return {id:String(x.wt_idx||''),name:String(x.wt_title||''),imageUrl:image};
+        });
+        send({stage:'ok',status:r.status,count:data.length,rows:rows});
+    }).catch(e=>send({stage:e&&e.name==='AbortError'?'목록 요청 8초 초과':'목록 fetch 실패'})).finally(()=>clearTimeout(timer));
+}.toString()+')();';}
+async function mtFirstList(){
+    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.2: 웹뷰 함수 없음');
+    let timer,value;try{
+        value=await Promise.race([evaluateJavascriptViaWebview('https://mtoon165.asia/',{},[mtListScript()],12),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.2: 웹뷰 전체 16초 초과')),16000);})]);
+    }catch(e){if(e&&String(e.message||'').startsWith('WV 0.0.2:'))throw e;throw new Error('WV 0.0.2: 웹뷰 호출 실패');}
+    finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
+    if(value==null||value==='')throw new Error('WV 0.0.2: 웹뷰 빈 응답');
+    let data=value;for(let i=0;i<2&&typeof data==='string';i++){try{data=JSON.parse(data);}catch(_){throw new Error('WV 0.0.2: 반환 JSON 해석 실패');}}
+    if(!data||data.stage!=='ok')throw new Error('WV 0.0.2: '+String(data&&data.stage||'예상 밖 반환').slice(0,40)+(data&&data.status?' HTTP '+Number(data.status):''));
+    if(!Array.isArray(data.rows))throw new Error('WV 0.0.2: 반환 목록 없음');
+    const list=data.rows.filter(x=>x&&/^\d+$/.test(String(x.id))&&x.name).map(x=>({name:String(x.name),imageUrl:String(x.imageUrl||''),link:'https://mtoon165.asia/list.php?i='+x.id}));
+    if(!list.length)throw new Error('WV 0.0.2: 유효한 작품 0개 (원본 '+Number(data.count||0)+'개)');
+    return {list:list,hasNextPage:false};
 }
-class DefaultExtension extends MProvider {
-    getBaseUrl() { return "https://mtoon165.asia"; }
-    async getPopular(page) {
-        if (!MT_PROBE_PENDING) MT_PROBE_PENDING = mtWebviewProbe().finally(() => { MT_PROBE_PENDING = null; });
-        const result = await MT_PROBE_PENDING;
-        throw new Error("[웹뷰 연결시험 0.0.1] " + result + " — 시험 결과 표시이며 작품 목록은 제공하지 않습니다.");
-    }
-    async getLatestUpdates(page) { return this.getPopular(page); }
-    async search(query, page, filters) { return this.getPopular(page); }
-    async getDetail(url) { throw new Error("연결 시험 전용입니다. 인기 탭을 열어 주세요."); }
-    async getPageList(url) { return []; }
+class DefaultExtension extends MProvider{
+    getBaseUrl(){return 'https://mtoon165.asia';}
+    async getPopular(page){if(Number(page)>1)return {list:[],hasNextPage:false};if(!MT_WV_PENDING)MT_WV_PENDING=mtFirstList().finally(()=>{MT_WV_PENDING=null;});return await MT_WV_PENDING;}
+    async getLatestUpdates(page){return this.getPopular(page);}
+    async search(query,page,filters){throw new Error('첫 목록 시험 전용입니다. 인기 탭을 열어 주세요.');}
+    async getDetail(url){throw new Error('목록 시험 성공 후 작품 상세·회차를 연결할 예정입니다.');}
+    async getPageList(url){return [];}
 }
