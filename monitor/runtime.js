@@ -29,7 +29,7 @@ function decodeBody(buf, contentType) {
     return buf.toString("latin1");
 }
 
-async function request(method, url, headers, body) {
+async function request(method, url, headers, body, opts) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
@@ -40,7 +40,7 @@ async function request(method, url, headers, body) {
         if (body !== undefined && body !== null) {
             payload = typeof body === "string" ? body : JSON.stringify(body);
         }
-        const res = await fetch(url, { method, headers: h, body: payload, redirect: "follow", signal: ctrl.signal });
+        const res = await fetch(url, { method, headers: h, body: payload, redirect: opts && opts.followRedirects === false ? "manual" : "follow", signal: ctrl.signal });
         const buf = Buffer.from(await res.arrayBuffer());
         const headersObj = {};
         res.headers.forEach((v, k) => { headersObj[k] = v; });
@@ -50,9 +50,12 @@ async function request(method, url, headers, body) {
     }
 }
 
+// new Client({ followRedirects: false }) 면 망가요미(Dart http)처럼 301·302 응답과 location 머리글을 그대로 줌
 class Client {
-    async get(url, headers) { return request("GET", url, headers); }
-    async post(url, headers, body) { return request("POST", url, headers, body); }
+    constructor(opts) { this.opts = opts || {}; }
+    async head(url, headers) { return request("HEAD", url, headers, undefined, this.opts); }
+    async get(url, headers) { return request("GET", url, headers, undefined, this.opts); }
+    async post(url, headers, body) { return request("POST", url, headers, body, this.opts); }
 }
 
 // p,a,c,k,e,d 압축 스크립트 풀기
