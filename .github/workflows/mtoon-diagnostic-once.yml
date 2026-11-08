@@ -1,0 +1,47 @@
+name: 머니툰 목록 원래 오류 임시 진단
+on:
+  push:
+    branches: [gh-pages]
+    paths: ['.github/workflows/mtoon-diagnostic-once.yml']
+permissions:
+  contents: write
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 원본과 실제 배포 브랜치 준비
+        run: |
+          git fetch origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/gh-pages:refs/remotes/origin/gh-pages'
+          git checkout -B main origin/main
+          git worktree add --detach ../mtoon-publish origin/gh-pages
+      - name: 원래 오류 진단 최소 수정과 개인정보 가림 검사
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs'),crypto=require('node:crypto'),cp=require('node:child_process');
+          const vm=require('node:vm'),assert=require('node:assert/strict');
+          function verify(helper){const c={BLOCK_HELP:'목록에 연결되지 않아요. 진단 내용을 확인해 주세요.'};vm.createContext(c);vm.runInContext(helper+';globalThis.make=mtoonListError;',c);const url='https://mtoon165.asia/more.php?search=SECRET&token=SECRET',cases=[{name:'Error',message:'시간 초과'},{name:'ReferenceError',message:'setTimeout is not defined'},{name:'SocketException',message:'connection reset https://mtoon165.asia/more.php?search=SECRET&token=SECRET'},{name:'HttpException',message:'HTTP 403',statusCode:403},null,{name:'Error',message:'Authorization: Bearer SECRET, Cookie: a=SECRET; token=SECRET'},{name:'Error',message:'x'.repeat(600)},{name:'Error',message:'연결 실패',mtTimeout:true}];for(const e of cases){const before=JSON.stringify(e),out=c.make(e,url);assert(out.message.includes('진단 GET mtoon165.asia/more.php'));assert(!out.message.includes('SECRET'));assert(!out.message.includes('접속이 막혀'));assert.equal(JSON.stringify(e),before);assert(out.message.length<500)}assert.equal(c.make(cases[0],url).mtTimeout,true);assert(c.make(cases[1],url).message.includes('ReferenceError'));assert(c.make(cases[1],url).message.includes('setTimeout is not defined'));assert(c.make(cases[3],url).message.includes('HTTP 403'));assert.equal(c.make(cases[7],url).mtTimeout,true);assert(/연결되지 않아요/.test(c.make(cases[0],url).message));console.log('진단 오류 8종·원래 오류 보존·쿼리/민감값 가림 검사 통과')}
+
+          const file='mangayomi/mtoon.js',before=fs.readFileSync(file,'utf8'),hash=s=>{const b=Buffer.from(s);return crypto.createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex')};assert.equal(hash(before),'76d8750df225b63ec733023d14cab10161a0c005','원본이 바뀌어 재검토가 필요합니다.');const publish='../mtoon-publish';assert.equal(hash(fs.readFileSync(publish+'/'+file,'utf8')),hash(before),'원본과 배포본이 달라 재검토가 필요합니다.');const start=before.indexOf('async listPage(url) {');assert(start>=0&&/limitedGet\(this\.raw,\s*url,/.test(before.slice(start,start+1500)),'목록 GET 요청 위치 불일치');const needle='throw new Error(BLOCK_HELP);',replacement='throw mtoonListError(e,url);',prior=before.match(/const BLOCK_HELP = "[^"\n]*";/)?.[0],helper="function mtoonListError(e,url){const safe=v=>String(v||'').replace(/https?:\\/\\/[^\\s<>\"')\\]]+/gi,u=>u.split(/[?#]/)[0].replace(/^(https?:\\/\\/)[^/\\s]*@/i,'$1')).replace(/\\?[^\\s<>\"')\\]]*/g,'?[생략]').replace(/\\b(?:cookie|authorization|token|sig|password|search|stx|query)\\s*[:=]\\s*[^,;\\n\\]}]+/gi,'[민감값 숨김]').replace(/\\s+/g,' ').trim(),target=safe(String(url||'').split(/[?#]/)[0]).replace(/^https?:\\/\\//i,'').slice(0,100),kind=safe(e&&e.name||'Error').slice(0,40),reason=safe(e&&e.message||e||'원래 오류 없음').slice(0,180),value=String(e&&(e.statusCode||(e.response&&e.response.statusCode))||''),status=/^\\d{3}$/.test(value)?'HTTP '+value:'HTTP 상태 없음',timeout=!!(e&&e.mtTimeout)||/시간\\s*초과|timed?\\s*out|timeout/i.test(reason),out=new Error(BLOCK_HELP+' [진단 GET '+target+' | '+kind+' | '+status+(timeout?' · 시간 초과':'')+' | '+reason+']');out.mtTimeout=timeout;return out}",next="const BLOCK_HELP = \"목록에 연결되지 않아요. 진단 내용을 확인해 주세요.\";";assert(prior);assert.equal(before.split(needle).length,2);assert(before.slice(start,start+1500).includes(needle));verify(helper);const after=before.replace(prior,()=>helper+'\n'+next).replace(needle,()=>replacement).replace(/"version"\s*:\s*"0\.1\.20"/,'"version": "0.1.21"'),mask=s=>s.replace(helper+'\n'+next,()=>prior).replace(replacement,()=>needle).replace(/"version"\s*:\s*"0\.1\.(?:20|21)"/,'VERSION');assert.equal(mask(before),mask(after),'진단 문구·오류 보존·버전 외 변경 금지');const meta=JSON.parse(/const\s+mangayomiSources\s*=\s*(\[[\s\S]*?\]);/.exec(after)[1]).find(x=>x.id===870214019);assert(meta&&meta.version==='0.1.21','소스 버전 불일치');const tmp=file+'.check.js';fs.writeFileSync(tmp,after);try{cp.execFileSync(process.execPath,['--check',tmp],{stdio:'inherit'})}finally{fs.unlinkSync(tmp)}const index=JSON.parse(fs.readFileSync(publish+'/mangayomi/index.json','utf8')),others=JSON.stringify(index.filter(x=>x.id!==870214019)),row=index.find(x=>x.id===870214019);assert(row&&row.version==='0.1.20');assert.equal(row.sourceCodeUrl.split('?')[0],'https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/mtoon.js');row.version='0.1.21';row.sourceCodeUrl=row.sourceCodeUrl.split('?')[0]+'?v=0.1.21';assert.equal(JSON.stringify(index.filter(x=>x.id!==870214019)),others);const notes=JSON.parse(fs.readFileSync('changelog.json','utf8')),{addNote,render}=require('./monitor/changelog.js');addNote(notes,'mtoon','2026-11-09','망가요미 0.1.21 [임시 진단]: 목록 GET 실패의 원래 오류 종류·내용·HTTP 상태(있을 때)를 보존. 실패 주소의 쿼리와 민감값은 가림. 통신·목록·회차 처리 변경 및 차단 우회 없음. 원인 확인 후 진단 제거 예정.');fs.writeFileSync(file,after);fs.writeFileSync('changelog.json',JSON.stringify(notes,null,1)+'\n');fs.writeFileSync('업데이트내역.md',render(notes));fs.writeFileSync(publish+'/'+file,after);fs.writeFileSync(publish+'/mangayomi/index.json',JSON.stringify(index,null,1)+'\n');console.log('머니툰 0.1.21 진단판 원본·배포본 준비 완료');
+          NODE
+      - name: 원본·배포본을 함께 반영
+        run: |
+          node --check mangayomi/mtoon.js
+          node --check ../mtoon-publish/mangayomi/mtoon.js
+          git config user.name "insid0909-max"
+          git config user.email "266083559+insid0909-max@users.noreply.github.com"
+          git add -- mangayomi/mtoon.js changelog.json 업데이트내역.md
+          git diff --cached --check
+          git commit -m "머니툰 0.1.21 목록 실패 원래 오류 임시 진단"
+          git -C ../mtoon-publish add -- mangayomi/mtoon.js mangayomi/index.json
+          git -C ../mtoon-publish diff --cached --check
+          git -C ../mtoon-publish commit -m "머니툰 0.1.21 임시 진단판 배포"
+          PUBLISH_SHA=$(git -C ../mtoon-publish rev-parse HEAD)
+          git push --atomic origin HEAD:refs/heads/main "$PUBLISH_SHA":refs/heads/gh-pages
