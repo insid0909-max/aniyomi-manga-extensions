@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.20",
+    "version": "0.1.21",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -469,7 +469,7 @@ function timedClient(c, ms) {
 
 // Cloudflare 보안 확인 화면 (사이트가 Cloudflare 를 씀, 2026-11-06 휴대폰에서 목록 안 뜸)
 const CF_PAGE = /Just a moment|cf-chl|challenge-platform|cf_chl_opt/i;
-const BLOCK_HELP = "사이트에 연결되지 않아요. 이 앱의 연결 방식으로는 이 사이트 접속이 막혀 있어요 (응답 없음).";
+const BLOCK_HELP = "사이트에 연결되지 않아요. 목록 요청이 실패했어요. 아래 진단으로 원인을 확인해 주세요.";
 const CF_HELP = "사이트 보안 확인(Cloudflare)이 떴어요. 오른쪽 위 지구본(웹뷰) 버튼으로 사이트를 한 번 열어 확인을 통과한 뒤, 뒤로 와서 다시 불러와 주세요.";
 
 // 오류를 쉬운 말로 (Aniyomi 확장과 같은 문구). Cloudflare 확인은 그대로 둠
@@ -636,6 +636,8 @@ async function listedDomain(client, key) {
     }
 }
 
+function mtDiagText(v,max){try{return String(v==null?'':v).replace(/https?:\/\/[^\s"'<>)]*/gi,u=>{const m=/^(https?:\/\/)(?:[^/@]+@)?([^/?#]+)/i.exec(u);return m?m[1]+m[2]+'/[주소 생략]':'[주소 숨김]'}).replace(/["']?(?:authorization|cookie|set-cookie)["']?\s*[:=]\s*[^\r\n]*/gi,'[인증 정보 숨김]').replace(/["']?(?:access_token|refresh_token|token|password|passwd|session|sessionid|sid|signature|sig|search)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,'[민감 값 숨김]').replace(/\s+/g,' ').trim().slice(0,max)}catch(_){return '표시 불가'}}
+function mtoonDiagnostic(e,url,startedAt){try{const request=String(url||'').replace(/[?#].*$/,'').replace(/^(https?:\/\/)[^/@]+@/i,'$1[숨김]@').slice(0,100),kind=mtDiagText(e&&e.name||'Error',32),message=mtDiagText(e&&e.message||e,160),code=Number(e&&(e.statusCode||(e.response&&e.response.statusCode))),elapsed=Math.max(0,Date.now()-Number(startedAt));return '[MT 0.1.21 임시 진단]\n요청: GET '+request+'\n경과: '+(Number.isFinite(elapsed)?(elapsed/1000).toFixed(1):'?')+'초 · 종류: '+kind+'\nHTTP 상태: '+(code>=100&&code<=599?code:'미확인')+'\n원래 오류: '+message}catch(_){return '[MT 0.1.21 임시 진단] 원래 오류를 표시하지 못했습니다.'}}
 class DefaultExtension extends MProvider {
     constructor() {
         super();
@@ -859,13 +861,14 @@ class DefaultExtension extends MProvider {
 
     /** 더보기 자료(JSON) → 작품 카드. 작가·장르·상태는 작품 화면에 없어 기억해 둠 */
     async listPage(url) {
+        const mtDiagStartedAt = Date.now();
         // 2026-11-06 원인 확인: 머니툰은 한국에서 저작권 침해 사이트로 접속 차단(한국저작권보호원 warninge.kcopa.or.kr) —
         // 일부 앱(Mangayomi Glitch)의 연결 방식은 https 가 응답 없이 멈춤. 차단을 피해 가는 기능은 만들지 않음 → 20초 안에 안내만
         let r;
         try {
             r = await limitedGet(this.raw, url, Object.assign(this.hdr(), { "X-Requested-With": "XMLHttpRequest" }), 20000);
         } catch (e) {
-            throw new Error(BLOCK_HELP);
+            throw new Error(BLOCK_HELP + "\n" + mtoonDiagnostic(e, url, mtDiagStartedAt));
         }
         const code = Number(r && r.statusCode);
         if (code === 403 && CF_PAGE.test(String(r.body || "").substring(0, 4000))) throw new Error(CF_HELP);
