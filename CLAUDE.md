@@ -71,6 +71,7 @@
 - 직접 넣은 주소·자동 찾은 주소 따로 저장, 번호 큰 진짜 사이트 확인되면 교체(+설정 칸 고침), 주소 찾기는 맨 먼저 저장소 domains.json → 안내 페이지(텔레그래프·tvchak.org 등) → 번호 짐작 → 비상 주소(출처: 후후티비·티비착·고고티비).
 - 검색창에 사이트 주소 붙여 넣기(https:// 없어도) → 확인 후 적용, 작품 주소면 바로 그 작품.
 - 사이트가 넘겨 준 주소는 200 + 표시 글자 확인 뒤에만 저장(뉴엑스툰).
+- 망가요미도 넘겨 준 주소를 읽을 수 있음(2026-11-08): `new Client({useDartHttpClient:true, followRedirects:false})` 면 301·302 와 location 머리글을 그대로 줌(순정 m_client.dart). 웹툰 JS 10개 공통 movedOrigin·movedTarget·movedSelf — 주소 찾기는 저장소 목록 다음에 지금 주소·안내 주소(블랙툰 blacktoon.cc·굿툰 goodtoon.top·툰코 toonkor.site)가 넘겨 주는 주소, 정상으로 열릴 때는 앱을 켤 때 주소마다 한 번 HEAD 로 확인. 둘 다 AUTO_HOST 모양 + 첫 화면 200 + 표시 글자일 때만 저장. 새 JS 소스도 넣기. 시험 런타임(monitor/runtime.js)도 followRedirects:false·head 흉내.
 - 주소 찾기는 5xx·연결 실패·목록 0개+표시 글자 없음일 때만. Cloudflare 보안 확인(403 "Just a moment")·재생 API 403·차단 응답 없음은 주소 바뀜 아님(티비착·애니라이프·머니툰).
 - 못 찾으면 할 일 안내(잠시 뒤·앱 재시작·DNS·새 주소 붙여 넣기), UnknownHost 는 쉬운 말로.
 - 나라·통신사 차단(warning.or.kr·kcopa)은 우회하지 않고 안내만(머니툰·링크애니).
@@ -99,6 +100,7 @@
 - .m3u8 로 안 끝나는 HLS 는 originalUrl 끝에 "#download.m3u8"(hlsHint), 화질 라벨·정렬·대체 서버.
 - cdndania·firePlayer 계열은 애니24 dcVideos 그대로(new Client({persistentConnection:false,noProxy:true}) POST getVideo → securedLink).
 - 재생 API 가 앱에서 403 이면 웹뷰로 화면 열어 그 요청·m3u8 받기(애니라이프·미미티비). 플레이어 보호(암호·신호 흉내)는 우회하지 않음(후후티비 망가요미).
+- 순정 망가요미 0.9.9+ 에 `createHlsProxyUrl(주소, 머리글)`(앱 안 127.0.0.1 중계, 2026-10-08 추가): 재생 목록·조각·열쇠 요청 모두에 같은 머리글을 붙여 그대로 전달(내용은 안 바꿈). 재생기가 조각·열쇠 요청에서 Referer·Origin 을 빠뜨려 403 일 때만 쓰고(없으면 지금 방식), 잘 되는 소스엔 넣지 않음(2026-11-08 점검: 해당 소스 없음). Glitch 의 X-Hls-Key(열쇠 바꿔 넣기)는 순정에 없고 보호 우회라 쓰지 않음 — 티비룸·티비위키가 순정에서 안 되는 이유.
 
 ### 검색·필터·화면
 - 검색 0개면 띄어쓰기 빼고·앞부분·두 글자씩 다시 찾기(SearchSpacing).
@@ -111,7 +113,7 @@
 ## 지금까지 고친 것·배운 것 (다시 같은 실수 하지 않기)
 - 네이버웹툰(NaverWebtoon.kt / naverwebtoon.js): 공식 무료 회차만(미리보기·유료 `charge` 제외), 19세 기본 숨김(WebView 로그인 필요), 그림은 모바일 회차 화면 `img.toon_image` + Referer m.comic.naver.com, 도메인 자동 찾기 없음(공식 고정 주소). 첫 목록이 느렸던 이유(2026-11-01): 요일·신작 API(/api/webtoon/titlelist/weekday·new)는 쪽 나눔 없이 전부 줌(전체 요일 846개, 330KB, 1초) → 앱이 카드 846개를 한꺼번에 만듦 → 확장이 60개씩 잘라 쪽으로 보여 줌(Kotlin 주소에 &page=N 붙임 — 사이트는 무시, listCache 가 같은 목록 5분 저장 / JS listPage·NW_LIST_CACHE), naverwebtoon.js 0.1.8.
 - 망가요미 목록 표지는 `getHeaders(url)`(UA + Referer)가 있어야 뜸 — 새 JS 소스에 반드시 넣기.
-- 망가요미는 넘어간(리다이렉트) 최종 주소를 알려 주지 않음 → 정상 화면에 적힌 더 큰 번호의 같은 사이트 주소를 확인해 `auto_domain`에 저장(`selfTarget`/`familyTarget`, 늑대닷컴은 `WOLF_TRIED`), 실패한 주소는 30분간 다시 안 염. 앱 웹뷰에서 간 주소는 확장이 알 수 없음(앱 한계).
+- 망가요미는 넘어간(리다이렉트) 최종 주소를 알려 주지 않음(단 2026-11-08 부터 followRedirects:false 로 직접 읽음, 위 개선 모음 참고) → 정상 화면에 적힌 더 큰 번호의 같은 사이트 주소를 확인해 `auto_domain`에 저장(`selfTarget`/`familyTarget`, 늑대닷컴은 `WOLF_TRIED`), 실패한 주소는 30분간 다시 안 염. 앱 웹뷰에서 간 주소는 확장이 알 수 없음(앱 한계).
 - 망가요미는 필터를 돌려줄 때 `_status` 표시를 지움 → 상태 줄은 글자로도 거를 것.
 - 늑대닷컴 검색어는 EUC-KR 인코딩. GitHub 러너에서 접속 가능(실제 목록 확인용). newxtoon·후후티비 등은 Cloudflare로 러너 차단.
 - 이미지가 늦게 뜨는 문의: 앱 설정(미리 불러올 페이지 수, 읽을 때 자동 다운로드)으로 안내, Custom hardware bitmap threshold는 속도와 무관.

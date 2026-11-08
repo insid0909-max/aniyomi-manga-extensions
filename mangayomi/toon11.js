@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.56",
+    "version": "0.3.57",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -321,6 +321,9 @@ const FAMILY_TRIED = {};
 async function selfTarget(ext, body, base, marker) {
     body = String(body || "");
     if (!body || body.indexOf(marker) < 0) return null;
+    // 지금 주소가 다른 주소로 넘겨 주는지 먼저 (앱이 따라가서 화면은 정상이어도, 2026-11-08)
+    const moved = await movedSelf(ext, base, marker);
+    if (moved) return moved;
     return familyTarget(ext, body, base, marker, true);
 }
 
@@ -478,6 +481,68 @@ async function addrGuard(ext, page, fn) {
 // 저장소 주소 목록 파일(domains.json, 2026-11-03): 확장이 스스로 새 주소를 못 찾을 때를 대비해 저장소에 적어 둔 지금 주소.
 // 주소 찾기 때 먼저 확인하고, 진짜 사이트일 때만 씀
 const DOMAIN_LIST_URL = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
+// ===== 넘겨 준 주소 직접 읽기 (2026-11-08, 웹툰 망가요미 10개 파일 같은 코드) =====
+// 망가요미는 넘어간 최종 주소를 알려 주지 않지만, new Client({ useDartHttpClient: true, followRedirects: false }) 로 보내면
+// 301·302… 응답과 location 머리글을 그대로 줌(순정 망가요미 m_client.dart). 넘겨 주는 주소를 끝까지(최대 6번) 따라가
+// 이 사이트 모양(AUTO_HOST)의 다른 주소이고 첫 화면이 200 + 표시 글자일 때만 돌려줌. 확인 못 하면 null(원래 방법대로).
+let MOVED_CLIENT = null;
+const MOVED_SEEN = {};
+async function movedOrigin(url, head) {
+    try {
+        if (!MOVED_CLIENT) MOVED_CLIENT = new Client({ useDartHttpClient: true, followRedirects: false, timeout: 8, connectTimeout: 5 });
+    } catch (e) {
+        return null;
+    }
+    // 웹뷰 UA 로 받은 Cloudflare 쿠키가 통하게 UA 는 앱에 맡김 (UA 가 꼭 필요한 소스는 APP_NO_UA)
+    const hdr = APP_NO_UA ? { "User-Agent": MOBILE_UA } : {};
+    let cur = url;
+    let moved = false;
+    for (let i = 0; i < 6; i++) {
+        let r;
+        try {
+            r = head && MOVED_CLIENT.head ? await MOVED_CLIENT.head(cur, hdr) : await MOVED_CLIENT.get(cur, hdr);
+        } catch (e) {
+            break;
+        }
+        const code = Number(r && r.statusCode);
+        if (![301, 302, 303, 307, 308].includes(code)) break;
+        const hs = (r && r.headers) || {};
+        let loc = "";
+        for (const k in hs) if (k.toLowerCase() === "location") loc = String(hs[k] || "").trim();
+        if (!loc) break;
+        const origin = (/^https?:\/\/[^/?#]+/i.exec(cur) || [""])[0];
+        cur = /^https?:\/\//i.test(loc) ? loc : loc.startsWith("//") ? "https:" + loc : origin + (loc.startsWith("/") ? "" : "/") + loc;
+        moved = true;
+    }
+    const m = moved ? /^(https?):\/\/([^/?#]+)/i.exec(cur) : null;
+    return m ? `${m[1].toLowerCase()}://${m[2].toLowerCase()}` : null;
+}
+
+// froms 가 넘겨 주는 주소 중 진짜 사이트(첫 화면 200 + marker)를 돌려줌
+async function movedTarget(ext, froms, current, marker, head) {
+    const origins = await Promise.all(froms.map((u) => movedOrigin(u, head)));
+    const seen = {};
+    for (const o of origins) {
+        if (!o || seen[o] || o === current) continue;
+        seen[o] = 1;
+        if (!AUTO_HOST.test(o.replace(/^https?:\/\//, ""))) continue;
+        try {
+            const r = await ext.client.get(o + "/", { "User-Agent": MOBILE_UA });
+            if (r.statusCode === 200 && String(r.body || "").indexOf(marker) >= 0) return o;
+        } catch (e) {
+            // 다음 주소
+        }
+    }
+    return null;
+}
+
+// 정상으로 열릴 때: 지금 주소가 다른 주소로 넘겨 주는지(앱이 따라가서 화면은 정상) 앱을 켤 때 주소마다 한 번만 확인
+async function movedSelf(ext, base, marker) {
+    if (MOVED_SEEN[base]) return null;
+    MOVED_SEEN[base] = 1;
+    return movedTarget(ext, [base + "/"], base, marker, true);
+}
+
 async function listedDomain(client, key) {
     try {
         const r = await client.get(DOMAIN_LIST_URL + "?t=" + Math.floor(Date.now() / 60000), { "Cache-Control": "no-cache" });
@@ -613,6 +678,13 @@ class DefaultExtension extends MProvider {
             } catch (e) {
                 // 원래 방법으로
             }
+        }
+
+        // 지금 주소·안내 주소가 넘겨 주는(301·302) 주소를 직접 읽어, 진짜 사이트면 사용 (2026-11-08)
+        const movedC = await movedTarget(this, [current + "/"], current, AUTO_MARKER, false);
+        if (movedC) {
+            prefs.setString("auto_domain", movedC);
+            return movedC;
         }
 
         const num = u => parseInt((u.match(AUTO_NUM) || [0, "0"])[1], 10) || 0;
