@@ -100,6 +100,7 @@
 - .m3u8 로 안 끝나는 HLS 는 originalUrl 끝에 "#download.m3u8"(hlsHint), 화질 라벨·정렬·대체 서버.
 - cdndania·firePlayer 계열은 애니24 dcVideos 그대로(new Client({persistentConnection:false,noProxy:true}) POST getVideo → securedLink).
 - 재생 API 가 앱에서 403 이면 웹뷰로 화면 열어 그 요청·m3u8 받기(애니라이프·미미티비). 플레이어 보호(암호·신호 흉내)는 우회하지 않음(후후티비 망가요미).
+- 순정 망가요미 0.9.9+ 에 `createHlsProxyUrl(주소, 머리글)`(앱 안 127.0.0.1 중계, 2026-10-08 추가): 재생 목록·조각·열쇠 요청 모두에 같은 머리글을 붙여 그대로 전달(내용은 안 바꿈). 재생기가 조각·열쇠 요청에서 Referer·Origin 을 빠뜨려 403 일 때만 쓰고(없으면 지금 방식), 잘 되는 소스엔 넣지 않음(2026-11-08 점검: 해당 소스 없음). Glitch 의 X-Hls-Key(열쇠 바꿔 넣기)는 순정에 없고 보호 우회라 쓰지 않음 — 티비룸·티비위키가 순정에서 안 되는 이유.
 
 ### 검색·필터·화면
 - 검색 0개면 띄어쓰기 빼고·앞부분·두 글자씩 다시 찾기(SearchSpacing).
