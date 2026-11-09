@@ -1,0 +1,16 @@
+{
+  "time": "2026-11-09T00:14:52.094Z",
+  "environment": "GitHub runner, not Glitch; no imported cookies",
+  "samples": [],
+  "home": {
+    "url": "https://mtoon166.asia/",
+    "status": 403,
+    "type": "text/html; charset=UTF-8"
+  },
+  "homeImages": [],
+  "list": {
+    "status": 403,
+    "type": "text/html; charset=UTF-8",
+    "error": "Not JSON"
+  }
+}
