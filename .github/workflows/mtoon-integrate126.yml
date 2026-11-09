@@ -1,0 +1,44 @@
+name: Mtoon integrate 126
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 0.1.26 웹뷰 통합 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-integrate126 ../mtoon-integrate126 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),cp=require('node:child_process'),vm=require('node:vm');const p='mangayomi/mtoon.js',tp='mangayomi/mtoon_webview_probe.js',old=fs.readFileSync(p,'utf8'),trial=fs.readFileSync(tp,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');assert.equal(hash(old),'005dd9b10f9a260a794b95b5bc148b80ee71ba3e');assert.equal(hash(trial),'eed08b4ae74b9bba2c776839c06afc07addfdce8');assert.equal(fs.readFileSync('../mtoon-integrate126/'+p,'utf8'),old);assert.equal(fs.readFileSync('../mtoon-integrate126/'+tp,'utf8'),trial);
+          const prefix=old.slice(0,old.indexOf('];')+2),meta=vm.runInNewContext(prefix+';mangayomiSources')[0];assert.equal(meta.id,870214019);assert.equal(meta.name,'머니툰 웹툰');assert.equal(meta.version,'0.1.25');assert.equal(meta.pkgPath,'mtoon.js');meta.version='0.1.26';const body=trial.slice(trial.indexOf('\n')+1).replaceAll('0.0.11','0.1.26'),out='const mangayomiSources = '+JSON.stringify([meta])+';\n'+body;
+          fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');const ctx={MProvider:class{}};vm.createContext(ctx);vm.runInContext(out,ctx);new vm.Script(ctx.mtListScript(1,'',null));new vm.Script(ctx.mtReaderScript07('detail','123'));new vm.Script(ctx.mtReaderScript07('pages','123'));assert.equal(out.slice(out.indexOf('\n')+1).replaceAll('0.1.26','0.0.11'),trial.slice(trial.indexOf('\n')+1));
+          const ip='../mtoon-integrate126/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214019),tests=index.filter(x=>x.id===870214020);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.1.25');assert.equal(tests.length,1);assert.equal(tests[0].version,'0.0.11');rows[0].version='0.1.26';fs.mkdirSync('monitor/backups',{recursive:true});const backup='monitor/backups/mtoon-0.1.25.js.txt';assert(!fs.existsSync(backup));fs.writeFileSync(backup,old);fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-integrate126/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon.js monitor/backups/mtoon-0.1.25.js.txt
+          git diff --cached --check
+          git commit -m '머니툰 0.1.26 검증된 웹뷰 구현 통합 및 기존 코드 백업 [skip ci]'
+          git -C ../mtoon-integrate126 add mangayomi/mtoon.js mangayomi/index.json
+          git -C ../mtoon-integrate126 diff --cached --check
+          git -C ../mtoon-integrate126 commit -m '머니툰 0.1.26 웹뷰 통합 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-integrate126:gh-pages
