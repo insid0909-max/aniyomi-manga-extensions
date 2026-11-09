@@ -131,7 +131,7 @@
    "name": "머니툰",
    "currentFrom": {
     "file": "mangayomi/mtoon.js",
-    "regex": "\"baseUrl\": \"(https://mtoon\\d+\\.asia)\""
+    "regex": "\"baseUrl\": ?\"(https://mtoon\\d+\\.asia)\""
    },
    "pattern": "^https://mtoon(\\d+)\\.asia$",
    "format": "https://mtoon{n}.asia",
