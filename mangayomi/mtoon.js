@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.27","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.28","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -33,7 +33,7 @@ function mtListScript(page,query,options){return '('+function(page,query,options
         send({stage:'ok',origin:location.origin,status:r.status,count:count,rows:rows});
     }).catch(e=>send({stage:e&&e.name==='AbortError'?'목록 요청 8초 초과':'목록 fetch 실패'})).finally(()=>clearTimeout(timer));
 }.toString()+')('+JSON.stringify(page)+','+JSON.stringify(query)+','+JSON.stringify(options||null)+');';}
-async function mtFirstList(page,query,options){
+async function mtFirstListSlow(page,query,options){
     if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.1.26: 웹뷰 함수 없음');
     let timer,value;try{
         value=await Promise.race([evaluateJavascriptViaWebview(mtBase11()+'/',{},[mtListScript(page,query,options)],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.1.26: 웹뷰 전체 24초 초과')),24000);})]);
@@ -90,7 +90,7 @@ function mtReaderScript07(mode,id){return '('+function(mode,id){
         setTimeout(run,400);
     };run();
 }.toString()+')('+JSON.stringify(mode)+','+JSON.stringify(id)+');';}
-async function mtRead07(url,mode){
+async function mtRead07Slow(url,mode){
     const text=String(url||''),m=/^https:\/\/(?:www\.)?mtoon\d+\.asia\/(list|detail)\.php\?(?:[^#]*&)?(i|wi)=(\d+)(?:&[^#]*)?$/.exec(text);
     if(!m||(mode==='detail'?(m[1]!=='list'||m[2]!=='i'):(m[1]!=='detail'||m[2]!=='wi')))throw new Error('WV 0.1.26: 작품/회차 주소 형식 오류');
     if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.1.26: 웹뷰 함수 없음');
@@ -102,6 +102,105 @@ async function mtRead07(url,mode){
 }
 
 async function mtPaged08(page,query,options){options=mtOptions11(options);const n=Number(page==null?1:page);if(!Number.isSafeInteger(n)||n<1||n>100000)throw new Error('WV 0.1.26: 잘못된 페이지 번호');const key=JSON.stringify([n,query,options||null]);if(!MT_WV_PENDING[key])MT_WV_PENDING[key]=mtFirstList(n,query,options).finally(()=>{delete MT_WV_PENDING[key];});return await MT_WV_PENDING[key];}
+
+// ======================= 0.1.28: 빠른 길 (가벼운 화면 + 글자만 받기) =======================
+// 전: 웹뷰로 첫 화면 전체(표지 수십 장)나 회차 화면 전체를 다 연 뒤 읽음 → 목록 3~4초·회차 그림 3초 (사용자 2026-11-09)
+// 지금: 웹뷰로 가벼운 같은 사이트 주소(/robots.txt)만 열고, 그 안에서 목록 자료·작품/회차 화면 글자만 받아 읽음(그림은 안 받음).
+// 안 되면 예전 방식(첫 화면·회차 화면 열기)으로 바로 넘어가고 6시간 동안은 예전 방식만.
+// 목록은 다음 쪽도 같이 받아 두고, 받은 목록은 5분 동안 기억
+const MT_LIGHT_PATH = '/robots.txt';
+const MT_LIST_CACHE = {};
+function mtLightOff(){try{return Number(new SharedPreferences().get('mt_light_off_until')||0)>Date.now();}catch(_){return false;}}
+function mtLightFailed(){try{new SharedPreferences().setString('mt_light_off_until',String(Date.now()+6*3600000));}catch(_){}}
+function mtListPath(page,query,o){const offset=(page-1)*30;o=o||{state:'연재중',day:'8',genre:''};return query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent(o.state)+(o.genre?'&cate='+encodeURIComponent(o.genre):'&w='+encodeURIComponent(o.day))+'&c='+offset;}
+function mtLightScript(job){return '('+function(job){
+    if(window.__mtLight)return;window.__mtLight=true;
+    let done=false;const send=x=>{if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',JSON.stringify(x));};
+    if(location.protocol!=='https:'||!/^(?:www\.)?mtoon\d+\.asia$/.test(location.hostname)){send({error:'허용 범위 밖 웹뷰 주소'});return;}
+    const ctl=new AbortController();setTimeout(()=>ctl.abort(),8000);
+    const same=(r,p)=>{const u=new URL(r.url||p,location.origin);if(u.origin!==location.origin)throw new Error('응답 출처 변경');if(!r.ok)throw new Error('HTTP '+r.status);return u;};
+    const post=p=>fetch(p,{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},signal:ctl.signal}).then(async r=>{same(r,p);const d=JSON.parse(await r.text());if(!Array.isArray(d))throw new Error('목록 배열 아님');return d;});
+    const html=p=>fetch(p,{credentials:'same-origin',signal:ctl.signal}).then(async r=>{const u=same(r,p);return {doc:new DOMParser().parseFromString(await r.text(),'text/html'),url:u};});
+    const abs=(v,base)=>{try{const u=new URL(v,base);return /^https?:$/.test(u.protocol)?u.href:'';}catch(_){return '';}};
+    const img=(el,base)=>el?abs(el.getAttribute('data-src')||el.getAttribute('data-original')||el.getAttribute('src')||'',base):'';
+    const row=x=>{let image='';try{if(x.wt_thumb){const t=String(x.wt_thumb);const u=new URL(t,location.origin+(/^[^/?:#]+\.(?:jpe?g|png|webp|gif)(?:[?#].*)?$/i.test(t)?'/img/data/webtoon/':'/'));if(/^https?:$/.test(u.protocol))image=u.href;}}catch(_){}
+        return {id:String(x.wt_idx||''),name:String(x.wt_title||''),imageUrl:image,meta:{author:String(x.wt_author||'').trim(),genre:String(x.wt_genre||'').trim(),description:new DOMParser().parseFromString(String(x.wt_intro||''),'text/html').body.textContent.trim(),state:String(x.wt_fin||'').trim()}};};
+    const date=t=>{t=String(t||'').trim();const day=86400000,mid=Math.floor((Date.now()+32400000)/day)*day-32400000;let m;
+        if(/^오늘/.test(t)||/\d+\s*(시간|분|초)\s*전/.test(t))return String(mid);if(/^어제/.test(t))return String(mid-day);
+        if((m=/^(\d+)\s*일\s*전/.exec(t)))return String(mid-Number(m[1])*day);
+        if((m=/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(t)))return String(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))-32400000);return null;};
+    let work;
+    if(job.kind==='list'){
+        // groups: [[주소…](필수 쪽), [주소…](다음 쪽, 실패해도 됨)] · 한 쪽 안의 주소들(연재+완결)은 합침
+        work=Promise.all(job.groups.map((g,gi)=>Promise.all(g.map((p,pi)=>gi===0&&pi===0?post(p):post(p).catch(()=>null))).then(ds=>{
+            if(ds.every(d=>d==null))return null;const seen={},all=[];let count=0;
+            for(const d of ds){if(!d)continue;count=Math.max(count,d.length);for(const x of d){if(x&&typeof x==='object'&&x.wt_idx&&!seen[x.wt_idx]){seen[x.wt_idx]=1;all.push(row(x));}}}
+            return {count:count,rows:all.slice(0,60)};
+        }).catch(e=>{if(gi===0)throw e;return null;}))).then(pages=>send({ok:1,origin:location.origin,pages:pages}));
+    }else if(job.kind==='detail'){
+        work=html(job.path).then(({doc,url})=>{
+            if(url.searchParams.get('i')!==job.id)throw new Error('작품 주소 변경');
+            const title=doc.querySelector('h1.list_page_title'),seen=new Set(),chapters=[];
+            for(const a of doc.querySelectorAll('.list_data .l_d_t a[href]')){const link=abs(a.getAttribute('href'),url.href);if(!link)continue;const u=new URL(link);if(u.origin!==location.origin||u.pathname!=='/detail.php'||!/^\d+$/.test(u.searchParams.get('wi')||'')||seen.has(link))continue;seen.add(link);const name=String(a.textContent||'').replace(/\s+/g,' ').trim();const li=a.closest('li'),d=li&&li.querySelector('.l_d_d');if(name)chapters.push({name:name,url:link,dateUpload:date(d?d.textContent:'')});}
+            if(!title||!chapters.length)throw new Error('회차 링크 '+chapters.length+'개');
+            send({ok:1,detail:{name:String(title.textContent||'').trim(),imageUrl:img(doc.querySelector('.list_page_head img'),url.href),description:String((doc.querySelector('.list_page_head p')||{}).textContent||'').trim(),chapters:chapters}});
+        });
+    }else{
+        work=html(job.path).then(({doc,url})=>{
+            if(url.searchParams.get('wi')!==job.id)throw new Error('회차 주소 변경');
+            const urls=[],seen=new Set();for(const im of doc.querySelectorAll('img')){const u=img(im,url.href);if(!u)continue;const pu=new URL(u);if(!/\/data\/file\//i.test(pu.pathname)||/\/ban\/|\/assets\/|money_toon/i.test(u)||seen.has(u))continue;seen.add(u);urls.push(u);}
+            if(!urls.length)throw new Error('본문 이미지 0개');
+            send({ok:1,pages:urls});
+        });
+    }
+    work.catch(e=>send({error:e&&e.name==='AbortError'?'8초 초과':String(e&&e.message||e).slice(0,60)}));
+}.toString()+')('+JSON.stringify(job)+');';}
+async function mtLightRun(job){
+    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('웹뷰 함수 없음');
+    let timer,value;try{value=await Promise.race([evaluateJavascriptViaWebview(mtBase11()+MT_LIGHT_PATH,{},[mtLightScript(job)],10),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('빠른 길 12초 초과')),12000);})]);}
+    finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
+    for(let n=0;n<2&&typeof value==='string';n++){try{value=JSON.parse(value);}catch(_){throw new Error('빠른 길 JSON 해석 실패');}}
+    if(!value||!value.ok)throw new Error(String(value&&value.error||'빠른 길 빈 응답'));
+    return value;
+}
+function mtListOut(origin,pg){
+    const list=pg.rows.filter(x=>x&&/^\d+$/.test(String(x.id))&&x.name).map(x=>({name:String(x.name),imageUrl:String(x.imageUrl||''),link:origin+'/list.php?i='+x.id}));
+    pg.rows.forEach(x=>{if(!x||!/^\d+$/.test(String(x.id)))return;const c={meta:x.meta||null,name:String(x.name||''),image:String(x.imageUrl||'')};MT_COVERS[String(x.id)]=c;try{new SharedPreferences().setString('mt_meta10_'+x.id,JSON.stringify(c));}catch(_){}});
+    return {list:list,hasNextPage:Number(pg.count)>=30};
+}
+async function mtFirstList(page,query,options){
+    const key=mtBase11()+'|'+JSON.stringify([page,query,options||null]),hit=MT_LIST_CACHE[key];
+    if(hit&&Date.now()-hit.at<5*60000)return hit.value;
+    if(!mtLightOff()){
+        try{
+            const group=n=>{const p=mtListPath(n,query,options);return query?[p,p+'&wt_fin='+encodeURIComponent('완결')]:[p];};
+            const v=await mtLightRun({kind:'list',groups:[group(page),group(page+1)]});
+            const origin=String(v.origin||'');if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(origin))throw new Error('출처 확인 실패');
+            mtRemember11(origin);
+            const out=mtListOut(origin,v.pages[0]);
+            MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page,query,options||null])]={at:Date.now(),value:out};
+            if(v.pages[1]&&out.hasNextPage)MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page+1,query,options||null])]={at:Date.now(),value:mtListOut(origin,v.pages[1])};
+            return out;
+        }catch(e){var lightBad=true;}
+    }
+    const out=await mtFirstListSlow(page,query,options);
+    if(lightBad)mtLightFailed();
+    MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page,query,options||null])]={at:Date.now(),value:out};
+    return out;
+}
+async function mtRead07(url,mode){
+    const text=String(url||''),m=/^https:\/\/(?:www\.)?mtoon\d+\.asia\/(list|detail)\.php\?(?:[^#]*&)?(i|wi)=(\d+)(?:&[^#]*)?$/.exec(text);
+    if(m&&!mtLightOff()){
+        try{
+            const v=await mtLightRun({kind:mode,id:m[3],path:mode==='detail'?'/list.php?i='+m[3]:'/detail.php?wi='+m[3]});
+            if(mode==='detail'&&v.detail)return v.detail;
+            if(mode==='pages'&&Array.isArray(v.pages)&&v.pages.length)return v.pages;
+        }catch(e){var lightBad=true;}
+    }
+    const r=await mtRead07Slow(url,mode);
+    if(lightBad)mtLightFailed();
+    return r;
+}
 
 const MT_STATES09 = [["연재", "연재중"], ["완결", "완결"]];
 const MT_DAYS09 = [["UP (최근 업데이트)", "8"], ["월", "1"], ["화", "2"], ["수", "3"], ["목", "4"], ["금", "5"], ["토", "6"], ["일", "0"], ["열흘", "7"], ["오늘 요일", "today"]];
