@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.31","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.32","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -329,12 +329,74 @@ function chapterName(name, title) {
     const sub = m[2].trim();
     return `${m[1]}화` + (sub && sub.replace(/\s+/g, "") !== tt ? ` : ${sub}` : "");
 }
+// 회차 정리 (0.1.25 orderChapters·siteOrder 그대로, 애니요미 Mtoon.messyOrder 와 같은 규칙)
+function mtOrderChapters(chapters, title) {
+    const n = chapters.length;
+    const t = String(title || "").replace(/\s+/g, " ").trim();
+    const strip = (v) => {
+        let x = String(v || "").replace(/\s+/g, " ").trim();
+        if (t && x.startsWith(t)) x = x.substring(t.length).replace(/^[\s\-–:·.]+/, "").trim() || x;
+        return x;
+    };
+    const extra = /외전|번외|특별|후기|에필로그|프롤로그|공지|휴재/;
+    const numIn = (v) => { const m = /(\d+(?:\.\d+)?)\s*화/.exec(v); return m && !extra.test(v) ? parseFloat(m[1]) : null; };
+    const oldFirst = chapters.slice().reverse();
+    let unnumbered = 0;
+    let backwards = false;
+    let maxSeen = -1;
+    for (const c of oldFirst) {
+        const v = numIn(strip(c.name));
+        if (v === null) { if (!extra.test(c.name)) unnumbered++; continue; }
+        if (v < maxSeen) backwards = true;
+        maxSeen = Math.max(maxSeen, v);
+    }
+    if (unnumbered < 3 && !backwards) {
+        return mtSiteOrder(chapters.map((c, i) => Object.assign(c, { seq: n - i, name: chapterName(c.name, title) })), title);
+    }
+    // 같은 이름(빈칸·작품 제목 빼고)으로 다시 올린 것은 최근 것(목록에서 위)만
+    const key = (v) => strip(v).replace(/\s+/g, "").toLowerCase();
+    const seen = {};
+    const kept = chapters.filter((c) => { const k = key(c.name); if (seen[k]) return false; seen[k] = true; return true; });
+    const total = kept.length;
+    return kept.map((c, i) => {
+        const no = total - i;
+        const name = strip(c.name);
+        const o = Object.assign({}, c);
+        // 이름이 같은 번호 "N화" 로 시작하면 그 부분은 빼고 ("33화 - 여름의 짐승 6" → "33화 : 여름의 짐승 6", "1화 - 1화" → "1화")
+        let rest = name;
+        const lead = new RegExp(`^${no}\\s*화\\s*[:：\\-–.]?\\s*`);
+        while (lead.test(rest)) rest = rest.replace(lead, "");
+        o.name = rest ? `${no}화 : ${rest}` : `${no}화`;
+        return o;
+    });
+}
+
+function mtSiteOrder(chapters, title) {
+    const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; return o; });
+    const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)화/.exec(c.name); return x && !/외전|번외|특별/.test(c.name) ? x[1] : null; };
+    const best = {};
+    chapters.forEach((c) => { const k = numOf(c); if (k !== null && (!best[k] || c.seq > best[k].seq)) best[k] = c; });
+    const list = chapters.filter((c) => { const k = numOf(c); return k === null || best[k] === c; }).sort((a, b) => b.seq - a.seq);
+    let last = 0;
+    let step = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+        const c = list[i];
+        const k = numOf(c);
+        if (k !== null) { last = parseFloat(k); step = 0; continue; }
+        if (/^\d/.test(c.name) && !/외전|번외|특별/.test(c.name)) continue;
+        step = Math.min(step + 1, 9);
+        c.name = `${Math.round((last + (step === 1 ? 0.5 : 0.5 + (step - 1) / 10)) * 10) / 10} · ${c.name}`;
+    }
+    return clean(list);
+}
+
 (function () {
     const base = DefaultExtension.prototype.getDetail;
     DefaultExtension.prototype.getDetail = async function () {
         const d = await base.apply(this, arguments);
         try {
-            for (const c of (d && d.chapters) || []) c.name = chapterName(c.name, d.name);
+            // 0.1.32: 0.1.25·애니요미와 같은 회차 정리 — 이름이 뒤죽박죽(번호 없는 회차 3개 이상·번호 거꾸로)이면 올라온 순서 차례 번호 "N화 : 부제"
+            if (d && Array.isArray(d.chapters)) d.chapters = mtOrderChapters(d.chapters, d.name);
         } catch (e) {
             // 그대로
         }
