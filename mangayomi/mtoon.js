@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.28","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.29","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -171,6 +171,21 @@ function mtListOut(origin,pg){
 async function mtFirstList(page,query,options){
     const key=mtBase11()+'|'+JSON.stringify([page,query,options||null]),hit=MT_LIST_CACHE[key];
     if(hit&&Date.now()-hit.at<5*60000)return hit.value;
+    if(!mtDirectOff()){
+        try{
+            const v=await mtDirectList(page,query,options);
+            const out=mtListOut(v.origin,v.pages[0]);
+            if(!out.list.length&&v.pages[0].count>0)throw new Error('목록 해석 실패');
+            MT_LIST_CACHE[key]={at:Date.now(),value:out};
+            if(v.pages[1]&&out.hasNextPage)MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page+1,query,options||null])]={at:Date.now(),value:mtListOut(v.origin,v.pages[1])};
+            return out;
+        }catch(e){var directBad=true;}
+    }
+    const viaWebview=await mtFirstListWv(page,query,options,key);
+    if(directBad)mtDirectFailed();
+    return viaWebview;
+}
+async function mtFirstListWv(page,query,options,key){
     if(!mtLightOff()){
         try{
             const group=n=>{const p=mtListPath(n,query,options);return query?[p,p+'&wt_fin='+encodeURIComponent('완결')]:[p];};
@@ -190,6 +205,14 @@ async function mtFirstList(page,query,options){
 }
 async function mtRead07(url,mode){
     const text=String(url||''),m=/^https:\/\/(?:www\.)?mtoon\d+\.asia\/(list|detail)\.php\?(?:[^#]*&)?(i|wi)=(\d+)(?:&[^#]*)?$/.exec(text);
+    if(m&&!mtDirectOff()){
+        try{return await mtDirectRead(mode,m[3]);}catch(e){var directBad=true;}
+    }
+    const viaWebview=await mtRead07Wv(text,mode,m);
+    if(directBad)mtDirectFailed();
+    return viaWebview;
+}
+async function mtRead07Wv(url,mode,m){
     if(m&&!mtLightOff()){
         try{
             const v=await mtLightRun({kind:mode,id:m[3],path:mode==='detail'?'/list.php?i='+m[3]:'/detail.php?wi='+m[3]});
@@ -201,6 +224,59 @@ async function mtRead07(url,mode){
     if(lightBad)mtLightFailed();
     return r;
 }
+
+// ======================= 0.1.29: 바로 받기 (웹뷰 없이) =======================
+// Mangayomi Glitch 0.9.230 소스 확인(2026-11-09): 설정 "SNI 파편화"를 켜면 확장의 기본 통신(new Client(), noProxy 아님)이
+// 앱 안 중계(127.0.0.1:48799, TLS 첫 인사를 쪼갬)를 거침. noProxy:true 통신은 중계를 건너뜀(glitchApplySniProxy).
+// 순정은 원래 바로 받기가 됐음(0.1.25). → 웹뷰보다 먼저 바로 받기 4초, 안 되면 웹뷰 길, 6시간 동안 바로 받기 건너뜀
+const MT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+function mtDirectOff(){try{return Number(new SharedPreferences().get('mt_direct_off_until')||0)>Date.now();}catch(_){return false;}}
+function mtDirectFailed(){try{new SharedPreferences().setString('mt_direct_off_until',String(Date.now()+6*3600000));}catch(_){}}
+function mtUnesc(t){return String(t||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0*39;/g,"'").replace(/&nbsp;/g,' ').replace(/&amp;/g,'&');}
+async function mtDirectGet(path,ms,xhr){
+    const base=mtBase11(),h={'User-Agent':MT_UA,'Referer':base+'/'};if(xhr)h['X-Requested-With']='XMLHttpRequest';
+    let timer;const r=await Promise.race([new Client().get(base+path,h),new Promise((_,rej)=>{timer=setTimeout(()=>rej(new Error('바로 받기 시간 초과')),ms);})]).finally(()=>{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);});
+    if(Number(r.statusCode)!==200)throw new Error('바로 받기 HTTP '+r.statusCode);
+    return String(r.body||'');
+}
+function mtDirectRows(body){
+    const d=JSON.parse(body);if(!Array.isArray(d))throw new Error('목록 배열 아님');const base=mtBase11();
+    return {count:d.length,rows:d.filter(x=>x&&x.wt_idx).map(x=>{const t=String(x.wt_thumb||'').trim();let image='';
+        if(/^https?:\/\//.test(t))image=t;else if(t)image=/^[^/?:#]+\.(?:jpe?g|png|webp|gif)(?:[?#].*)?$/i.test(t)?base+'/img/data/webtoon/'+t:base+'/'+t.replace(/^\.?\//,'');
+        return {id:String(x.wt_idx),name:mtUnesc(x.wt_title).trim(),imageUrl:image,meta:{author:String(x.wt_author||'').trim(),genre:String(x.wt_genre||'').trim(),description:mtUnesc(String(x.wt_intro||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'')).trim(),state:String(x.wt_fin||'').trim()}};})};
+}
+async function mtDirectList(page,query,options){
+    const one=async n=>{const p=mtListPath(n,query,options);const ps=query?[p,p+'&wt_fin='+encodeURIComponent('완결')]:[p];
+        const got=await Promise.all(ps.map((x,i)=>i===0?mtDirectGet(x,4000,true):mtDirectGet(x,4000,true).catch(()=>null)));
+        const seen={},rows=[];let count=0;for(const b of got){if(b==null)continue;const r=mtDirectRows(b);count=Math.max(count,r.count);for(const x of r.rows)if(!seen[x.id]){seen[x.id]=1;rows.push(x);}}
+        return {count:count,rows:rows};};
+    const [a,b]=await Promise.all([one(page),one(page+1).catch(()=>null)]);
+    return {origin:mtBase11(),pages:[a,b]};
+}
+async function mtDirectRead(mode,id){
+    const base=mtBase11();
+    if(mode==='detail'){
+        const html=await mtDirectGet('/list.php?i='+id,4000,false);
+        const head=(/<div class="list_page_head">([\s\S]*?)<div class="none_box">/.exec(html)||[0,''])[1];
+        const title=mtUnesc(((/<h1[^>]*list_page_title[^>]*>([\s\S]*?)<\/h1>/.exec(head||html)||[0,''])[1]).replace(/<[^>]+>/g,'')).trim();
+        let cover=(/<img[^>]+src="([^"]+)"/.exec(head)||[0,''])[1];if(cover&&!/^https?:/.test(cover))cover=base+'/'+cover.replace(/^\.?\//,'');
+        const intro=mtUnesc(((/<p[^>]*>([\s\S]*?)<\/p>/.exec(head)||[0,''])[1]).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'')).trim();
+        const chapters=[],seen={},re=/<li class="mb-2">([\s\S]*?)<\/li>/g;let m;
+        while((m=re.exec(html))){const a=/href="(?:\.?\/)?detail\.php\?wi=(\d+)"[^>]*>([\s\S]*?)<\/a>/.exec(m[1]);if(!a||seen[a[1]])continue;seen[a[1]]=1;
+            const d=((/<div class="l_d_d">([\s\S]*?)<\/div>/.exec(m[1])||[0,''])[1]).replace(/<[^>]+>/g,'').trim();
+            chapters.push({name:mtUnesc(a[2].replace(/<[^>]+>/g,'')).replace(/\s+/g,' ').trim(),url:base+'/detail.php?wi='+a[1],dateUpload:mtDirectDate(d)});}
+        if(!title||!chapters.length)throw new Error('바로 받기: 회차 '+chapters.length+'개');
+        return {name:title,imageUrl:cover,description:intro,chapters:chapters};
+    }
+    const html=await mtDirectGet('/detail.php?wi='+id,4000,false),urls=[],re=/<img\b[^>]*?\b(?:data-src|data-original|src)=['"]([^'"]+)['"][^>]*>/gi;let m;
+    while((m=re.exec(html))){let u=mtUnesc(m[1].trim());if(!/^https?:/.test(u))u=base+'/'+u.replace(/^\.?\//,'');if(!/\/data\/file\//.test(u)||/\/ban\/|\/assets\/|money_toon/.test(u))continue;if(urls.indexOf(u)<0)urls.push(u);}
+    if(!urls.length)throw new Error('바로 받기: 그림 0개');
+    return urls;
+}
+function mtDirectDate(t){t=String(t||'').trim();const day=86400000,mid=Math.floor((Date.now()+32400000)/day)*day-32400000;let m;
+    if(/^오늘/.test(t)||/\d+\s*(시간|분|초)\s*전/.test(t))return String(mid);if(/^어제/.test(t))return String(mid-day);
+    if((m=/^(\d+)\s*일\s*전/.exec(t)))return String(mid-Number(m[1])*day);
+    if((m=/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(t)))return String(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))-32400000);return null;}
 
 const MT_STATES09 = [["연재", "연재중"], ["완결", "완결"]];
 const MT_DAYS09 = [["UP (최근 업데이트)", "8"], ["월", "1"], ["화", "2"], ["수", "3"], ["목", "4"], ["금", "5"], ["토", "6"], ["일", "0"], ["열흘", "7"], ["오늘 요일", "today"]];
@@ -457,7 +533,8 @@ function notesFilters(key) {
         const b = P[k];
         P[k] = async function () {
             try {
-                await notesRefresh(new Client());
+                // 내역 받기가 늦어도 목록이 기다리지 않게 최대 2초
+                await Promise.race([notesRefresh(new Client()), new Promise((res) => setTimeout(res, 2000))]);
             } catch (e) {
                 // 그대로
             }
