@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.32","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.33","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -372,11 +372,48 @@ function mtOrderChapters(chapters, title) {
 }
 
 function mtSiteOrder(chapters, title) {
-    const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; return o; });
-    const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)화/.exec(c.name); return x && !/외전|번외|특별/.test(c.name) ? x[1] : null; };
+    const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; delete o._main; return o; });
+    const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)화/.exec(c.name); return x && (c._main || !/외전|번외|특별/.test(c.name)) ? x[1] : null; };
+    // 0.1.33 (환골탈태 "환골탈태 248화_외전"·"환골탈태 외전 286화"): 외전 표시가 있어도 그 번호를 본편이 안 쓰면 본편 번호로 ("248화 : 외전")
+    {
+        const t = String(title || "").replace(/\s+/g, "");
+        const main = new Set(chapters.map(numOf).filter((k) => k !== null));
+        const taken = new Set();
+        for (const c of chapters) {
+            if (numOf(c) !== null || !/외전/.test(c.name) || /번외|특별/.test(c.name)) continue;
+            const m = /(\d+(?:\.\d+)?)\s*화/.exec(c.name);
+            if (!m || main.has(m[1]) || taken.has(m[1])) continue;
+            taken.add(m[1]);
+            let rest = c.name.replace(m[0], " ").replace(/외전/g, " ");
+            if (t) rest = rest.replace(/\s+/g, " ").split(" ").filter((w) => w && t.indexOf(w) < 0).join(" ");
+            rest = rest.replace(/^[\s_\-–:·.]+|[\s_\-–:·.]+$/g, "").trim();
+            c.name = `${m[1]}화 : 외전${rest ? " " + rest : ""}`;
+            c._main = true;
+        }
+    }
     const best = {};
     chapters.forEach((c) => { const k = numOf(c); if (k !== null && (!best[k] || c.seq > best[k].seq)) best[k] = c; });
     const list = chapters.filter((c) => { const k = numOf(c); return k === null || best[k] === c; }).sort((a, b) => b.seq - a.seq);
+    // 0.1.33: 번호 없는 회차 하나가 비어 있는 번호 하나 사이에 끼어 있으면(239화·"마지막화"·241화) 그 번호 ("240화 : 마지막화")
+    {
+        const used = new Set(list.map(numOf).filter((k) => k !== null).map(Number));
+        const t = String(title || "").replace(/\s+/g, " ").trim();
+        for (let i = 1; i + 1 < list.length; i++) {
+            const c = list[i];
+            if (numOf(c) !== null || /^\d/.test(c.name) || /외전|번외|특별|후기|공지|휴재/.test(c.name)) continue;
+            const newer = numOf(list[i - 1]);
+            const older = numOf(list[i + 1]);
+            if (newer === null || older === null) continue;
+            const a = Number(older);
+            const b = Number(newer);
+            if (!Number.isInteger(a) || b !== a + 2 || used.has(a + 1)) continue;
+            let rest = String(c.name).replace(/\s+/g, " ").trim();
+            if (t && rest.startsWith(t)) rest = rest.substring(t.length).replace(/^[\s\-–:·.]+/, "").trim();
+            c.name = `${a + 1}화${rest ? " : " + rest : ""}`;
+            c._main = true;
+            used.add(a + 1);
+        }
+    }
     let last = 0;
     let step = 0;
     for (let i = list.length - 1; i >= 0; i--) {
@@ -619,44 +656,6 @@ function notesFilters(key) {
     };
 })();
 
-// ---------- 빠진 회차 번호 (2026-11-04) ----------
-// 망가요미는 "N화 누락됨" 개수만 보여 줌 → 작품 설명 맨 위에 빠진 회차 번호를 적음 (회차 이름 맨 앞 번호 기준)
-function missingNote(chapters) {
-    const nums = {};
-    let max = 0;
-    let min = Infinity;
-    for (const c of chapters || []) {
-        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim());
-        if (!m) continue;
-        const n = Number(m[1]);
-        if (!(n > 0) || n > 20000) continue;
-        nums[n] = true;
-        if (n > max) max = n;
-        if (n < min) min = n;
-    }
-    if (!max || max - min > 5000) return "";
-    // 가장 작은 번호 ~ 가장 큰 번호 사이만 (앞쪽 1~21화가 원래 없는 작품은 세지 않음, 애니요미와 같음)
-    const miss = [];
-    for (let i = min; i <= max; i++) if (!nums[i]) miss.push(i);
-    if (!miss.length || miss.length > (max - min + 1) / 2) return "";
-    const shown = miss.slice(0, 10).map((n) => `${n}화`).join(", ");
-    return `⚠️ 빠진 회차: ${shown}${miss.length > 10 ? ` 외 ${miss.length - 10}개` : ""} (사이트에 없거나 확장이 못 받아 온 회차)`;
-}
-(function () {
-    const base = DefaultExtension.prototype.getDetail;
-    if (!base) return;
-    DefaultExtension.prototype.getDetail = async function () {
-        const d = await base.apply(this, arguments);
-        try {
-            const note = d ? missingNote(d.chapters) : "";
-            if (note) d.description = note + (d.description ? "\n\n" + d.description : "");
-        } catch (e) {
-            // 그대로
-        }
-        return d;
-    };
-})();
-
 // ---------- 검색 띄어쓰기 (2026-11-05) ----------
 // 사이트 검색이 띄어쓰기를 구분해 "괴력난신"·"나혼자만레벨업" 으로는 "괴력 난신"·"나 혼자만 레벨업" 이 안 나오는 곳이 있음.
 // 결과가 0개일 때만: ① 띄어쓰기를 뺀 검색어 ② 검색어 앞부분(절반) ③ 두 글자씩(앞에서부터) 으로 최대 6번 다시 찾아,
@@ -769,6 +768,44 @@ function missingNote(chapters) {
             last = v;
             const lead = /^\s*(\d+(?:\.\d+)?)/.exec(plain);
             x.name = lead && parseFloat(lead[1]) === v && !/^\s*\d+(?:\.\d+)?\s*[-.,]\s*\d/.test(plain) ? plain : `${fmt(v)}. ${plain}`;
+        }
+        return d;
+    };
+})();
+
+// ---------- 빠진 회차 번호 (0.1.33: 앱의 "N화 누락됨" 과 같은 방식) ----------
+// 앱(lib/utils/extensions/manga_extensions.dart missingChapterCount): 회차 이름에서 읽은 번호(작품 제목 빼고 첫 숫자, 소수는 버림)의
+// 가장 작은 번호 ~ 가장 큰 번호 사이 빈 번호 수. 확장도 회차 이름을 다 고친 뒤(맨 바깥에서) 같은 방식으로 세어 설명 맨 위에 적음
+function missingNote(chapters, title) {
+    const t = String(title || "").trim().toLowerCase();
+    const nums = new Set();
+    for (const c of chapters || []) {
+        let name = String((c && c.name) || "").toLowerCase();
+        if (t) name = name.split(t).join(" ");
+        const m = /(\d+)(?:\.\d+)?/.exec(name);
+        if (m) nums.add(Number(m[1]));
+    }
+    if (nums.size < 2) return "";
+    const arr = [...nums];
+    const min = Math.min(...arr);
+    const max = Math.max(...arr);
+    if (max - min > 50000) return "";
+    const miss = [];
+    for (let i = min; i <= max; i++) if (!nums.has(i)) miss.push(i);
+    if (!miss.length) return "";
+    const shown = miss.slice(0, 10).map((n) => `${n}화`).join(", ");
+    return `⚠️ 빠진 회차: ${shown}${miss.length > 10 ? ` 외 ${miss.length - 10}개` : ""} (사이트에 없거나 확장이 못 받아 온 회차)`;
+}
+(function () {
+    const base = DefaultExtension.prototype.getDetail;
+    if (!base) return;
+    DefaultExtension.prototype.getDetail = async function () {
+        const d = await base.apply(this, arguments);
+        try {
+            const note = d ? missingNote(d.chapters, d.name) : "";
+            if (note) d.description = note + (d.description ? "\n\n" + d.description : "");
+        } catch (e) {
+            // 그대로
         }
         return d;
     };
