@@ -1,0 +1,42 @@
+name: Mtoon remove probe
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 시험 확장 제거 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-remove-probe ../mtoon-remove-probe origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto');const p='mangayomi/mtoon_webview_probe.js',keep='mangayomi/mtoon.js',hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');for(const root of ['', '../mtoon-remove-probe/']){assert.equal(hash(fs.readFileSync(root+p,'utf8')),'eed08b4ae74b9bba2c776839c06afc07addfdce8');assert.equal(hash(fs.readFileSync(root+keep,'utf8')),'c5f35f1e5f0f7164143199e5241f6bad2315aa54');}
+          const ip='../mtoon-remove-probe/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),trial=index.filter(x=>x.id===870214020),main=index.filter(x=>x.id===870214019);assert.equal(trial.length,1);assert.equal(trial[0].name,'머니툰 웹뷰 연결시험');assert.equal(trial[0].version,'0.0.11');assert.equal(main.length,1);assert.equal(main[0].version,'0.1.26');const next=index.filter(x=>x.id!==870214020);assert.equal(next.length,index.length-1);assert.deepEqual(next.find(x=>x.id===870214019),main[0]);fs.unlinkSync(p);fs.unlinkSync('../mtoon-remove-probe/'+p);fs.writeFileSync(ip,JSON.stringify(next,null,1)+'\n');for(const root of ['', '../mtoon-remove-probe/'])assert.equal(hash(fs.readFileSync(root+keep,'utf8')),'c5f35f1e5f0f7164143199e5241f6bad2315aa54');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon_webview_probe.js
+          git diff --cached --check
+          git commit -m '통합 완료된 머니툰 시험 소스 제거 [skip ci]'
+          git -C ../mtoon-remove-probe add mangayomi/mtoon_webview_probe.js mangayomi/index.json
+          git -C ../mtoon-remove-probe diff --cached --check
+          git -C ../mtoon-remove-probe commit -m '머니툰 시험 확장 배포 파일 및 목록 제거 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-remove-probe:gh-pages
