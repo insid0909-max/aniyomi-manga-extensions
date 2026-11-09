@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214020,"name":"머니툰 웹뷰 연결시험","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.0.10","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon_webview_probe.js"}];
+const mangayomiSources = [{"id":870214020,"name":"머니툰 웹뷰 연결시험","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.0.11","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon_webview_probe.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -27,27 +27,28 @@ function mtListScript(page,query,options){return '('+function(page,query,options
     }).catch(e=>send({stage:e&&e.name==='AbortError'?'목록 요청 8초 초과':'목록 fetch 실패'})).finally(()=>clearTimeout(timer));
 }.toString()+')('+JSON.stringify(page)+','+JSON.stringify(query)+','+JSON.stringify(options||null)+');';}
 async function mtFirstList(page,query,options){
-    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.10: 웹뷰 함수 없음');
+    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.11: 웹뷰 함수 없음');
     let timer,value;try{
-        value=await Promise.race([evaluateJavascriptViaWebview('https://mtoon165.asia/',{},[mtListScript(page,query,options)],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.10: 웹뷰 전체 24초 초과')),24000);})]);
-    }catch(e){if(e&&String(e.message||'').startsWith('WV 0.0.10:'))throw e;throw new Error('WV 0.0.10: 웹뷰 호출 실패');}
+        value=await Promise.race([evaluateJavascriptViaWebview(mtBase11()+'/',{},[mtListScript(page,query,options)],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.11: 웹뷰 전체 24초 초과')),24000);})]);
+    }catch(e){if(e&&String(e.message||'').startsWith('WV 0.0.11:'))throw e;throw new Error('WV 0.0.11: 웹뷰 호출 실패');}
     finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
-    if(value==null||value==='')throw new Error('WV 0.0.10: 웹뷰 빈 응답');
-    let data=value;for(let i=0;i<2&&typeof data==='string';i++){try{data=JSON.parse(data);}catch(_){throw new Error('WV 0.0.10: 반환 JSON 해석 실패');}}
-    if(!data||data.stage!=='ok'){const address=data?String(data.protocol||'')+'//'+String(data.host||'').replace(/[^a-zA-Z0-9.:-]/g,'').slice(0,80)+String(data.path||'').slice(0,60):'';throw new Error('WV 0.0.10: '+String(data&&data.stage||'예상 밖 반환').slice(0,40)+' | '+address+(data&&data.status?' HTTP '+Number(data.status):''));}
-    if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(String(data.origin||'')))throw new Error('WV 0.0.10: 반환 출처 검증 실패');
-    if(!Array.isArray(data.rows))throw new Error('WV 0.0.10: 반환 목록 없음');
+    if(value==null||value==='')throw new Error('WV 0.0.11: 웹뷰 빈 응답');
+    let data=value;for(let i=0;i<2&&typeof data==='string';i++){try{data=JSON.parse(data);}catch(_){throw new Error('WV 0.0.11: 반환 JSON 해석 실패');}}
+    if(!data||data.stage!=='ok'){const address=data?String(data.protocol||'')+'//'+String(data.host||'').replace(/[^a-zA-Z0-9.:-]/g,'').slice(0,80)+String(data.path||'').slice(0,60):'';throw new Error('WV 0.0.11: '+String(data&&data.stage||'예상 밖 반환').slice(0,40)+' | '+address+(data&&data.status?' HTTP '+Number(data.status):''));}
+    if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(String(data.origin||'')))throw new Error('WV 0.0.11: 반환 출처 검증 실패');
+    if(!Array.isArray(data.rows))throw new Error('WV 0.0.11: 반환 목록 없음');
     const list=data.rows.filter(x=>x&&/^\d+$/.test(String(x.id))&&x.name).map(x=>({name:String(x.name),imageUrl:String(x.imageUrl||''),link:data.origin+'/list.php?i='+x.id}));
-    if(!list.length&&Number(data.count)>0)throw new Error('WV 0.0.10: 목록 항목 해석 실패 (원본 '+Number(data.count)+'개)');
+    if(!list.length&&Number(data.count)>0)throw new Error('WV 0.0.11: 목록 항목 해석 실패 (원본 '+Number(data.count)+'개)');
     data.rows.forEach(x=>{if(!x||!/^\d+$/.test(String(x.id)))return;const c={meta:x.meta||null,name:String(x.name||''),image:String(x.imageUrl||''),raw:x.raw||'',dom:x.dom||'',state:x.coverState||'미검사 (첫 3개만 검사)'};MT_COVERS[String(x.id)]=c;try{new SharedPreferences().setString('mt_meta10_'+x.id,JSON.stringify(c));}catch(_){}});
+    mtRemember11(data.origin);
     return {list:list,hasNextPage:Number(data.count)>=30};
 }
 class DefaultExtension extends MProvider{
-    getBaseUrl(){return 'https://mtoon165.asia';}
-    async getPopular(page){return await mtPaged08(page,'');}
-    async getLatestUpdates(page){return this.getPopular(page);}
-    getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09)];}
-    async search(query,page,filters){return await mtPaged08(page,String(query||'').trim(),mtFilter09(filters));}
+    getBaseUrl(){return mtBase11();}
+    async getPopular(page){return await mtPaged08(page,'',mtRule11('popular'));}
+    async getLatestUpdates(page){return await mtPaged08(page,'',mtRule11('latest'));}
+    getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')},select('rule','탭 조건 저장',MT_RULES11)];}
+    async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),result=await mtPaged08(page,q,options);if(!q&&Number(page==null?1:page)===1)mtApplyRule11(filters,options);return result;}
     async getDetail(url){return await mtDetail10(url);}
     async getPageList(url){return await mtRead07(url,'pages');}
 }
@@ -84,16 +85,16 @@ function mtReaderScript07(mode,id){return '('+function(mode,id){
 }.toString()+')('+JSON.stringify(mode)+','+JSON.stringify(id)+');';}
 async function mtRead07(url,mode){
     const text=String(url||''),m=/^https:\/\/(?:www\.)?mtoon\d+\.asia\/(list|detail)\.php\?(?:[^#]*&)?(i|wi)=(\d+)(?:&[^#]*)?$/.exec(text);
-    if(!m||(mode==='detail'?(m[1]!=='list'||m[2]!=='i'):(m[1]!=='detail'||m[2]!=='wi')))throw new Error('WV 0.0.10: 작품/회차 주소 형식 오류');
-    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.10: 웹뷰 함수 없음');
-    let timer,value;try{value=await Promise.race([evaluateJavascriptViaWebview(text,{},[mtReaderScript07(mode,m[3])],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.10: 작품/회차 웹뷰 24초 초과')),24000);})]);}finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
-    for(let n=0;n<2&&typeof value==='string';n++){try{value=JSON.parse(value);}catch(_){throw new Error('WV 0.0.10: 작품/회차 JSON 해석 실패');}}
-    if(!value||value.error)throw new Error('WV 0.0.10: '+String(value&&value.error||'빈 응답'));
-    if(mode==='detail'){if(!value.detail||!Array.isArray(value.detail.chapters)||!value.detail.chapters.length)throw new Error('WV 0.0.10: 유효한 회차 없음');return value.detail;}
-    if(!Array.isArray(value.pages)||!value.pages.length)throw new Error('WV 0.0.10: 본문 이미지 없음');return value.pages;
+    if(!m||(mode==='detail'?(m[1]!=='list'||m[2]!=='i'):(m[1]!=='detail'||m[2]!=='wi')))throw new Error('WV 0.0.11: 작품/회차 주소 형식 오류');
+    if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.11: 웹뷰 함수 없음');
+    let timer,value;try{value=await Promise.race([evaluateJavascriptViaWebview(text,{},[mtReaderScript07(mode,m[3])],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.11: 작품/회차 웹뷰 24초 초과')),24000);})]);}finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
+    for(let n=0;n<2&&typeof value==='string';n++){try{value=JSON.parse(value);}catch(_){throw new Error('WV 0.0.11: 작품/회차 JSON 해석 실패');}}
+    if(!value||value.error)throw new Error('WV 0.0.11: '+String(value&&value.error||'빈 응답'));
+    if(mode==='detail'){if(!value.detail||!Array.isArray(value.detail.chapters)||!value.detail.chapters.length)throw new Error('WV 0.0.11: 유효한 회차 없음');return value.detail;}
+    if(!Array.isArray(value.pages)||!value.pages.length)throw new Error('WV 0.0.11: 본문 이미지 없음');return value.pages;
 }
 
-async function mtPaged08(page,query,options){const n=Number(page==null?1:page);if(!Number.isSafeInteger(n)||n<1||n>100000)throw new Error('WV 0.0.10: 잘못된 페이지 번호');const key=JSON.stringify([n,query,options||null]);if(!MT_WV_PENDING[key])MT_WV_PENDING[key]=mtFirstList(n,query,options).finally(()=>{delete MT_WV_PENDING[key];});return await MT_WV_PENDING[key];}
+async function mtPaged08(page,query,options){options=mtOptions11(options);const n=Number(page==null?1:page);if(!Number.isSafeInteger(n)||n<1||n>100000)throw new Error('WV 0.0.11: 잘못된 페이지 번호');const key=JSON.stringify([n,query,options||null]);if(!MT_WV_PENDING[key])MT_WV_PENDING[key]=mtFirstList(n,query,options).finally(()=>{delete MT_WV_PENDING[key];});return await MT_WV_PENDING[key];}
 
 const MT_STATES09 = [["연재", "연재중"], ["완결", "완결"]];
 const MT_DAYS09 = [["UP (최근 업데이트)", "8"], ["월", "1"], ["화", "2"], ["수", "3"], ["목", "4"], ["금", "5"], ["토", "6"], ["일", "0"], ["열흘", "7"], ["오늘 요일", "today"]];
@@ -115,3 +116,14 @@ async function mtDetail10(url){
     detail.status=m.state==='완결'?1:m.state==='연재중'||m.state==='연재'?0:5;
     return detail;
 }
+
+const MT_RULES11=[['저장하지 않음','0'],['현재 조건을 인기 탭에 저장','1'],['현재 조건을 최신 탭에 저장','2'],['인기 탭 기본값 복원','3'],['최신 탭 기본값 복원','4'],['두 탭 기본값 복원','5']];
+let MT_ORIGIN11='';
+function mtBase11(){let s=MT_ORIGIN11;try{s=s||String(new SharedPreferences().get('mt_origin11')||'');}catch(_){}return /^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s)?s:'https://mtoon165.asia';}
+function mtRemember11(origin){const s=String(origin||'');if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s))return;MT_ORIGIN11=s;try{new SharedPreferences().setString('mt_origin11',s);}catch(_){}}
+function mtValidRule11(o){return o&&MT_STATES09.some(x=>x[1]===o.state)&&MT_DAYS09.some(x=>x[1]===o.day)&&MT_GENRES09.some(x=>x[1]===o.genre);}
+function mtRule11(tab){try{const o=JSON.parse(new SharedPreferences().get('mt_rule11_'+tab)||'null');return mtValidRule11(o)?o:null;}catch(_){return null;}}
+function mtOptions11(o){if(!mtValidRule11(o))return null;return {state:o.state,day:o.day==='today'?String(new Date(Date.now()+32400000).getUTCDay()):o.day,genre:o.genre};}
+function mtRawRule11(filters){const o=mtFilter09(filters),f=(Array.isArray(filters)?filters:[]).find(x=>x&&(x.type==='day'||x.param==='day'||x.name==='요일'));if(f&&Number(f.state)===MT_DAYS09.findIndex(x=>x[1]==='today'))o.day='today';return o;}
+function mtRuleLabel11(tab){const o=mtRule11(tab);if(!o)return '기본값 (연재·UP)';const day=MT_DAYS09.find(x=>x[1]===o.day);return (o.state==='완결'?'완결':'연재')+' / '+(o.genre||(day?day[0]:'UP'));}
+function mtApplyRule11(filters,options){const f=(Array.isArray(filters)?filters:[]).find(x=>x&&(x.type==='rule'||x.param==='rule'||x.name==='탭 조건 저장')),n=f?Number(f.state):0;if(![1,2,3,4,5].includes(n))return;try{const p=new SharedPreferences();if(n===1||n===2){if(!mtValidRule11(options))throw new Error('invalid rule');p.setString('mt_rule11_'+(n===1?'popular':'latest'),JSON.stringify(options));}else{if(n===3||n===5)p.setString('mt_rule11_popular','');if(n===4||n===5)p.setString('mt_rule11_latest','');}}catch(_){throw new Error('WV 0.0.11: 탭 조건 저장 실패');}}
