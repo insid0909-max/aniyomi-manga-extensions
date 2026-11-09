@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.24",
+    "version": "0.1.25",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mtoon.js"
@@ -567,6 +567,7 @@ const DOMAIN_LIST_URL = "https://raw.githubusercontent.com/insid0909-max/aniyomi
 // 301·302… 응답과 location 머리글을 그대로 줌(순정 망가요미 m_client.dart). 넘겨 주는 주소를 끝까지(최대 6번) 따라가
 // 이 사이트 모양(AUTO_HOST)의 다른 주소이고 첫 화면이 200 + 표시 글자일 때만 돌려줌. 확인 못 하면 null(원래 방법대로).
 let MOVED_CLIENT = null;
+const MOVED_SELF_OFF = true;
 const MOVED_SEEN = {};
 async function movedOrigin(url, head) {
     try {
@@ -619,6 +620,10 @@ async function movedTarget(ext, froms, current, marker, head) {
 
 // 정상으로 열릴 때: 지금 주소가 다른 주소로 넘겨 주는지(앱이 따라가서 화면은 정상) 앱을 켤 때 주소마다 한 번만 확인
 async function movedSelf(ext, base, marker) {
+    // 머니툰은 Cloudflare 보안 확인 사이트라 이 확인 요청(Dart 통신 HEAD)만 403 에 걸려
+    // 화면은 정상인데 앱이 "Cloudflare verification required" 알림을 띄웠음(사용자 화면 2026-11-09) → 정상일 땐 하지 않음.
+    // 주소가 끊겼을 때 새 주소 찾기(movedTarget)는 그대로
+    if (MOVED_SELF_OFF) return null;
     if (MOVED_SEEN[base]) return null;
     MOVED_SEEN[base] = 1;
     return movedTarget(ext, [base + "/"], base, marker, true);
