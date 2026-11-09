@@ -1,0 +1,56 @@
+name: Mtoon search 08
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 웹뷰 0.0.8 검색 페이지 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-search08 ../mtoon-search08 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),cp=require('node:child_process'),vm=require('node:vm');const p='mangayomi/mtoon_webview_probe.js',before=fs.readFileSync(p,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');assert.equal(hash(before),'5391d6ae2fba46ecf9c8d0ee88552f8a56d0260b');assert.equal(fs.readFileSync('../mtoon-search08/'+p,'utf8'),before);let out=before;function swap(a,b){assert.equal(out.split(a).length,2,a);out=out.replace(a,b);}
+          swap('let MT_WV_PENDING = null;','const MT_WV_PENDING = {};');
+          swap("function mtListScript(){return '('+function(){","function mtListScript(page,query){return '('+function(page,query){");
+          swap("    const path='/more.php?wt_fin='+encodeURIComponent('연재중')+'&w=8&c=0';","    const offset=(page-1)*30;const path=query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent('연재중')+'&w=8&c='+offset;");
+          swap("}.toString()+')();';}","}.toString()+')('+JSON.stringify(page)+','+JSON.stringify(query)+');';}");
+          swap('async function mtFirstList(){','async function mtFirstList(page,query){');
+          swap('[mtListScript()]','[mtListScript(page,query)]');
+          swap("    if(!list.length)throw new Error('WV 0.0.7: 유효한 작품 0개 (원본 '+Number(data.count||0)+'개)');","    if(!list.length&&Number(data.count)>0)throw new Error('WV 0.0.7: 목록 항목 해석 실패 (원본 '+Number(data.count)+'개)');");
+          swap('    return {list:list,hasNextPage:false};','    return {list:list,hasNextPage:Number(data.count)>=30};');
+          swap('    async getPopular(page){if(Number(page)>1)return {list:[],hasNextPage:false};if(!MT_WV_PENDING)MT_WV_PENDING=mtFirstList().finally(()=>{MT_WV_PENDING=null;});return await MT_WV_PENDING;}','    async getPopular(page){return await mtPaged08(page,\'\');}');
+          swap("    async search(query,page,filters){throw new Error('첫 목록 시험 전용입니다. 인기 탭을 열어 주세요.');}","    async search(query,page,filters){return await mtPaged08(page,String(query||'').trim());}");
+          out+=`\nasync function mtPaged08(page,query){const n=Number(page==null?1:page);if(!Number.isSafeInteger(n)||n<1||n>100000)throw new Error('WV 0.0.8: 잘못된 페이지 번호');const key=JSON.stringify([n,query]);if(!MT_WV_PENDING[key])MT_WV_PENDING[key]=mtFirstList(n,query).finally(()=>{delete MT_WV_PENDING[key];});return await MT_WV_PENDING[key];}\n`;
+          out=out.replaceAll('0.0.7','0.0.8');
+          fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');
+          const ctx={MProvider:class{}};vm.createContext(ctx);vm.runInContext(out,ctx);for(const [page,query,expected] of [[1,'','&c=0'],[2,'','&c=30'],[3,'검 & "','search='+encodeURIComponent('검 & "')+'&c=60']]){const script=ctx.mtListScript(page,query);new vm.Script(script);const body=script.slice(script.indexOf('    const offset='),script.indexOf('\n    fetch(path'));const actual=vm.runInNewContext('(()=>{'+body+';return path;})()',{page,query,encodeURIComponent});assert(actual.endsWith(expected));}assert(!out.includes('async getPopular(page){if(Number(page)>1)'));
+          const ip='../mtoon-search08/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214020);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.0.7');rows[0].version='0.0.8';fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-search08/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon_webview_probe.js
+          git diff --cached --check
+          git commit -m '머니툰 웹뷰 0.0.8 검색과 페이지 연결 [skip ci]'
+          git -C ../mtoon-search08 add mangayomi/mtoon_webview_probe.js mangayomi/index.json
+          git -C ../mtoon-search08 diff --cached --check
+          git -C ../mtoon-search08 commit -m '머니툰 웹뷰 시험 0.0.8 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-search08:gh-pages
