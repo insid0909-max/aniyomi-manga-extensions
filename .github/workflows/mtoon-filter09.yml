@@ -1,0 +1,57 @@
+name: Mtoon filter 09
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 웹뷰 0.0.9 필터 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-filter09 ../mtoon-filter09 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),cp=require('node:child_process'),vm=require('node:vm');const p='mangayomi/mtoon_webview_probe.js',before=fs.readFileSync(p,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');assert.equal(hash(before),'e0b122874cfad6953e06972a3d50e1ea810cca65');assert.equal(fs.readFileSync('../mtoon-filter09/'+p,'utf8'),before);let out=before;function swap(a,b){assert.equal(out.split(a).length,2,a);out=out.replace(a,b);}
+          const legacy=fs.readFileSync('mangayomi/mtoon.js','utf8');let defs='';for(const name of ['STATES','DAYS','GENRES']){const m=legacy.match(new RegExp('const '+name+' = ([^\n]+);'));assert(m);defs+='const MT_'+name+'09 = '+m[1]+';\n';}
+          swap("function mtListScript(page,query){return '('+function(page,query){","function mtListScript(page,query,options){return '('+function(page,query,options){");
+          swap("    const offset=(page-1)*30;const path=query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent('연재중')+'&w=8&c='+offset;","    const offset=(page-1)*30,o=options||{state:'연재중',day:'8',genre:''};const path=query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent(o.state)+(o.genre?'&cate='+encodeURIComponent(o.genre):'&w='+encodeURIComponent(o.day))+'&c='+offset;");
+          swap("JSON.stringify(query)+');';}","JSON.stringify(query)+','+JSON.stringify(options||null)+');';}");
+          swap('async function mtFirstList(page,query){','async function mtFirstList(page,query,options){');swap('[mtListScript(page,query)]','[mtListScript(page,query,options)]');
+          swap("    async search(query,page,filters){return await mtPaged08(page,String(query||'').trim());}","    getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09)];}\n    async search(query,page,filters){return await mtPaged08(page,String(query||'').trim(),mtFilter09(filters));}");
+          swap('async function mtPaged08(page,query){','async function mtPaged08(page,query,options){');swap('JSON.stringify([n,query])','JSON.stringify([n,query,options||null])');swap('mtFirstList(n,query).finally','mtFirstList(n,query,options).finally');
+          out+='\n'+defs+String.raw`
+          function mtFilter09(filters){
+              const rows=Array.isArray(filters)?filters:[];
+              const pick=(key,name,values)=>{const f=rows.find(x=>x&&(x.type===key||x.param===key||x.name===name)),i=f?Number(f.state):0;return values[Number.isInteger(i)&&i>=0&&i<values.length?i:0][1];};
+              const day=pick('day','요일',MT_DAYS09);return {state:pick('state','연재 상태',MT_STATES09),day:day==='today'?String(new Date(Date.now()+9*3600000).getUTCDay()):day,genre:pick('genre','장르',MT_GENRES09)};
+          }
+          `;out=out.replaceAll('0.0.8','0.0.9');
+          fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');const ctx={MProvider:class{}};vm.createContext(ctx);vm.runInContext(out,ctx);assert.equal(ctx.mtFilter09([{type:'state',state:1}]).state,'완결');assert.equal(ctx.mtFilter09([{type:'genre',state:1}]).genre,'판타지');assert.equal(ctx.mtFilter09([{type:'day',state:1}]).day,'1');for(const [query,options] of [['',null],['',{state:'완결',day:'1',genre:'판타지'}],['검색 & 제목',null]]){const script=ctx.mtListScript(2,query,options);new vm.Script(script);const body=script.slice(script.indexOf('    const offset='),script.indexOf('\n    fetch(path'));const path=vm.runInNewContext('(()=>{'+body+';return path;})()',{page:2,query,options,encodeURIComponent});assert(path.endsWith('&c=30'));if(query)assert(path.includes('search='+encodeURIComponent(query)));else if(options)assert(path.includes('cate='+encodeURIComponent('판타지'))&&!path.includes('&w='));else assert(path.includes('&w=8'));}
+          const ip='../mtoon-filter09/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214020);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.0.8');rows[0].version='0.0.9';fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-filter09/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon_webview_probe.js
+          git diff --cached --check
+          git commit -m '머니툰 웹뷰 0.0.9 연재 요일 장르 필터 [skip ci]'
+          git -C ../mtoon-filter09 add mangayomi/mtoon_webview_probe.js mangayomi/index.json
+          git -C ../mtoon-filter09 diff --cached --check
+          git -C ../mtoon-filter09 commit -m '머니툰 웹뷰 시험 0.0.9 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-filter09:gh-pages
