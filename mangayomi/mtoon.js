@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.30","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.31","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -304,7 +304,7 @@ async function mtDetail10(url){
 
 const MT_RULES11=[['저장하지 않음','0'],['현재 조건을 인기 탭에 저장','1'],['현재 조건을 최신 탭에 저장','2'],['인기 탭 기본값 복원','3'],['최신 탭 기본값 복원','4'],['두 탭 기본값 복원','5']];
 let MT_ORIGIN11='';
-function mtBase11(){let s=MT_ORIGIN11;try{s=s||String(new SharedPreferences().get('mt_origin11')||'');}catch(_){}return /^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s)?s:'https://mtoon165.asia';}
+function mtBase11(){let s=MT_ORIGIN11;try{s=s||String(new SharedPreferences().get('mt_origin11')||'');}catch(_){}return /^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s)?s:'https://mtoon166.asia';}
 function mtRemember11(origin){const s=String(origin||'');if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s))return;MT_ORIGIN11=s;try{new SharedPreferences().setString('mt_origin11',s);}catch(_){}}
 function mtValidRule11(o){return o&&MT_STATES09.some(x=>x[1]===o.state)&&MT_DAYS09.some(x=>x[1]===o.day)&&MT_GENRES09.some(x=>x[1]===o.genre);}
 function mtRule11(tab){try{const o=JSON.parse(new SharedPreferences().get('mt_rule11_'+tab)||'null');return mtValidRule11(o)?o:null;}catch(_){return null;}}

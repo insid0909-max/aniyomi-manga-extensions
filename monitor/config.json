@@ -220,12 +220,6 @@
    "file": "mangayomi/goraetoon.js",
    "depth": "pages",
    "key": "goraetoon"
-  },
-  {
-   "name": "머니툰 (망가요미)",
-   "file": "mangayomi/mtoon.js",
-   "depth": "pages",
-   "key": "mtoon"
   }
  ]
 }
