@@ -1,0 +1,47 @@
+name: Mtoon cover 05
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 웹뷰 0.0.5 표지 응답 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-cover05 ../mtoon-cover05 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),cp=require('node:child_process');const p='mangayomi/mtoon_webview_probe.js',before=fs.readFileSync(p,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');assert.equal(hash(before),'c0097643b2ae43452ad4cddbd120e16b3a60b997');assert.equal(fs.readFileSync('../mtoon-cover05/'+p,'utf8'),before);let out=before;function swap(a,b){assert.equal(out.split(a).length,2);out=out.replace(a,b);}
+          swap("            return {id:String(x.wt_idx||''),name:String(x.wt_title||''),imageUrl:image};","            let dom='';for(const a of document.querySelectorAll('a[href]')){try{const u=new URL(a.href,location.href);if(u.pathname==='/list.php'&&u.searchParams.get('i')===String(x.wt_idx)){const im=a.querySelector('img')||(a.parentElement&&a.parentElement.querySelector('img'));if(im){dom=im.currentSrc||im.src||'';break;}}}catch(_){}}\n            return {id:String(x.wt_idx||''),name:String(x.wt_title||''),imageUrl:image,raw:String(x.wt_thumb||'').split(/[?#]/)[0].slice(0,400),dom:String(dom).split(/[?#]/)[0].slice(0,400)};");
+          const begin=out.indexOf('        await Promise.all(rows.slice(0,3)'),end=out.indexOf('\n        send({stage:',begin);assert(begin>=0&&end>begin);
+          out=out.slice(0,begin)+"        await Promise.all(rows.slice(0,3).map(async row=>{if(!row.imageUrl){row.coverState='주소 없음';return;}const u=new URL(row.imageUrl);if(u.origin!==location.origin){row.coverState='다른 출처: HTTP 검사 생략';return;}const c=new AbortController(),t=setTimeout(()=>c.abort(),5000);try{const response=await fetch(u.href,{credentials:'same-origin',redirect:'error',signal:c.signal});row.coverState='HTTP '+response.status+' | '+String(response.headers.get('content-type')||'형식 없음');if(response.body)await response.body.cancel();}catch(e){row.coverState=e&&e.name==='AbortError'?'표지 HTTP 5초 초과':'표지 HTTP 요청 실패';}finally{clearTimeout(t);}}));"+out.slice(end);
+          const s=out.indexOf('    data.rows.forEach(x=>'),e=out.indexOf('\n',s);assert(s>=0&&e>s);out=out.slice(0,s)+"    data.rows.forEach(x=>{if(!x||!/^\\d+$/.test(String(x.id)))return;const c={name:String(x.name||''),image:String(x.imageUrl||'').replace(/[?#].*$/,''),raw:x.raw||'',dom:x.dom||'',state:x.coverState||'미검사 (첫 3개만 검사)'};MT_COVERS[String(x.id)]=c;try{new SharedPreferences().setString('mt_cover05_'+x.id,JSON.stringify(c));}catch(_){}});"+out.slice(e);
+          const a=out.indexOf('    async getDetail(url){'),b=out.indexOf('\n',a);assert(a>=0&&b>a);out=out.slice(0,a)+"    async getDetail(url){const m=/[?&]i=(\\d+)/.exec(String(url)),id=m?m[1]:'';let c=MT_COVERS[id];if(!c){try{c=JSON.parse(new SharedPreferences().get('mt_cover05_'+id)||'null');}catch(_){}}if(!c)throw new Error('표지시험 0.0.5: 진단 정보 없음. 인기 목록을 새로 불러온 뒤 첫 작품을 열어 주세요.');return {name:c.name,imageUrl:c.image,description:'표지시험 0.0.5\\n결과: '+c.state+'\\n원래 값: '+c.raw+'\\n조합 주소: '+c.image+'\\n사이트 이미지 후보: '+(c.dom||'찾지 못함')+'\\n진단 전용이며 회차는 아직 연결하지 않았습니다.',chapters:[]};}"+out.slice(b);
+          out=out.replaceAll('0.0.4','0.0.5');fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');const ip='../mtoon-cover05/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214020);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.0.4');rows[0].version='0.0.5';fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-cover05/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon_webview_probe.js
+          git diff --cached --check
+          git commit -m '머니툰 웹뷰 0.0.5 표지 응답·주소 진단 [skip ci]'
+          git -C ../mtoon-cover05 add mangayomi/mtoon_webview_probe.js mangayomi/index.json
+          git -C ../mtoon-cover05 diff --cached --check
+          git -C ../mtoon-cover05 commit -m '머니툰 웹뷰 시험 0.0.5 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-cover05:gh-pages
