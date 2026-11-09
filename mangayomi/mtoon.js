@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.29","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon165.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.30","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -57,6 +57,7 @@ class DefaultExtension extends MProvider{
     getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')},select('rule','탭 조건 저장',MT_RULES11)];}
     async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),result=await mtPaged08(page,q,options);if(!q&&Number(page==null?1:page)===1)mtApplyRule11(filters,options);return result;}
     async getDetail(url){return await mtDetail10(url);}
+    getSourcePreferences(){return [{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
     async getPageList(url){return await mtRead07(url,'pages');}
 }
 
@@ -230,7 +231,9 @@ async function mtRead07Wv(url,mode,m){
 // 앱 안 중계(127.0.0.1:48799, TLS 첫 인사를 쪼갬)를 거침. noProxy:true 통신은 중계를 건너뜀(glitchApplySniProxy).
 // 순정은 원래 바로 받기가 됐음(0.1.25). → 웹뷰보다 먼저 바로 받기 4초, 안 되면 웹뷰 길, 6시간 동안 바로 받기 건너뜀
 const MT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
-function mtDirectOff(){try{return Number(new SharedPreferences().get('mt_direct_off_until')||0)>Date.now();}catch(_){return false;}}
+// 0.1.30: 글리치 SNI 파편화를 안 켜면 바로 받기가 매번 실패해 오히려 느려짐(사용자 5초) → 설정 스위치로 켤 때만 (기본 끔)
+function mtDirectOn(){try{const v=new SharedPreferences().get('mt_direct_on');return v===true||v==='true';}catch(_){return false;}}
+function mtDirectOff(){if(!mtDirectOn())return true;try{return Number(new SharedPreferences().get('mt_direct_off_until')||0)>Date.now();}catch(_){return false;}}
 function mtDirectFailed(){try{new SharedPreferences().setString('mt_direct_off_until',String(Date.now()+6*3600000));}catch(_){}}
 function mtUnesc(t){return String(t||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0*39;/g,"'").replace(/&nbsp;/g,' ').replace(/&amp;/g,'&');}
 async function mtDirectGet(path,ms,xhr){
