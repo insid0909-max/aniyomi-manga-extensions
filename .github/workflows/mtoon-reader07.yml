@@ -1,0 +1,80 @@
+name: Mtoon reader 07
+on:
+  workflow_run:
+    workflows: ['Build']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: gate
+        run: |
+          if [ "$(git log -1 --format=%s)" = '머니툰 웹뷰 0.0.7 회차 연결 준비' ]; then echo 'apply=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.apply == 'true'
+        with:
+          node-version: '22'
+      - if: steps.gate.outputs.apply == 'true'
+        run: |
+          git fetch origin main gh-pages
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git worktree add -b mtoon-reader07 ../mtoon-reader07 origin/gh-pages
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),crypto=require('node:crypto'),cp=require('node:child_process');const p='mangayomi/mtoon_webview_probe.js',before=fs.readFileSync(p,'utf8'),hash=s=>crypto.createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');assert.equal(hash(before),'0f10eb0e8c7a7b474a21c721129b61b42e0aca32');assert.equal(fs.readFileSync('../mtoon-reader07/'+p,'utf8'),before);let out=before;
+          const old="new URL(String(x.wt_thumb),location.origin+'/')";assert.equal(out.split(old).length,2);out=out.replace(old,"new URL(String(x.wt_thumb),location.origin+(/^[^/?:#]+\\.(?:jpe?g|png|webp|gif)(?:[?#].*)?$/i.test(String(x.wt_thumb))?'/img/data/webtoon/':'/'))");
+          const a=out.indexOf('        await Promise.all(rows.slice(0,3)'),b=out.indexOf('\n        send({stage:',a);assert(a>=0&&b>a);out=out.slice(0,a)+out.slice(b);
+          const d=out.indexOf('    async getDetail(url){'),e=out.indexOf('\n',d);assert(d>=0&&e>d);out=out.slice(0,d)+"    async getDetail(url){return await mtRead07(url,'detail');}"+out.slice(e);out=out.replace('    async getPageList(url){return [];}','    async getPageList(url){return await mtRead07(url,\'pages\');}');
+          out=out.replaceAll('0.0.6','0.0.7').replaceAll('mt_cover06_','mt_cover07_');
+          out+=String.raw`
+          function mtReaderScript07(mode,id){return '('+function(mode,id){
+              if(window.__mtRead07)return;window.__mtRead07=true;let done=false,tries=0;
+              const send=x=>{if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',JSON.stringify(x));};
+              const abs=v=>{try{const u=new URL(v,location.href);return /^https?:$/.test(u.protocol)?u.href:'';}catch(_){return '';}};
+              const image=el=>el?abs(el.getAttribute('data-src')||el.getAttribute('data-original')||el.getAttribute('src')||''):'';
+              const run=()=>{
+                  if(done)return;tries++;
+                  if(location.protocol!=='https:'||!/^(?:www\.)?mtoon\d+\.asia$/.test(location.hostname)){send({error:'허용 범위 밖 페이지'});return;}
+                  const here=new URL(location.href),key=mode==='detail'?'i':'wi';
+                  if(here.searchParams.get(key)!==id){send({error:'작품 또는 회차 주소 변경'});return;}
+                  if(mode==='detail'){
+                      const title=document.querySelector('h1.list_page_title'),links=Array.from(document.querySelectorAll('.list_data .l_d_t a[href]'));
+                      const seen=new Set(),chapters=[];for(const a of links){const link=abs(a.getAttribute('href'));if(!link)continue;const u=new URL(link);if(u.origin!==location.origin||u.pathname!=='/detail.php'||!/^\d+$/.test(u.searchParams.get('wi')||'')||seen.has(link))continue;seen.add(link);const name=String(a.textContent||'').replace(/\s+/g,' ').trim();if(name)chapters.push({name:name,url:link});}
+                      if(title&&chapters.length){send({detail:{name:String(title.textContent||'').trim(),imageUrl:image(document.querySelector('.list_page_head img')),description:String((document.querySelector('.list_page_head p')||{}).textContent||'').trim(),chapters:chapters}});return;}
+                  }else{
+                      const urls=[],seen=new Set();for(const im of document.images){const u=image(im);if(!u)continue;const parsed=new URL(u);if(!/\/data\/file\//i.test(parsed.pathname)||/\/ban\/|money_toon/i.test(u)||seen.has(u))continue;seen.add(u);urls.push(u);}
+                      if(urls.length&&document.readyState==='complete'){send({pages:urls});return;}
+                  }
+                  if(tries>=30){send({error:mode==='detail'?'작품 회차 추출 12초 초과 (회차 링크 '+document.querySelectorAll('a[href*="detail.php"]').length+'개)':'본문 이미지 추출 12초 초과 (전체 이미지 '+document.images.length+'개)'});return;}
+                  setTimeout(run,400);
+              };run();
+          }.toString()+')('+JSON.stringify(mode)+','+JSON.stringify(id)+');';}
+          async function mtRead07(url,mode){
+              const text=String(url||''),m=/^https:\/\/(?:www\.)?mtoon\d+\.asia\/(list|detail)\.php\?(?:[^#]*&)?(i|wi)=(\d+)(?:&[^#]*)?$/.exec(text);
+              if(!m||(mode==='detail'?(m[1]!=='list'||m[2]!=='i'):(m[1]!=='detail'||m[2]!=='wi')))throw new Error('WV 0.0.7: 작품/회차 주소 형식 오류');
+              if(typeof evaluateJavascriptViaWebview!=='function')throw new Error('WV 0.0.7: 웹뷰 함수 없음');
+              let timer,value;try{value=await Promise.race([evaluateJavascriptViaWebview(text,{},[mtReaderScript07(mode,m[3])],20),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WV 0.0.7: 작품/회차 웹뷰 24초 초과')),24000);})]);}finally{if(timer&&typeof clearTimeout==='function')clearTimeout(timer);}
+              for(let n=0;n<2&&typeof value==='string';n++){try{value=JSON.parse(value);}catch(_){throw new Error('WV 0.0.7: 작품/회차 JSON 해석 실패');}}
+              if(!value||value.error)throw new Error('WV 0.0.7: '+String(value&&value.error||'빈 응답'));
+              if(mode==='detail'){if(!value.detail||!Array.isArray(value.detail.chapters)||!value.detail.chapters.length)throw new Error('WV 0.0.7: 유효한 회차 없음');return value.detail;}
+              if(!Array.isArray(value.pages)||!value.pages.length)throw new Error('WV 0.0.7: 본문 이미지 없음');return value.pages;
+          }
+          `;
+          fs.writeFileSync(p+'.check.js',out);cp.execFileSync(process.execPath,['--check',p+'.check.js']);fs.unlinkSync(p+'.check.js');const ip='../mtoon-reader07/mangayomi/index.json',index=JSON.parse(fs.readFileSync(ip,'utf8')),rows=index.filter(x=>x.id===870214020);assert.equal(rows.length,1);assert.equal(rows[0].version,'0.0.6');rows[0].version='0.0.7';fs.writeFileSync(p,out);fs.writeFileSync('../mtoon-reader07/'+p,out);fs.writeFileSync(ip,JSON.stringify(index,null,1)+'\n');
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add mangayomi/mtoon_webview_probe.js
+          git diff --cached --check
+          git commit -m '머니툰 웹뷰 0.0.7 전체 표지와 회차 연결 [skip ci]'
+          git -C ../mtoon-reader07 add mangayomi/mtoon_webview_probe.js mangayomi/index.json
+          git -C ../mtoon-reader07 diff --cached --check
+          git -C ../mtoon-reader07 commit -m '머니툰 웹뷰 시험 0.0.7 배포 [skip ci]'
+          git push --atomic origin HEAD:main mtoon-reader07:gh-pages
