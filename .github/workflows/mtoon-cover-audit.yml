@@ -1,0 +1,49 @@
+name: Mtoon cover address audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mtoon-cover-audit.yml']
+permissions:
+  contents: write
+jobs:
+  audit:
+    if: github.event.head_commit.message == '머니툰 표지 주소 일회 조사 준비'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const report={time:new Date().toISOString(),environment:'GitHub runner, not Glitch; no imported cookies',samples:[]};
+          const ua='Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+          const safe=u=>{try{const x=new URL(u);return x.origin+x.pathname}catch(_){return String(u).split(/[?#]/)[0].slice(0,180)}};
+          const valid=u=>{const x=new URL(u);return x.protocol==='https:'&&/^(?:[a-z0-9-]+\.)?mtoon\d+\.asia$/.test(x.hostname)};
+          const request=(u,opts={})=>{if(!valid(u))throw Error('Unexpected host');return fetch(u,{...opts,redirect:'error',headers:{'User-Agent':ua,...opts.headers},signal:AbortSignal.timeout(12000)})};
+          (async()=>{try{
+            const base='https://mtoon166.asia';
+            const home=await request(base+'/');report.home={url:safe(home.url),status:home.status,type:home.headers.get('content-type')};
+            const html=(await home.text()).slice(0,2000000);
+            const images=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>{const a=/\bsrc\s*=\s*["']([^"']+)["']/i.exec(m[0]);return a?a[1].replace(/&amp;/g,'&'):''}).filter(Boolean);
+            report.homeImages=images.slice(0,30).map(x=>safe(new URL(x,base+'/').href));
+            const url=base+'/more.php?wt_fin='+encodeURIComponent('연재중')+'&w=8&c=0';
+            const res=await request(url,{method:'POST',headers:{Referer:base+'/','X-Requested-With':'XMLHttpRequest'}});report.list={status:res.status,type:res.headers.get('content-type')};
+            const body=await res.text();let rows;try{rows=JSON.parse(body)}catch(_){report.list.error='Not JSON';return;}
+            if(!Array.isArray(rows)){report.list.error='Not array';return;}
+            for(const row of rows.slice(0,3)){
+              const raw=String(row.wt_thumb||'');const s={id:String(row.wt_idx||''),raw:safe(raw),candidates:[]};report.samples.push(s);if(!raw)continue;
+              const resolved=new URL(raw,base+'/').href;s.resolved=safe(resolved);
+              const basename=new URL(resolved).pathname.split('/').pop();
+              const candidates=[resolved,...images.filter(x=>basename&&x.includes(basename)).map(x=>new URL(x,base+'/').href)];
+              for(const candidate of [...new Set(candidates)].slice(0,3)){const c={url:safe(candidate)};s.candidates.push(c);try{const r=await request(candidate,{headers:{Referer:base+'/'}});c.status=r.status;c.type=r.headers.get('content-type');c.length=r.headers.get('content-length');if(r.body)await r.body.cancel();}catch(e){c.error=String(e.name||'Error');}}
+            }
+          }catch(e){report.error=String(e.name||'Error')+': '+String(e.message||'').slice(0,100)}finally{fs.mkdirSync('monitor',{recursive:true});fs.writeFileSync('monitor/mtoon-cover-audit.json',JSON.stringify(report,null,2)+'\n')}})().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+          git config user.name 'insid0909-max'
+          git config user.email '266083559+insid0909-max@users.noreply.github.com'
+          git add monitor/mtoon-cover-audit.json
+          git commit -m '머니툰 표지 주소 조사 결과 [skip ci]'
+          git push origin HEAD:main
