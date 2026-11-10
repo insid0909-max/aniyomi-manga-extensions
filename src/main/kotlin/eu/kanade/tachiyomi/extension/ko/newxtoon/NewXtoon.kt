@@ -753,6 +753,11 @@ class NewXtoonFactory : SourceFactory {
             list.add(ErrorSource("북코 소설 오류", e))
         }
         try {
+            list.add(TokiNovel()) // 토끼 소설 (2026-11-10, 망가요미판과 같은 방법)
+        } catch (e: Throwable) {
+            list.add(ErrorSource("토끼 소설 오류", e))
+        }
+        try {
             list.add(Mtoon())
         } catch (e: Throwable) {
             list.add(ErrorSource("머니툰 오류", e))
