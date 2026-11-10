@@ -1,5 +1,26 @@
 {
- "changedFiles": [],
- "domainChanges": [],
+ "changedFiles": [
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+  "mangayomi/wolftoon.js",
+  "mangayomi/wolftoon_comic.js",
+  "domains.json",
+  "changelog.json",
+  "업데이트내역.md"
+ ],
+ "domainChanges": [
+  {
+   "name": "늑대닷컴",
+   "from": "https://wfwf531.com",
+   "to": "https://wfwf534.com",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
+    "mangayomi/wolftoon.js",
+    "mangayomi/wolftoon_comic.js",
+    "domains.json",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  }
+ ],
  "notes": []
 }
