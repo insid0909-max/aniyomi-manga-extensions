@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon166.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.33","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.34","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -57,7 +57,7 @@ class DefaultExtension extends MProvider{
     getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')},select('rule','탭 조건 저장',MT_RULES11)];}
     async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),result=await mtPaged08(page,q,options);if(!q&&Number(page==null?1:page)===1)mtApplyRule11(filters,options);return result;}
     async getDetail(url){return await mtDetail10(url);}
-    getSourcePreferences(){return [{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
+    getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon167.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon167.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
     async getPageList(url){return await mtRead07(url,'pages');}
 }
 
@@ -304,8 +304,17 @@ async function mtDetail10(url){
 
 const MT_RULES11=[['저장하지 않음','0'],['현재 조건을 인기 탭에 저장','1'],['현재 조건을 최신 탭에 저장','2'],['인기 탭 기본값 복원','3'],['최신 탭 기본값 복원','4'],['두 탭 기본값 복원','5']];
 let MT_ORIGIN11='';
-function mtBase11(){let s=MT_ORIGIN11;try{s=s||String(new SharedPreferences().get('mt_origin11')||'');}catch(_){}return /^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s)?s:'https://mtoon166.asia';}
-function mtRemember11(origin){const s=String(origin||'');if(!/^https:\/\/(?:www\.)?mtoon\d+\.asia$/.test(s))return;MT_ORIGIN11=s;try{new SharedPreferences().setString('mt_origin11',s);}catch(_){}}
+// 0.1.34: 주소 규칙(다른 확장과 같게) — 직접 넣은 주소(mt_domain)는 바로 씀, 자동으로 찾은 주소(mt_origin11)가 번호가 더 크면 그 주소로 바꾸고 칸도 고침, 자동 찾기 끄면 직접 넣은 주소·기본 주소만
+const MT_DEFAULT='https://mtoon167.asia',MT_ORIGIN_RE=/^https:\/\/(?:www\.)?mtoon\d+\.asia$/;
+function mtNum(o){return Number((/mtoon(\d+)\./.exec(String(o||''))||[])[1]||0);}
+function mtPref(k){try{const v=new SharedPreferences().get(k);return v==null?'':String(v);}catch(_){return '';}}
+function mtAutoOn(){const v=mtPref('mt_auto_on');return !(v==='false');}
+function mtManual(){let v=mtPref('mt_domain').trim().replace(/\/+$/,'').toLowerCase();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/^http:/,'https:');return MT_ORIGIN_RE.test(v)?v:'';}
+let MT_TRY='';
+function mtBase11(){if(MT_TRY)return MT_TRY;const manual=mtManual(),on=mtAutoOn();let auto=MT_ORIGIN11||mtPref('mt_origin11');if(!MT_ORIGIN_RE.test(auto))auto='';
+    if(manual){if(on&&auto&&mtNum(auto)>mtNum(manual)){try{new SharedPreferences().setString('mt_domain',auto);}catch(_){}return auto;}return manual;}
+    return on&&auto?auto:MT_DEFAULT;}
+function mtRemember11(origin){const s=String(origin||'').toLowerCase();if(!MT_ORIGIN_RE.test(s))return;const manual=mtManual();if(manual&&mtNum(s)<mtNum(manual))return;MT_ORIGIN11=s;try{new SharedPreferences().setString('mt_origin11',s);}catch(_){}}
 function mtValidRule11(o){return o&&MT_STATES09.some(x=>x[1]===o.state)&&MT_DAYS09.some(x=>x[1]===o.day)&&MT_GENRES09.some(x=>x[1]===o.genre);}
 function mtRule11(tab){try{const o=JSON.parse(new SharedPreferences().get('mt_rule11_'+tab)||'null');return mtValidRule11(o)?o:null;}catch(_){return null;}}
 function mtOptions11(o){if(!mtValidRule11(o))return null;return {state:o.state,day:o.day==='today'?String(new Date(Date.now()+32400000).getUTCDay()):o.day,genre:o.genre};}
@@ -473,15 +482,54 @@ async function mtListed() {
     return v;
 }
 
+// 0.1.34: 새 주소 찾기 — ① 주소 목록 파일 ② 지금 주소가 넘겨 주는 주소 ③ 번호 짐작(지금 번호 -2 ~ +8). 200 + 머니툰 로고(money_toon.png) 확인된 주소만, 번호 큰 것. 전체 9초 안, 1분에 한 번
+let MT_DISC_AT = 0;
+async function mtProbe(origin) {
+    try {
+        const c = new Client({ useDartHttpClient: true, followRedirects: false });
+        const r = await c.get(origin + "/", { "User-Agent": MT_UA, Referer: origin + "/" });
+        const code = Number(r.statusCode);
+        if (code === 200 && String(r.body || "").includes("money_toon.png")) return { ok: origin };
+        const h = r.headers || {};
+        const loc = String(h.location || h.Location || "");
+        const m = /^https?:\/\/((?:www\.)?mtoon\d+\.asia)(?:[\/?#]|$)/i.exec(loc);
+        if (code >= 300 && code < 400 && m) return { moved: "https://" + m[1].toLowerCase() };
+    } catch (e) {
+        // 안 열림
+    }
+    return {};
+}
+async function mtDiscover() {
+    if (Date.now() - MT_DISC_AT < 60000) return "";
+    MT_DISC_AT = Date.now();
+    const cur = mtBase11();
+    const work = (async () => {
+        const listed = await mtListed();
+        const n = mtNum(cur) || mtNum(MT_DEFAULT);
+        const pool = [];
+        if (listed) pool.push(listed);
+        for (let i = n - 2; i <= n + 8; i++) if (i > 0) pool.push("https://mtoon" + i + ".asia");
+        if (!pool.includes(cur)) pool.push(cur);
+        const res = await Promise.all([...new Set(pool)].map((o) => mtProbe(o)));
+        const ok = res.map((x) => x.ok).filter(Boolean);
+        const moved = [...new Set(res.map((x) => x.moved).filter((x) => x && !ok.includes(x)))];
+        for (const r of await Promise.all(moved.map((o) => mtProbe(o)))) if (r.ok) ok.push(r.ok);
+        ok.sort((a, b) => mtNum(b) - mtNum(a));
+        return ok.find((o) => o !== cur) || "";
+    })();
+    let timer;
+    const out = await Promise.race([work, new Promise((r) => { timer = setTimeout(() => r(""), 9000); })]);
+    return out || "";
+}
+
 // 다른 주소로 한 번 불러 보기 (웹뷰가 머니툰 로고를 확인해야 성공, 성공하면 mtFirstList 가 그 주소를 기억)
 async function mtTryOrigin(origin, run) {
-    const keep = MT_ORIGIN11;
-    MT_ORIGIN11 = origin;
+    const keep = MT_TRY;
+    MT_TRY = origin;
     try {
         return await run();
-    } catch (e) {
-        MT_ORIGIN11 = keep;
-        throw e;
+    } finally {
+        MT_TRY = keep;
     }
 }
 
@@ -495,12 +543,15 @@ async function mtTryOrigin(origin, run) {
         } catch (e) {
             const m = String((e && e.message) || e || "");
             if (/로고 미확인|허용 범위 밖|빈 응답|호출 실패|fetch 실패|HTTP 5\d\d/.test(m) && Date.now() - t0 < 15000) {
-                const listed = await mtListed();
-                if (listed && listed !== mtBase11()) {
+                const found = mtAutoOn() ? await mtDiscover() : "";
+                if (found && found !== mtBase11()) {
+                    // 직접 넣은 주소가 안 열려서 찾은 주소(머니툰 화면 확인됨) → 설정 칸도 그 주소로 고침
+                    if (mtManual()) try { new SharedPreferences().setString("mt_domain", found); } catch (_) {}
+                    mtRemember11(found);
                     try {
-                        return await mtTryOrigin(listed, () => base.apply(this, arguments));
+                        return await mtTryOrigin(found, () => base.apply(this, arguments));
                     } catch (e2) {
-                        // 아래 원래 오류로
+                        // 아래 원래 오류로 (찾은 주소는 기억해 둠 — 다음에 그 주소로)
                     }
                 }
             }
@@ -528,6 +579,8 @@ async function mtTryOrigin(origin, run) {
             const id = (/[?&]i=(\d+)/.exec(hit[2] || "") || [])[1];
             try {
                 const r = await mtTryOrigin(origin, () => mtFirstList(1, "", null));
+                try { new SharedPreferences().setString("mt_domain", origin); } catch (_) {}
+                mtRemember11(origin);
                 if (id) return { list: [{ name: `작품 열기 (${id})`, imageUrl: "", link: `${mtBase11()}/list.php?i=${id}` }], hasNextPage: false };
                 return r;
             } catch (e) {
