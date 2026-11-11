@@ -349,8 +349,11 @@ internal object ChapterOrder {
         }
     }
 
+    // "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 ("Chapter N" 은 영어 원판 번호라 한국판 회차와 셈이 달라 뺌 — 비밀수업 RAW Chapter 74) "N화" 와 같은 묶음으로 (검은머리 기사왕, 망가요미와 같음)
+    private val EN_EP = Regex("""(?:^|[\s\-–:])(?:lesson|episode|ep)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)""", RegexOption.IGNORE_CASE)
+
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>, title: String = ""): Key {
-        val name = dotNumber(rawName, title)
+        val name = EN_EP.replaceFirst(dotNumber(rawName, title), " $1화 ").trim()
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
         // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커).
