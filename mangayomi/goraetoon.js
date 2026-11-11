@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.24",
+    "version": "0.1.25",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goraetoon.js"
@@ -346,7 +346,17 @@ async function familyTarget(ext, body, base, marker, quiet) {
 // 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
 // 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
 // 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0
+// 제목 끝 덧붙임("일진녀 길들이기[탑툰]"·"…(완결)")이 회차 이름에 없으면 그 부분을 뺀 제목으로도 맞춰 봄
 function titleCut(name, title) {
+    const full = titleCutOne(name, title);
+    if (full > 0) return full;
+    const core = String(title || "").replace(/\s*[\[(【［（][^\])】］）]*[\])】］）]\s*$/, "");
+    if (!core || core === String(title || "")) return 0;
+    const cut = titleCutOne(name, core);
+    // 괄호 앞 제목만 맞고 바로 괄호가 이어지면("원피스(ONE PI…") 잘린 전체 제목이라 떼지 않음
+    return cut > 0 && /^\s*[\[(【［（]/.test(String(name).substring(cut)) ? 0 : cut;
+}
+function titleCutOne(name, title) {
     const T = String(title || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
     if (!T) return 0;
     const s = String(name || "");
@@ -367,7 +377,7 @@ function chapterPosition(list, title) {
         if (v === false || v === "false") return list;
     } catch (e) {}
     const t = String(title || "").trim();
-    return list.map((c, i) => {
+    const rows = list.map((c) => {
         // 정렬이 붙인 앞 번호("65 · ")는 두고 그 뒤에서 사이트 순번·작품 제목을 뺌
         const lead = (/^\d+(?:\.\d+)? · /.exec(String(c.name || "").trim()) || [""])[0];
         let n = String(c.name || "").trim().substring(lead.length);
@@ -378,12 +388,41 @@ function chapterPosition(list, title) {
             if (!/^\d+\.\s/.test(seqm[0]) || /^\d/.test(rest) || /\d+\s*(?:화|권|호|話)/.test(rest)) n = rest;
         }
         // 2026-11-11: 제목 표기가 조금 달라도(끝 마침표·물음표·띄어쓰기 — "…결심한다." ↔ "…결심한다 115화") 글자·숫자만 맞춰 맨 앞 작품 제목을 뺌
-        const cut = titleCut(n, t);
-        if (cut > 0) {
+        // 제목이 두 번 붙은 이름("비밀수업 비밀수업 73화")도 있어 최대 3번
+        for (let k = 0; k < 3; k++) {
+            const cut = titleCut(n, t);
+            if (!(cut > 0)) break;
             const rest = n.substring(cut).replace(/^[\s\-–:·.?!~,)\]）】」』>]+/, "");
-            if (rest) n = rest;
+            if (!rest || rest === n) break;
+            n = rest;
         }
-        return Object.assign({}, c, { name: lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
+        return { c, lead, n };
+    });
+    // 2026-11-11: 작품 제목이 다른 글자로 붙은 경우("GACHIAKUTA" ↔ "가치액터 47화") — 여러 회차(3개 이상) 앞에 똑같이 붙은 글자를 제목으로 보고 뺌
+    // (숫자가 들어 있거나 외전·번외·특별·시즌·후기·공지 같은 뜻 있는 말이면 빼지 않음)
+    const cnt = {};
+    for (const x of rows) {
+        const m = /^([^\d]{2,40}?)\s+\d+(?:[.-]\d+)?\s*화/.exec(x.n);
+        if (m) cnt[m[1]] = (cnt[m[1]] || 0) + 1;
+    }
+    let common = Object.keys(cnt).filter((p) => cnt[p] >= 3 && !/외전|번외|특별|시즌|부$|후기|공지|휴재|에필로그|프롤로그|예고|단편|완결|최종|season|ep\b/i.test(p)).sort((a, b) => cnt[b] - cnt[a])[0];
+    if (common) {
+        // 떼면 다른 회차 번호와 겹치는 말("애프터스토리 1~33화" ↔ 본편 1~62화)은 제목이 아니라 따로 묶인 회차 이름이라 그대로 둠
+        const num = (s) => (/^(\d+(?:[.-]\d+)?)\s*화/.exec(s) || [])[1];
+        const mine = new Set(), other = new Set();
+        for (const x of rows) {
+            if (x.n.startsWith(common)) { const v = num(x.n.substring(common.length).replace(/^[\s\-–:·.]+/, "")); if (v) mine.add(v); }
+            else { const v = num(x.n); if (v) other.add(v); }
+        }
+        if ([...mine].some((v) => other.has(v))) common = "";
+    }
+    return rows.map((x, i) => {
+        let n = x.n;
+        if (common && n.startsWith(common)) {
+            const rest = n.substring(common.length).replace(/^[\s\-–:·.]+/, "");
+            if (/^\d/.test(rest)) n = rest;
+        }
+        return Object.assign({}, x.c, { name: x.lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
     });
 }
 
