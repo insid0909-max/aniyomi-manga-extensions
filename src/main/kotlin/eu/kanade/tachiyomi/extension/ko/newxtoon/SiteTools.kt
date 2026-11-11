@@ -882,8 +882,18 @@ internal object ChapterListCache {
  * 시즌 작품은 ChapterOrder 가 1, 2, 3 … 으로 매겨 빈 번호가 없음
  */
 internal object MissingNote {
+    private val RANGE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
+
     fun text(chapters: List<SChapter>): String {
         val nums = chapters.map { it.chapter_number }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
+        // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
+        chapters.forEach { c ->
+            RANGE.find(c.name)?.let { r ->
+                val a = r.groupValues[1].toInt()
+                val b = r.groupValues[2].toInt()
+                if (a == c.chapter_number.toInt() && b > a && b - a <= 50) nums.addAll(a..b)
+            }
+        }
         if (nums.size < 2) return ""
         val min = nums.minOrNull() ?: return ""
         val max = nums.maxOrNull() ?: return ""
