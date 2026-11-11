@@ -596,12 +596,28 @@ internal object ChapterPosition {
                 n = rest
             }
         }
-        val t = title.trim()
-        if (t.isNotEmpty() && n.startsWith(t)) {
-            val rest = n.substring(t.length).trimStart(' ', '-', '–', ':', '·', '.')
+        // 2026-11-11: 제목 표기가 조금 달라도(끝 마침표·괄호·띄어쓰기) 글자·숫자만 맞춰 맨 앞 작품 제목을 뺌 (망가요미 titleCut 과 같음)
+        val cut = titleCut(n, title)
+        if (cut > 0) {
+            val rest = n.substring(cut).trimStart(' ', '-', '–', ':', '·', '.', '?', '!', '~', ',', ')', ']', '）', '】', '」', '』', '>')
             if (rest.isNotEmpty()) n = rest
         }
         return n
+    }
+
+    /** 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0 */
+    private fun titleCut(name: String, title: String): Int {
+        val t = title.filter { it.isLetterOrDigit() }.lowercase()
+        if (t.isEmpty()) return 0
+        var j = 0
+        for (i in name.indices) {
+            val ch = name[i]
+            if (!ch.isLetterOrDigit()) continue
+            if (ch.lowercaseChar() != t[j]) return 0
+            j++
+            if (j == t.length) return i + 1
+        }
+        return 0
     }
 
     /** list: 최신 → 과거 순서. "112화 · 남은 26화", 마지막 화는 "112화 · 마지막" */
