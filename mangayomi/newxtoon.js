@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.67",
+    "version": "0.3.68",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -373,7 +373,25 @@ function siteIndexNeeded(list, title) {
 
 // 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0
 // 제목 끝 덧붙임("일진녀 길들이기[탑툰]"·"…(완결)")이 회차 이름에 없으면 그 부분을 뺀 제목으로도 맞춰 봄
+// 2026-11-11: 사이트 오타로 작품 제목과 한 글자만 다른 이름("나 혼자만 레벌업 124화" ↔ "나 혼자만 레벨업") — 제목 4글자 이상이고 바로 뒤가 회차 번호일 때만 뗌
 function titleCut(name, title) {
+    const exact = titleCutExact(name, title);
+    if (exact > 0) return exact;
+    const T = String(title || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+    if (T.length < 4) return 0;
+    const s = String(name || "");
+    let j = 0;
+    let miss = 0;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (!/[\p{L}\p{N}]/u.test(ch)) continue;
+        if (ch.toLowerCase() !== T[j] && ++miss > 1) return 0;
+        j++;
+        if (j === T.length) return /^\s*\d/.test(s.substring(i + 1)) ? i + 1 : 0;
+    }
+    return 0;
+}
+function titleCutExact(name, title) {
     const full = titleCutOne(name, title);
     if (full > 0) return full;
     const core = String(title || "").replace(/\s*[\[(【［（][^\])】］）]*[\])】］）]\s*$/, "");
