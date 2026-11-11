@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.34","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.35","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -863,3 +863,9 @@ function missingNote(chapters, title) {
         return d;
     };
 })();
+
+// 0.1.35: 목록 표지 그림이 안 뜨던 것 — 그림이 사이트(Cloudflare)에 있고 브라우저 User-Agent 없는 요청은 403. 확장에 getHeaders 가 없어서 앱이 UA 없이 받았음(웹뷰를 다녀오면 그때만 됨) → 그림 요청에 UA + Referer
+DefaultExtension.prototype.getHeaders = function (url) {
+    const m = /^https:\/\/(?:www\.)?mtoon\d+\.asia/i.exec(String(url || ""));
+    return { "User-Agent": MT_UA, Referer: (m ? m[0] : mtBase11()) + "/" };
+};
