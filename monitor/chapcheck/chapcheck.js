@@ -1,9 +1,9 @@
 // 회차 검사 도구 (2026-11-11, 사용자 "검사도구 넣고 돌려봐")
 //
 // 확장을 고치기 전·후에 돌려서 회차 번호가 꼬이지 않았는지 확인한다.
-//   node monitor/chapcheck/chapcheck.js [확장이름...] [--n 30] [--save] [--file 확장=경로]
+//   node monitor/chapcheck/chapcheck.js [확장이름...] [--n 50] [--save] [--file 확장=경로]
 //   예) node monitor/chapcheck/chapcheck.js mtoon --n 120 --save
-//       node monitor/chapcheck/chapcheck.js            (mangayomi/*.js 전부, 작품 30개씩)
+//       node monitor/chapcheck/chapcheck.js            (mangayomi/*.js 전부, 작품 50개씩)
 // 필요: npm install --no-save linkedom@0.18 (monitor/runtime.js 와 같음)
 //
 // 검사하는 것 (망가요미 앱의 회차 번호 읽기 lib/utils/chapter_recognition.dart 를 그대로 옮긴 recog.js 로):
@@ -29,7 +29,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const SNAP = path.join(__dirname, "snapshots");
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
-const N = Number(opt("--n", 30)) || 30;
+const N = Number(opt("--n", 50)) || 50; // 기본 작품 50개 (사용자 "앞으로는 50개만", 2026-11-11)
 const SAVE = args.includes("--save");
 const names = args.filter((a, i) => !a.startsWith("--") && !(i > 0 && ["--n", "--file"].includes(args[i - 1])));
 const EXTRA = /외전|번외|특별|후기|에필로그|프롤로그|공지|휴재|예고|요약|총집|안내|이벤트|QnA|Q&A|시즌\s*\d*\s*(?:완결|종료)|지난 이야기/i;
