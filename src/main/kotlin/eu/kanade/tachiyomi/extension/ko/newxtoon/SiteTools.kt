@@ -640,11 +640,12 @@ internal object ChapterPosition {
     /** list: 최신 → 과거 순서. "112화 · 남은 26화", 마지막 화는 "112화 · 마지막" */
     fun label(list: List<SChapter>, title: String = ""): List<SChapter> {
         // 최신 화부터라서 순서 번호가 곧 그 뒤에 남은 화 수
-        val names = list.map { shorten(it.name, title) }
-        val common = commonPrefix(names)
+        val names = list.map { cutEllipsisTitle(shorten(it.name, title), title) }
+        val commons = commonPrefixes(names)
         list.forEachIndexed { left, c ->
             var n = names[left]
-            if (common != null && n.startsWith(common)) {
+            val common = commons.firstOrNull { n.startsWith(it) }
+            if (common != null) {
                 val rest = n.substring(common.length).trimStart(' ', '-', '–', ':', '·', '.')
                 if (rest.firstOrNull()?.isDigit() == true) n = rest
             }
@@ -653,25 +654,39 @@ internal object ChapterPosition {
         return list
     }
 
-    private val COMMON_HEAD = Regex("""^([^\d]{2,40}?)\s+\d+(?:[.-]\d+)?\s*화""")
+    // 띄어쓰기 없이 붙은 제목("종말의 왈큐레13화")도
+    private val COMMON_HEAD = Regex("""^([^\d]{2,40}?)\s*\d+(?:[.-]\d+)?\s*화""")
     private val COMMON_SKIP = Regex("""외전|번외|특별|시즌|부$|후기|공지|휴재|에필로그|프롤로그|예고|단편|완결|최종|season|ep\b""", RegexOption.IGNORE_CASE)
     private val HEAD_NUM = Regex("""^(\d+(?:[.-]\d+)?)\s*화""")
 
     /** 작품 제목이 다른 글자로 붙은 경우("GACHIAKUTA" ↔ "가치액터 47화") 여러 회차(3개 이상) 앞에 똑같이 붙은 글자 — 떼면 다른 회차 번호와 겹치면(애프터스토리 1~33화) null (망가요미와 같음) */
-    private fun commonPrefix(names: List<String>): String? {
+    private fun commonPrefixes(names: List<String>): List<String> {
         val cnt = HashMap<String, Int>()
         for (n in names) COMMON_HEAD.find(n)?.groupValues?.get(1)?.let { cnt[it] = (cnt[it] ?: 0) + 1 }
-        val p = cnt.filter { it.value >= 3 && !COMMON_SKIP.containsMatchIn(it.key) }.maxByOrNull { it.value }?.key ?: return null
-        val mine = HashSet<String>()
-        val other = HashSet<String>()
-        for (n in names) {
-            if (n.startsWith(p)) {
-                HEAD_NUM.find(n.substring(p.length).trimStart(' ', '-', '–', ':', '·', '.'))?.let { mine.add(it.groupValues[1]) }
-            } else {
-                HEAD_NUM.find(n)?.let { other.add(it.groupValues[1]) }
+        // 제목 변형이 여러 가지면("종말의 왈큐레(Re…arok)"·"종말의 왈큐레") 조건에 맞는 것을 모두, 긴 것부터
+        return cnt.filter { it.value >= 3 && !COMMON_SKIP.containsMatchIn(it.key) }.keys.filter { p ->
+            val mine = HashSet<String>()
+            val other = HashSet<String>()
+            for (n in names) {
+                if (n.startsWith(p)) {
+                    HEAD_NUM.find(n.substring(p.length).trimStart(' ', '-', '–', ':', '·', '.'))?.let { mine.add(it.groupValues[1]) }
+                } else {
+                    HEAD_NUM.find(n)?.let { other.add(it.groupValues[1]) }
+                }
             }
-        }
-        return if (mine.any { it in other }) null else p
+            mine.none { it in other }
+        }.sortedByDescending { it.length }
+    }
+
+    /** 사이트가 긴 제목을 가운데 "…" 로 줄인 이름("샹그릴라 프론티어 …하려하다~ 13화") — 앞뒤 조각이 모두 작품 제목의 일부면 뺌 */
+    private fun cutEllipsisTitle(name: String, title: String): String {
+        val el = name.indexOf('…')
+        val pt = title.filter { it.isLetterOrDigit() }.lowercase()
+        if (el <= 0 || pt.length < 2) return name
+        val before = name.substring(0, el).filter { it.isLetterOrDigit() }.lowercase()
+        val m = Regex("""^([^\d]*?)\s*(?=\d)""").find(name.substring(el + 1)) ?: return name
+        val after = m.groupValues[1].filter { it.isLetterOrDigit() }.lowercase()
+        return if (before.length >= 2 && pt.startsWith(before) && pt.contains(after)) name.substring(el + 1 + m.value.length) else name
     }
 
     fun addPref(screen: PreferenceScreen, onChange: ((Boolean) -> Unit)? = null) {
