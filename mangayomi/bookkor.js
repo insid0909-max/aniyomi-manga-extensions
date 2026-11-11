@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.51",
+    "version": "0.1.52",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -1193,11 +1193,14 @@ function missingNote(chapters) {
     let max = 0;
     let min = Infinity;
     for (const c of chapters || []) {
-        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim());
+        // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
+        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?(?:\s*[~～]\s*(\d{1,5}))?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim());
         if (!m) continue;
         const n = Number(m[1]);
         if (!(n > 0) || n > 20000) continue;
         nums[n] = true;
+        const end = Number(m[2] || 0);
+        if (end > n && end - n <= 50) for (let k = n + 1; k <= end; k++) nums[k] = true;
         if (n > max) max = n;
         if (n < min) min = n;
     }
