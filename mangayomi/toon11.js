@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.61",
+    "version": "0.3.62",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toon11.js"
@@ -264,7 +264,7 @@ function orderChapters(list, title, keepOldest) {
             // ("화화화작품명 21화" 처럼 사이트가 잘못 적은 경우도)
             // 단위가 다르면("1부 01권" 과 "66화") 번호가 비어 있어도 다른 묶음
             const sameUnit = g.split("|")[1] === main.split("|")[1];
-            const before = sameUnit && !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => n < Math.max(...mg.nums) && !mg.nums.has(n)) &&
+            const before = sameUnit && !isExtra(groups[g].prefix) && [...groups[g].nums].every((n) => !mg.nums.has(n) && (n < Math.max(...mg.nums) || (groups[g].prefix === "" && n <= Math.max(...mg.nums) + 2))) /* 2026-11-11: 본편 마지막 번호 바로 다음(+2까지)인 그냥 "N화"(앞에 다른 말 없음)도(SSS급 자살헌터 "151화" vs "죽어야 사는 헌터 150화") 본편 — 더 크면 다른 묶음(원피스 권·피안도 2부) */ &&
                 seasonOf(groups[g].prefix) === seasonOf(mg.prefix);
             const sameUnitless = groups[g].prefix === mg.prefix && ![...groups[g].nums].some((n) => mg.nums.has(n));
             // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
