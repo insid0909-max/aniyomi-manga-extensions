@@ -213,7 +213,19 @@ internal object ChapterOrder {
             else -> 2
         }
         val seasons = keys.any { it.num >= 0 && !isExtra(it.prefix) && seasonOf(it.prefix) > firstSeason }
-        if (seasons) {
+        // 2026-11-11: 본편 번호의 빈칸 수가 그 사이에 끼어 올라온 다른 회차(외전 등) 수와 거의 같으면 사이트가 그 회차까지 세어 본편 번호를 매긴 것
+        // (블랙툰 애늙은이: 128화 뒤 외전 16개 다음 "144화") → 아래 시즌 작품처럼 사이트 순서 그대로 차례 번호
+        val interleaved = main != null && run {
+            val mk = keys.filter { it.group == main && it.num >= 0 }
+            if (mk.size < 10) return@run false
+            val nums = mk.map { kotlin.math.floor(it.num).toInt() }.toHashSet()
+            val gaps = (nums.min()..nums.max()).count { it !in nums }
+            val a = mk.minOf { it.index }
+            val b = mk.maxOf { it.index }
+            val inside = keys.count { it.group != main && it.prefix != PROLOGUE_KEY && it.index > a && it.index < b }
+            gaps >= 3 && inside >= 3 && kotlin.math.abs(gaps - inside) <= maxOf(2, Math.round(gaps * 0.1).toInt())
+        }
+        if (seasons || interleaved) {
             // 시즌마다 번호가 다시 시작하고, 사이트가 시즌 표시를 빼먹거나 이어 붙인 번호를 쓰기도 함
             // (굿툰 닥터 최태수: 시즌2 중간이 "61화~65화", 시즌5 뒤가 "126화~136화" → 시즌1 뒤에 붙어 순서가 섞이고 앱이 "Missing 93")
             // → 사이트 순서(최신 → 과거) 그대로, 회차 번호는 오래된 것부터 1, 2, 3 … (2026-11-04)
