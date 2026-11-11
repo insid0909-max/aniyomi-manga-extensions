@@ -160,12 +160,13 @@ internal object ChapterOrder {
         val titleWords = (listOf(norm(title)) + WORD.findAll(title.lowercase()).map { it.value }.filter { it.length >= 2 })
             .filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }
         // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
-        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords, title) })
+        val parts = partNumbers(input)
+        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords, title, parts) })
         val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
         val list = dedupe(input, fixed.keys, title, keepOldest)
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
-        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title).also { k -> fixedNum[c]?.let { k.num = it } } }
+        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title, parts).also { k -> fixedNum[c]?.let { k.num = it } } }
         mergePrefixes(keys)
         fillUnnumbered(keys)
         fillMislabeledExtras(keys)
@@ -353,8 +354,23 @@ internal object ChapterOrder {
     // "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 ("Chapter N" 은 영어 원판 번호라 한국판 회차와 셈이 달라 뺌 — 비밀수업 RAW Chapter 74) "N화" 와 같은 묶음으로 (검은머리 기사왕, 망가요미와 같음)
     private val EN_EP = Regex("""(?:^|[\s\-–:])(?:lesson|episode|ep)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)""", RegexOption.IGNORE_CASE)
 
-    private fun keyOf(rawName: String, index: Int, titleWords: List<String>, title: String = ""): Key {
-        val name = EN_EP.replaceFirst(dotNumber(rawName, title), " $1화 ").trim()
+    // 2026-11-11: 맨 앞 "2-15화"·"3-204화" 가 부 표시인 작품(블랙툰 덴마: 1부 "N화" · 2부 "2-N화" · 3부 "3-N화") — 같은 한 자리 앞 숫자로
+    // 10개 넘게, 번호가 20 넘게도 있으면 "2부 15화" 로 봄 (나눈 회차 "41-1화"·"5-2화" 는 그대로)
+    private val PART_RE = Regex("""^(\d)\s*-\s*(\d+)\s*화""")
+
+    private fun partNumbers(list: List<SChapter>): Set<String> {
+        val m = HashMap<String, MutableSet<Int>>()
+        list.forEach { c ->
+            PART_RE.find(c.name.trim().replaceFirst(LEADING_SEQ, ""))?.let { x ->
+                m.getOrPut(x.groupValues[1]) { HashSet() }.add(x.groupValues[2].toInt())
+            }
+        }
+        return m.filter { (_, v) -> v.size >= 10 && v.max() >= 20 }.keys
+    }
+
+    private fun keyOf(rawName: String, index: Int, titleWords: List<String>, title: String = "", parts: Set<String> = emptySet()): Key {
+        var name = EN_EP.replaceFirst(dotNumber(rawName, title), " $1화 ").trim()
+        if (parts.isNotEmpty()) name = PART_RE.replace(name) { x -> if (x.groupValues[1] in parts) "${x.groupValues[1]}부 ${x.groupValues[2]}화" else x.value }
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
         // 같은 단위 번호가 여러 개면 마지막 것 ("1화 222화" 는 사이트가 잘못 적은 222화, 두 번 사는 랭커).
