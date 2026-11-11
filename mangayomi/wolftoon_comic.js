@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.68",
+    "version": "0.1.69",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon_comic.js"
@@ -178,6 +178,12 @@ function orderChapters(list, title, keepOldest) {
         if (fixed.has(c)) return;
         let k = squash(c.name);
         if (tk && k.length > tk.length && k.startsWith(tk)) k = k.substring(tk.length).replace(/^[-–:·._]+/, "");
+        // 2026-11-11: 사이트 순번과 회차 번호가 같으면 이름이 달라도 같은 회차를 다시 올린 것 ("0234 - 취사병 전설이 되다 234화" ↔ "0234 - 234화 ： 외전4화")
+        {
+            const sq = /^\s*(\d{2,})\s+-\s+/.exec(String(c.name || ""));
+            const nm = sq && /(\d+)\s*화/.exec(String(c.name).substring(sq[0].length));
+            if (nm && parseInt(sq[1], 10) === parseInt(nm[1], 10)) k = `#${parseInt(nm[1], 10)}화`;
+        }
         // keepOldest: 가장 먼저 올라온 것을 남김 (newxtoon 은 다시 올린 회차 그림이 404 라 원래 회차를 남김)
         const t = Number(c.dateUpload || 0);
         const bt = best[k] === undefined ? 0 : Number(list[best[k]].dateUpload || 0);
