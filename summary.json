@@ -1,21 +1,33 @@
 {
  "changedFiles": [
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
-  "mangayomi/wolftoon.js",
-  "mangayomi/wolftoon_comic.js",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+  "mangayomi/bookkor.js",
   "domains.json",
   "changelog.json",
-  "업데이트내역.md"
+  "업데이트내역.md",
+  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+  "mangayomi/toonkor.js"
  ],
  "domainChanges": [
   {
-   "name": "늑대닷컴",
-   "from": "https://wfwf531.com",
-   "to": "https://wfwf534.com",
+   "name": "북코 소설",
+   "from": "https://011.bookkor.com",
+   "to": "https://012.bookkor.com",
    "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Wolftoon.kt",
-    "mangayomi/wolftoon.js",
-    "mangayomi/wolftoon_comic.js",
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
+    "mangayomi/bookkor.js",
+    "domains.json",
+    "changelog.json",
+    "업데이트내역.md"
+   ]
+  },
+  {
+   "name": "툰코",
+   "from": "https://004.toonkor.net",
+   "to": "https://005.toonkor.net",
+   "files": [
+    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
+    "mangayomi/toonkor.js",
     "domains.json",
     "changelog.json",
     "업데이트내역.md"
