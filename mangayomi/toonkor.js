@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.66",
+    "version": "0.1.67",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -274,7 +274,7 @@ function orderChapters(list, title, keepOldest) {
         return list.map((c, i) => {
             if (keys[i].prefix === PRO) return c;
             const pos = keys[i].index + (hasPro ? 0 : 1);
-            const lead = /\d+/.exec(String(c.name || ""));
+            const lead = /\d+/.exec(String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "")); // 2026-11-11: 사이트 순번("0081 - ")은 chapterPosition 이 이름에서 빼므로 그 뒤 숫자로 비교 (블랙툰 위닝샷! "0081 - 위닝샷! 시즌2 4화" 는 앱이 2 로 읽어 겹쳤음)
             return lead && Number(lead[0]) === pos ? c : Object.assign({}, c, { name: `${pos} · ${String(c.name || "").trim()}` });
         });
     }
