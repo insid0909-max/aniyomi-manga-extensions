@@ -106,6 +106,9 @@ internal object ChapterOrder {
      * 빈칸과 맨 앞 작품 제목은 빼고 비교 ("검술명가 막내아들135화" 와 다시 올린 "135화" 는 같은 회차, newxtoon).
      * keepOldest: 가장 먼저 올라온 것을 남김 (newxtoon 은 다시 올린 회차 그림이 404 라 원래 회차를 남김)
      */
+    private val SEQ_DASH = Regex("""^\s*(\d{2,})\s+-\s+""")
+    private val EP_HWA = Regex("""(\d+)\s*화""")
+
     private fun dedupe(list: List<SChapter>, keep: Set<Int>, title: String, keepOldest: Boolean): List<SChapter> {
         fun squash(v: String) = java.text.Normalizer.normalize(v, java.text.Normalizer.Form.NFC).replace(SPACES, "").lowercase()
         val t = squash(title)
@@ -114,6 +117,11 @@ internal object ChapterOrder {
             if (i in keep) return@forEachIndexed
             var k = squash(c.name)
             if (t.isNotEmpty() && k.length > t.length && k.startsWith(t)) k = k.substring(t.length).trimStart('-', '–', ':', '·', '.', '_')
+            // 2026-11-11: 사이트 순번과 회차 번호가 같으면 이름이 달라도 같은 회차를 다시 올린 것 ("0234 - 취사병 전설이 되다 234화" ↔ "0234 - 234화 ： 외전4화")
+            SEQ_DASH.find(c.name)?.let { sq ->
+                val nm = EP_HWA.find(c.name.substring(sq.value.length))
+                if (nm != null && sq.groupValues[1].toInt() == nm.groupValues[1].toInt()) k = "#${nm.groupValues[1].toInt()}화"
+            }
             val j = best[k]
             if (j == null || (if (keepOldest) c.date_upload < list[j].date_upload else c.date_upload > list[j].date_upload)) best[k] = i
         }
