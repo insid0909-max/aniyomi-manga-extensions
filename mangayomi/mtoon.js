@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.36","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.37","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -334,8 +334,12 @@ function chapterName(name, title) {
     if (!m) return n;
     const tt = String(title || "").replace(/\s+/g, "");
     // 번호 앞에 작품 제목 말고 다른 글자가 있으면("프롤로그 · 남은 98화") 원래 이름 그대로
-    const before = n.substring(0, m.index).replace(/\s+/g, "").split(tt).join("").replace(/[^\p{L}\p{N}]/gu, "");
-    if (tt && before) return n;
+    // 0.1.37: 기호·띄어쓰기는 빼고 비교("중증외상센터 : 외과의사 백강혁" ↔ "중증외상센터 외과의사 백강혁 51화"), 번호 앞에 제목이 통째로 있으면("밤꽃:밤에 피는 꽃 24화") 번호로,
+    // 남은 글자가 영어·숫자뿐이어도("취향폴더.ZIP 16화" — 제목은 "취향폴더") 번호로, 제목 없이 한글이 남으면("남은 98화") 그대로
+    const plain = (v) => String(v || "").replace(/[^\p{L}\p{N}]/gu, "");
+    const pt = plain(title), pb = plain(n.substring(0, m.index));
+    const before = pt && pb.includes(pt) ? "" : pb.split(pt || "\u0000").join("");
+    if (tt && before && /\p{Script=Hangul}/u.test(before)) return n;
     const sub = m[2].trim();
     return `${m[1]}화` + (sub && sub.replace(/\s+/g, "") !== tt ? ` : ${sub}` : "");
 }
