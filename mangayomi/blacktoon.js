@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.64",
+    "version": "0.3.65",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -359,6 +359,22 @@ async function familyTarget(ext, body, base, marker, quiet) {
 
 // 회차 이름 끝에 남은 화 수를 붙임 ("112화 · 남은 26화", 마지막 화는 "112화 · 마지막"). list: 최신 → 과거
 // 읽는 화면 제목이 잘리지 않게 사이트 순번("0112 - ")과 맨 앞 작품 제목은 뺌. 설정 "회차 이름에 남은 화 표시"로 끌 수 있음
+// 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0
+function titleCut(name, title) {
+    const T = String(title || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+    if (!T) return 0;
+    const s = String(name || "");
+    let j = 0;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (!/[\p{L}\p{N}]/u.test(ch)) continue;
+        if (ch.toLowerCase() !== T[j]) return 0;
+        j++;
+        if (j === T.length) return i + 1;
+    }
+    return 0;
+}
+
 function chapterPosition(list, title) {
     try {
         const v = new SharedPreferences().get("chapter_position");
@@ -375,8 +391,10 @@ function chapterPosition(list, title) {
             const rest = n.substring(seqm[0].length);
             if (!/^\d+\.\s/.test(seqm[0]) || /^\d/.test(rest) || /\d+\s*(?:화|권|호|話)/.test(rest)) n = rest;
         }
-        if (t && n.startsWith(t)) {
-            const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
+        // 2026-11-11: 제목 표기가 조금 달라도(끝 마침표·물음표·띄어쓰기 — "…결심한다." ↔ "…결심한다 115화") 글자·숫자만 맞춰 맨 앞 작품 제목을 뺌
+        const cut = titleCut(n, t);
+        if (cut > 0) {
+            const rest = n.substring(cut).replace(/^[\s\-–:·.?!~,)\]）】」』>]+/, "");
             if (rest) n = rest;
         }
         return Object.assign({}, c, { name: lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
