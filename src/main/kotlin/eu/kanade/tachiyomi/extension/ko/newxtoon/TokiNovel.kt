@@ -119,7 +119,9 @@ class TokiNovel : HttpSource(), ConfigurableSource {
             DomainGuard.saveAuto(sp, KEY_DOMAIN, "https://$found")
             return chain.proceed(req.newBuilder().url(req.url.newBuilder().host(found).build()).build())
         }
-        if (ours && (res.code >= 500 || res.code == 451)) {
+        // 옛 주소는 오류 없이 텔레그램 안내 글(t.me/s/toki1234)로 넘겨 줌 → 사이트 밖으로 넘어가면 끊긴 주소로 봄
+        val movedAway = !HOST_REGEX.matches(res.request.url.host)
+        if (ours && (res.code >= 500 || res.code == 451 || movedAway)) {
             val found = discoverDomain(baseHost!!)
             if (found != null) {
                 res.close()
@@ -135,7 +137,8 @@ class TokiNovel : HttpSource(), ConfigurableSource {
     @Volatile
     private var lastDiscover = 0L
 
-    /** 저장소 주소 목록(domains.json) → 같은 이름 번호 +1 ~ +8, -1 ~ -2 (소설 목록 API 가 열리는 진짜 사이트만) */
+    /** 저장소 주소 목록(domains.json) → 공식 안내 페이지(뉴토주소.com)의 주소 → 같은 이름 번호 +1 ~ +8, -1 ~ -2 (소설 목록 API 가 열리는 진짜 사이트만).
+     *  뉴토끼는 이름을 바꿔 가며 옮겨 다님(안내 페이지 변경 기록: newtoki463~469 → sbxh2~9 → toki25~36) — 세 이름 모두 같은 사이트 */
     private fun discoverDomain(currentHost: String): String? = synchronized(discoverLock) {
         val now = System.currentTimeMillis()
         if (now - lastDiscover < 60_000) return null
@@ -158,6 +161,12 @@ class TokiNovel : HttpSource(), ConfigurableSource {
             null
         }
         DomainList.host("tokinovel")?.takeIf { it != currentHost && HOST_REGEX.matches(it) }?.let { open(it) }?.let { return@synchronized it }
+        val guided = runCatching {
+            plain.newCall(Request.Builder().url(GUIDE_URL).header("User-Agent", ua).build()).execute().use { r ->
+                if (!r.isSuccessful) emptyList() else GUIDE_HOST.findAll(r.body?.string().orEmpty().lowercase()).map { it.value }.distinct().take(4).toList()
+            }
+        }.getOrDefault(emptyList())
+        for (h in guided) if (h != currentHost) open(h)?.let { return@synchronized it }
         val m = Regex("""^([a-z]+)(\d+)\.([a-z]+)$""").find(currentHost) ?: return@synchronized null
         val (stem, num, tld) = m.destructured
         val n = num.toInt()
@@ -797,6 +806,8 @@ class TokiNovel : HttpSource(), ConfigurableSource {
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
 
         // 같은 사이트의 세 이름 (망가요미판 설정과 같음): sbxhN.com · tokiN.com · newtokiN.org
+        private const val GUIDE_URL = "https://xn--vg1b79zgsf1sj.com/" // 뉴토주소.com (맨 위가 지금 주소)
+        private val GUIDE_HOST = Regex("""(?:toki|sbxh|newtoki)\d+\.(?:com|org|net)""")
         private val HOST_REGEX = Regex("""^(?:www\.)?(?:sbxh|toki|newtoki)\d+\.(?:com|org|net)$""")
         private val DOMAIN_REGEX = Regex("""^https://(?:www\.)?(?:sbxh|toki|newtoki)\d+\.(?:com|org|net)$""")
         private val NOVEL_PATH = Regex("""/novel/(\d+)""")
