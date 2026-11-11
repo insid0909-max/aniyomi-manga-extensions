@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.67",
+    "version": "0.3.68",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -272,7 +272,23 @@ function orderChapters(list, title, keepOldest) {
     const firstOf = (k) => (rank(k) >= 2 ? groups[k.group].first : 0);
     // 시즌 순서 (프롤로그는 맨 앞, 번외·외전은 모든 시즌 뒤)
     const seasons = keys.some((k) => k.num >= 0 && !isExtra(k.prefix) && seasonOf(k.prefix) > firstSeason);
-    if (seasons) {
+    // 2026-11-11: 본편 번호의 빈칸 수가 그 사이에 끼어 올라온 다른 회차(외전 등) 수와 거의 같으면 사이트가 그 회차까지 세어 본편 번호를 매긴 것
+    // (블랙툰 애늙은이: 128화 뒤 외전 16개 다음 "144화", 156화 뒤 외전 4개 다음 "161화") → 아래 시즌 작품처럼 사이트 순서 그대로 차례 번호
+    const interleaved = (() => {
+        if (main === null) return false;
+        const mk = keys.filter((k) => k.group === main && k.num >= 0);
+        if (mk.length < 10) return false;
+        const nums = new Set(mk.map((k) => Math.floor(k.num)));
+        const lo = Math.min(...nums);
+        const hi = Math.max(...nums);
+        let gaps = 0;
+        for (let n = lo; n <= hi; n++) if (!nums.has(n)) gaps++;
+        const a = Math.min(...mk.map((k) => k.index));
+        const b = Math.max(...mk.map((k) => k.index));
+        const inside = keys.filter((k) => k.group !== main && k.prefix !== PRO && k.index > a && k.index < b).length;
+        return gaps >= 3 && inside >= 3 && Math.abs(gaps - inside) <= Math.max(2, Math.round(gaps * 0.1));
+    })();
+    if (seasons || interleaved) {
         // 시즌마다 번호가 다시 시작하고 사이트가 시즌 표시를 빼먹거나 이어 붙인 번호를 쓰기도 함
         // (굿툰 닥터 최태수: 시즌2 중간이 "61화~65화", 시즌5 뒤가 "126화~136화") → 사이트 순서(최신 → 과거) 그대로,
         // 망가요미가 읽는 이름 맨 앞 숫자가 순번과 다르면 "순번 · " 을 붙임 (2026-11-04)
