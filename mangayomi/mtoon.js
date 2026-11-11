@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.35","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.36","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -329,7 +329,8 @@ function mtApplyRule11(filters,options){const f=(Array.isArray(filters)?filters:
 function chapterName(name, title) {
     let n = String(name || "").replace(/\s+/g, " ").trim();
     if (/외전|번외|특별/.test(n)) return n;
-    const m = /(\d+(?:\.\d+)?)\s*화\s*[:：\-–.]?\s*(.*)$/.exec(n);
+    // 0.1.36: "제53화 세실의…"·"이세계 밀프 헌터 제132화" 처럼 번호 앞 "제" 도 번호의 일부로 (전엔 번호 없는 회차로 봐서 55.5 같은 번호가 붙음)
+    const m = /(?:제\s*)?(\d+(?:\.\d+)?)\s*화\s*[:：\-–.]?\s*(.*)$/.exec(n);
     if (!m) return n;
     const tt = String(title || "").replace(/\s+/g, "");
     // 번호 앞에 작품 제목 말고 다른 글자가 있으면("프롤로그 · 남은 98화") 원래 이름 그대로
