@@ -597,16 +597,30 @@ internal object ChapterPosition {
             }
         }
         // 2026-11-11: 제목 표기가 조금 달라도(끝 마침표·괄호·띄어쓰기) 글자·숫자만 맞춰 맨 앞 작품 제목을 뺌 (망가요미 titleCut 과 같음)
-        val cut = titleCut(n, title)
-        if (cut > 0) {
+        // 제목이 두 번 붙은 이름("비밀수업 비밀수업 73화")도 있어 최대 3번
+        for (k in 0 until 3) {
+            val cut = titleCut(n, title)
+            if (cut <= 0) break
             val rest = n.substring(cut).trimStart(' ', '-', '–', ':', '·', '.', '?', '!', '~', ',', ')', ']', '）', '】', '」', '』', '>')
-            if (rest.isNotEmpty()) n = rest
+            if (rest.isEmpty() || rest == n) break
+            n = rest
         }
         return n
     }
 
     /** 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0 */
     private fun titleCut(name: String, title: String): Int {
+        val full = titleCutOne(name, title)
+        if (full > 0) return full
+        // 제목 끝 덧붙임("일진녀 길들이기[탑툰]")이 회차 이름에 없으면 그 부분을 뺀 제목으로도
+        val core = title.replace(Regex("""\s*[\[(【［（][^\])】］）]*[\])】］）]\s*$"""), "")
+        if (core.isEmpty() || core == title) return 0
+        val cut = titleCutOne(name, core)
+        // 괄호 앞 제목만 맞고 바로 괄호가 이어지면("원피스(ONE PI…") 잘린 전체 제목이라 떼지 않음
+        return if (cut > 0 && Regex("""^\s*[\[(【［（]""").containsMatchIn(name.substring(cut))) 0 else cut
+    }
+
+    private fun titleCutOne(name: String, title: String): Int {
         val t = title.filter { it.isLetterOrDigit() }.lowercase()
         if (t.isEmpty()) return 0
         var j = 0
@@ -623,10 +637,38 @@ internal object ChapterPosition {
     /** list: 최신 → 과거 순서. "112화 · 남은 26화", 마지막 화는 "112화 · 마지막" */
     fun label(list: List<SChapter>, title: String = ""): List<SChapter> {
         // 최신 화부터라서 순서 번호가 곧 그 뒤에 남은 화 수
+        val names = list.map { shorten(it.name, title) }
+        val common = commonPrefix(names)
         list.forEachIndexed { left, c ->
-            c.name = shorten(c.name, title) + if (left == 0) " · 마지막" else " · 남은 ${left}화"
+            var n = names[left]
+            if (common != null && n.startsWith(common)) {
+                val rest = n.substring(common.length).trimStart(' ', '-', '–', ':', '·', '.')
+                if (rest.firstOrNull()?.isDigit() == true) n = rest
+            }
+            c.name = n + if (left == 0) " · 마지막" else " · 남은 ${left}화"
         }
         return list
+    }
+
+    private val COMMON_HEAD = Regex("""^([^\d]{2,40}?)\s+\d+(?:[.-]\d+)?\s*화""")
+    private val COMMON_SKIP = Regex("""외전|번외|특별|시즌|부$|후기|공지|휴재|에필로그|프롤로그|예고|단편|완결|최종|season|ep\b""", RegexOption.IGNORE_CASE)
+    private val HEAD_NUM = Regex("""^(\d+(?:[.-]\d+)?)\s*화""")
+
+    /** 작품 제목이 다른 글자로 붙은 경우("GACHIAKUTA" ↔ "가치액터 47화") 여러 회차(3개 이상) 앞에 똑같이 붙은 글자 — 떼면 다른 회차 번호와 겹치면(애프터스토리 1~33화) null (망가요미와 같음) */
+    private fun commonPrefix(names: List<String>): String? {
+        val cnt = HashMap<String, Int>()
+        for (n in names) COMMON_HEAD.find(n)?.groupValues?.get(1)?.let { cnt[it] = (cnt[it] ?: 0) + 1 }
+        val p = cnt.filter { it.value >= 3 && !COMMON_SKIP.containsMatchIn(it.key) }.maxByOrNull { it.value }?.key ?: return null
+        val mine = HashSet<String>()
+        val other = HashSet<String>()
+        for (n in names) {
+            if (n.startsWith(p)) {
+                HEAD_NUM.find(n.substring(p.length).trimStart(' ', '-', '–', ':', '·', '.'))?.let { mine.add(it.groupValues[1]) }
+            } else {
+                HEAD_NUM.find(n)?.let { other.add(it.groupValues[1]) }
+            }
+        }
+        return if (mine.any { it in other }) null else p
     }
 
     fun addPref(screen: PreferenceScreen, onChange: ((Boolean) -> Unit)? = null) {
