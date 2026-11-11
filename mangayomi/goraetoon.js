@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.30",
+    "version": "0.1.31",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goraetoon.js"
@@ -89,6 +89,18 @@ function orderChapters(list, title) {
     // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
     const titleWords = [...new Set([norm(title)].concat((String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
+    // 2026-11-11: "2-472화"·"3-204화" 처럼 "부-회차화" 로 적는 작품(블랙툰 덴마: 1부 "322화", 2부 "2-1~678화", 3부 "3-1~414화") —
+    // 앞 숫자(한 자리)가 같은 이름이 10개 이상이고 뒤 번호가 20 넘게 가면 부 표시 ("41-1화·41-2화" 같은 나눈 회차는 그대로)
+    const PART_RE = /(^|[^\d.\-])(\d)-(\d+)(\s*화)/;
+    const partStat = {};
+    list.forEach((c) => {
+        const m = PART_RE.exec(String(c.name || ""));
+        if (!m) return;
+        const s = partStat[m[2]] || (partStat[m[2]] = { n: 0, max: 0 });
+        s.n++;
+        s.max = Math.max(s.max, parseInt(m[3], 10));
+    });
+    const parts = new Set(Object.keys(partStat).filter((a) => partStat[a].n >= 10 && partStat[a].max >= 20));
     const keyOf = (c, i, arr) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
         let name = String(c.name || "").trim();
@@ -106,6 +118,7 @@ function orderChapters(list, title) {
         }
         // 2026-11-11: "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 ("Chapter N" 은 영어 원판 번호라 한국판 회차와 셈이 달라 뺌 — 비밀수업 RAW Chapter 74) "N화" 와 같은 묶음으로 (검은머리 기사왕: LESSON·"6화" 가 섞여 따로 줄 섰음)
         name = name.replace(/(?:^|[\s\-–:])(?:lesson|episode|ep)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)/i, (s, n) => ` ${n}화 `).trim();
+        if (parts.size) name = name.replace(PART_RE, (s, a, p, n, u) => parts.has(p) ? `${a}${p}부 ${n}${u}` : s);
         const index = arr.length - 1 - i;
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
