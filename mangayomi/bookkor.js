@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.48",
+    "version": "0.1.49",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -168,29 +168,41 @@ function chapterPosition(list, title) {
             if (!rest || rest === n) break;
             n = rest;
         }
+        // 사이트가 긴 제목을 가운데 "…" 로 줄인 이름("샹그릴라 프론티어 …하려하다~ 13화"·"원피스(ONE PI…ECE) 999화") — 앞뒤 조각이 모두 작품 제목의 일부면 뺌
+        {
+            const el = n.indexOf("…");
+            const pt = String(t).replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+            if (el > 0 && pt.length >= 2) {
+                const before = n.slice(0, el).replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+                const m2 = /^([^\d]*?)\s*(?=\d)/.exec(n.slice(el + 1));
+                const after = m2 ? m2[1].replace(/[^\p{L}\p{N}]/gu, "").toLowerCase() : null;
+                if (before.length >= 2 && pt.startsWith(before) && after !== null && pt.includes(after)) n = n.slice(el + 1 + m2[0].length);
+            }
+        }
         return { c, lead, n };
     });
     // 2026-11-11: 작품 제목이 다른 글자로 붙은 경우("GACHIAKUTA" ↔ "가치액터 47화") — 여러 회차(3개 이상) 앞에 똑같이 붙은 글자를 제목으로 보고 뺌
     // (숫자가 들어 있거나 외전·번외·특별·시즌·후기·공지 같은 뜻 있는 말이면 빼지 않음)
     const cnt = {};
     for (const x of rows) {
-        const m = /^([^\d]{2,40}?)\s+\d+(?:[.-]\d+)?\s*화/.exec(x.n);
+        const m = /^([^\d]{2,40}?)\s*\d+(?:[.-]\d+)?\s*화/.exec(x.n); // 띄어쓰기 없이 붙은 제목("종말의 왈큐레13화")도
         if (m) cnt[m[1]] = (cnt[m[1]] || 0) + 1;
     }
-    let common = Object.keys(cnt).filter((p) => cnt[p] >= 3 && !/외전|번외|특별|시즌|부$|후기|공지|휴재|에필로그|프롤로그|예고|단편|완결|최종|season|ep\b/i.test(p)).sort((a, b) => cnt[b] - cnt[a])[0];
-    if (common) {
+    // 제목 변형이 여러 가지면("종말의 왈큐레(Re…arok)"·"종말의 왈큐레(Re…ok)"·"종말의 왈큐레") 조건에 맞는 것을 모두, 긴 것부터
+    const num = (s) => (/^(\d+(?:[.-]\d+)?)\s*화/.exec(s) || [])[1];
+    const commons = Object.keys(cnt).filter((p) => cnt[p] >= 3 && !/외전|번외|특별|시즌|부$|후기|공지|휴재|에필로그|프롤로그|예고|단편|완결|최종|season|ep\b/i.test(p)).filter((p) => {
         // 떼면 다른 회차 번호와 겹치는 말("애프터스토리 1~33화" ↔ 본편 1~62화)은 제목이 아니라 따로 묶인 회차 이름이라 그대로 둠
-        const num = (s) => (/^(\d+(?:[.-]\d+)?)\s*화/.exec(s) || [])[1];
         const mine = new Set(), other = new Set();
         for (const x of rows) {
-            if (x.n.startsWith(common)) { const v = num(x.n.substring(common.length).replace(/^[\s\-–:·.]+/, "")); if (v) mine.add(v); }
+            if (x.n.startsWith(p)) { const v = num(x.n.substring(p.length).replace(/^[\s\-–:·.]+/, "")); if (v) mine.add(v); }
             else { const v = num(x.n); if (v) other.add(v); }
         }
-        if ([...mine].some((v) => other.has(v))) common = "";
-    }
+        return ![...mine].some((v) => other.has(v));
+    }).sort((a, b) => b.length - a.length);
     return rows.map((x, i) => {
         let n = x.n;
-        if (common && n.startsWith(common)) {
+        const common = commons.find((p) => n.startsWith(p));
+        if (common) {
             const rest = n.substring(common.length).replace(/^[\s\-–:·.]+/, "");
             if (/^\d/.test(rest)) n = rest;
         }
@@ -1292,6 +1304,10 @@ function missingNote(chapters) {
         if (!list || !list.length) return d;
         const title = String(d.name || "");
         // 앱이 기억한 제목이 조금 달라 지워지지 않는 경우까지 보려고 제목을 지운 것·안 지운 것 둘 다 확인
+        if (ok(list, title) && ok(list, "")) return d;
+        // 2026-11-11: 이름 속 "Episode3"·"EP 2" 는 앱이 맨 앞 번호보다 먼저 회차 번호로 읽음(북코 난공블락 로맨스 "122화 Episode3. 수확철" 26개가 3화로 겹침)
+        // → 겹칠 때만 "Episode#3" 으로 바꿔 앱이 맨 앞 "122화" 를 읽게 함
+        for (const x of list) x.name = String(x.name || "").replace(/\b(folge|episode|episodio|ep\.?)(\s*)(?=\d)/gi, "$1$2#");
         if (ok(list, title) && ok(list, "")) return d;
         let last = 0;
         const fmt = (v) => String(Math.round(v * 100) / 100);
