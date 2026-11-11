@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.71",
+    "version": "0.3.72",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -100,11 +100,23 @@ function orderChapters(list, title, keepOldest) {
     // 제목 전체를 먼저 지움 ("시아버지가 다 따먹음 10화" 의 한 글자 단어 "다" 도 지워지게)
     const titleWords = [...new Set([norm(title)].concat((String(title || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
         .filter((w) => w.length >= 2)))].filter((w) => w).sort((a, b) => b.length - a.length);
+    // 2026-11-11: 맨 앞 "2-15화"·"3-204화" 가 부 표시인 작품(블랙툰 덴마: 1부 "N화" · 2부 "2-N화" · 3부 "3-N화") — 같은 한 자리 앞 숫자로
+    // 10개 넘게, 번호가 20 넘게도 있으면 "2부 15화" 로 봄 (나눈 회차 "41-1화"·"5-2화" 는 그대로)
+    const partRe = /^(\d)\s*-\s*(\d+)\s*화/;
+    const partNums = (() => {
+        const m = {};
+        for (const c of list) {
+            const x = partRe.exec(String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, ""));
+            if (x) (m[x[1]] = m[x[1]] || new Set()).add(parseInt(x[2], 10));
+        }
+        return new Set(Object.keys(m).filter((k) => m[k].size >= 10 && Math.max(...m[k]) >= 20));
+    })();
     const keyOf = (c, i, arr) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
         let name = String(c.name || "").trim();
         const seq = /^(\d{2,})(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/.exec(name);
         if (seq) name = name.substring(seq[0].length);
+        if (partNums.size) name = name.replace(partRe, (s, p, n) => (partNums.has(p) ? `${p}부 ${n}화` : s));
         // "143. 제50장. 객잔의 밤 (3)"·"나노마신 248. 제84장 …" 처럼 맨 앞 "N." 이 회차 번호인 이름 (뒤에 화·권·호 번호가 없을 때)
         // → "N화" 로 봄 (굿툰 나노마신: "나노마신 142화" 사이에 섞임). 사이트 순번만 "N." 이면 그 번호
         {
