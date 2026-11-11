@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.59",
+    "version": "0.3.60",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "newxtoon.js"
@@ -357,6 +357,22 @@ function siteIndexNeeded(list, title) {
     return breaks >= Math.max(3, Math.floor(list.length / 20));
 }
 
+// 이름 맨 앞이 작품 제목이면(글자·숫자만 비교) 제목이 끝나는 자리, 아니면 0
+function titleCut(name, title) {
+    const T = String(title || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
+    if (!T) return 0;
+    const s = String(name || "");
+    let j = 0;
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (!/[\p{L}\p{N}]/u.test(ch)) continue;
+        if (ch.toLowerCase() !== T[j]) return 0;
+        j++;
+        if (j === T.length) return i + 1;
+    }
+    return 0;
+}
+
 function chapterPosition(list, title) {
     try {
         const v = new SharedPreferences().get("chapter_position");
@@ -373,8 +389,10 @@ function chapterPosition(list, title) {
             const rest = n.substring(seqm[0].length);
             if (!/^\d+\.\s/.test(seqm[0]) || /^\d/.test(rest) || /\d+\s*(?:화|권|호|話)/.test(rest)) n = rest;
         }
-        if (t && n.startsWith(t)) {
-            const rest = n.substring(t.length).replace(/^[\s\-–:·.]+/, "");
+        // 2026-11-11: 제목 표기가 조금 달라도(끝 마침표·물음표·띄어쓰기 — "…결심한다." ↔ "…결심한다 115화") 글자·숫자만 맞춰 맨 앞 작품 제목을 뺌
+        const cut = titleCut(n, t);
+        if (cut > 0) {
+            const rest = n.substring(cut).replace(/^[\s\-–:·.?!~,)\]）】」』>]+/, "");
             if (rest) n = rest;
         }
         return Object.assign({}, c, { name: lead + n + (i === 0 ? " · 마지막" : ` · 남은 ${i}화`) });
