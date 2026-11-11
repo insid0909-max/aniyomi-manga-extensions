@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.75",
+    "version": "0.3.76",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -983,15 +983,18 @@ class DefaultExtension extends MProvider {
     }
 
     // ---------- 작품 목록 ----------
-    loadSavedCatalog(now) {
+    // anyAge: 작품 상태(연재·완결)만 볼 때는 오래된 저장본도 씀 (주소·변수는 건드리지 않음)
+    loadSavedCatalog(now, anyAge) {
         try {
             const prefs = new SharedPreferences();
             const at = Number(prefs.getString("cat_at", "0")) || 0;
-            if (now - at > BT_CACHE_MS) return null;
+            if (!anyAge && now - at > BT_CACHE_MS) return null;
             const rows = JSON.parse(prefs.getString("cat_data", "[]"));
             if (!rows.length) return null;
-            this.vars = JSON.parse(prefs.getString("cat_vars", "{}"));
-            this._catAt = at;
+            if (!anyAge) {
+                this.vars = JSON.parse(prefs.getString("cat_vars", "{}"));
+                this._catAt = at;
+            }
             return rows.map(r => ({
                 id: r[0], title: r[1], poster: r[2], author: r[3], updated: r[4], hot: r[5],
                 tags: r[6] ? String(r[6]).split(",").map(Number) : [], platform: r[7], day: r[8], listIndex: r[9]
@@ -1125,7 +1128,18 @@ class DefaultExtension extends MProvider {
         const doc = new Document(html);
 
         // 전체 목록은 크므로 새로 받지 않음 (이미 받아 둔 경우에만 사용)
-        const meta = (this._cat || []).find(s => s.id === id) || null;
+        // 2026-11-11: 서재·기록에서 바로 열면 목록을 안 받아 상태가 "알 수 없음"(애니요미는 완결, 취사병 전설이 되다) →
+        // 오래된 저장본이라도 찾아 보고, 저장본이 아예 없으면 전체 목록을 한 번 받음(30분 저장)
+        let meta = (this._cat || []).find(s => s.id === id) || null;
+        if (!meta) meta = (this.loadSavedCatalog(Date.now(), true) || []).find(s => s.id === id) || null;
+        if (!meta && !this._catTried) {
+            this._catTried = true;
+            try {
+                meta = (await this.catalog()).find(s => s.id === id) || null;
+            } catch (e) {
+                meta = null;
+            }
+        }
         const descs = doc.select("p.mt-2");
         const genre = meta
             ? [BT_PLATFORMS[meta.platform], BT_DAYS[meta.day]].concat(meta.tags.map(t => BT_TAGS[t])).filter(x => x)
