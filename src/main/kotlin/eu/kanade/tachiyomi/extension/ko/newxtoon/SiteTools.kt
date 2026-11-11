@@ -190,7 +190,8 @@ internal object ChapterOrder {
                 // (앞쪽 몇 화만 "작품명 1화" 처럼 이름이 다르거나, "화화화작품명 21화" 처럼 사이트가 잘못 적은 경우)
                 // 단위가 다르면("1부 01권" 과 "66화") 번호가 비어 있어도 다른 묶음
                 val sameUnit = ks.first().unit == mainUnit
-                val before = sameUnit && !isExtra(ks.first().prefix) && ks.all { it.num < mainMax && it.num !in mainNums } &&
+                // 2026-11-11: 본편 마지막 번호 바로 다음(+2까지)인 그냥 "N화"도(SSS급 자살헌터 "151화") 본편 — 더 크면 다른 묶음
+                val before = sameUnit && !isExtra(ks.first().prefix) && ks.all { it.num !in mainNums && (it.num < mainMax || (ks.first().prefix.isEmpty() && it.num <= mainMax + 2)) } &&
                     seasonOf(ks.first().prefix) == seasonOf(mainPrefix)
                 // 다음 시즌·부가 본편 번호를 이어 가면 ("64화" 다음 "2부 65화") 본편
                 val after = sameUnit && !isExtra(ks.first().prefix) && seasonOf(ks.first().prefix) > mainSeason &&
