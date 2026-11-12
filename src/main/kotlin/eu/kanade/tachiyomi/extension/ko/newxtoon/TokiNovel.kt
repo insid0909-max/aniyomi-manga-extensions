@@ -761,7 +761,7 @@ class TokiNovel : HttpSource(), ConfigurableSource {
             key = KEY_DOMAIN
             title = "도메인 주소"
             summary = "비워두면 자동으로 찾은 주소 사용. 직접 넣으면 바로 그 주소를 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜 (기본: $DEFAULT)"
-            dialogTitle = "도메인 주소 (예: https://sbxh9.com)"
+            dialogTitle = "도메인 주소 (예: https://toki36.com)"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, v ->
                 val s = (v as String).trim().trimEnd('/')
@@ -793,7 +793,7 @@ class TokiNovel : HttpSource(), ConfigurableSource {
         private const val KEY_THEME = "pref_theme"
         private const val KEY_GAP = "pref_paragraph_gap"
         private const val KEY_LINE = "pref_line_spacing"
-        private const val DEFAULT = "https://sbxh9.com"
+        private const val DEFAULT = "https://toki36.com" // 2026-11-12 sbxh9 끊김, toki36 열림(사용자 확인)
         private const val RENDER_HOST = "tokinovel-render.local"
         private const val PAGE_W = 1080
         private const val PAGE_H = 1800
