@@ -109,6 +109,27 @@ internal object ChapterOrder {
     private val SEQ_DASH = Regex("""^\s*(\d{2,})\s+-\s+""")
     private val EP_HWA = Regex("""(\d+)\s*화""")
 
+    // 2026-11-12: 1~3화 대신 카운트다운 회차("D-2"·"D-1"·"D-DAY", 툰코 종말에서 살아남기)가 있고 본편이 그 개수만큼 늦게 시작하면
+    // 본편 맨 앞 빈 번호에 D-큰 수 → D-DAY 차례로 넣음
+    private val COUNTDOWN = Regex("""^D\s*-\s*(\d+|DAY)$""", RegexOption.IGNORE_CASE)
+
+    private fun countdownFirst(list: List<SChapter>, keys: List<Key>, title: String) {
+        val t = title.trim()
+        val ds = list.mapIndexedNotNull { i, c ->
+            var n = c.name.trim().replaceFirst(LEADING_SEQ, "")
+            if (t.isNotEmpty() && n.startsWith(t)) n = n.substring(t.length).trim()
+            COUNTDOWN.matchEntire(n)?.let { m -> i to (if (m.groupValues[1].equals("DAY", true)) 0 else m.groupValues[1].toInt()) }
+        }.sortedByDescending { it.second }
+        if (ds.isEmpty() || ds.map { it.second }.toSet().size != ds.size) return
+        val first = keys.filter { it.prefix.isEmpty() && it.unit == "화" && it.num >= 1 }.minOfOrNull { it.num } ?: return
+        if (first <= ds.size) return
+        ds.forEachIndexed { j, (i, _) ->
+            keys[i].prefix = ""
+            keys[i].unit = "화"
+            keys[i].num = first - ds.size + j
+        }
+    }
+
     private fun dedupe(list: List<SChapter>, keep: Set<Int>, title: String, keepOldest: Boolean): List<SChapter> {
         fun squash(v: String) = java.text.Normalizer.normalize(v, java.text.Normalizer.Form.NFC).replace(SPACES, "").lowercase()
         val t = squash(title)
@@ -175,6 +196,7 @@ internal object ChapterOrder {
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
         val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title, parts).also { k -> fixedNum[c]?.let { k.num = it } } }
+        countdownFirst(list, keys, title)
         mergePrefixes(keys)
         fillUnnumbered(keys)
         fillMislabeledExtras(keys)
