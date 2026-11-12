@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.76",
+    "version": "0.1.77",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "wolftoon.js"
@@ -197,6 +197,23 @@ function orderChapters(list, title, keepOldest) {
         if (fixed.has(c)) { k.num = fixed.get(c); k.fixed = true; }
         return k;
     });
+    // 2026-11-12: 1~3화 대신 카운트다운 회차("D-2"·"D-1"·"D-DAY", 툰코 종말에서 살아남기)가 있고 본편이 그 개수만큼 늦게 시작하면(4화부터)
+    // 본편 맨 앞 빈 번호에 D-큰 수 → D-DAY 차례로 넣음 (전엔 다른 묶음으로 보고 맨 뒤로 보냈음)
+    {
+        const tt = String(title || "").trim();
+        const dOf = (c) => {
+            let n = String(c.name || "").trim().replace(/^\d{2,}(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/, "");
+            if (tt && n.startsWith(tt)) n = n.substring(tt.length).trim();
+            const m = /^D\s*-\s*(\d+|DAY)$/i.exec(n);
+            return m ? (/day/i.test(m[1]) ? 0 : parseInt(m[1], 10)) : null;
+        };
+        const ds = list.map((c, i) => ({ i, d: dOf(c) })).filter((x) => x.d !== null).sort((x, y) => y.d - x.d);
+        const mainNums = keys.filter((k) => k.prefix === "" && k.unit === "화" && k.num >= 1).map((k) => k.num);
+        const first = mainNums.length ? Math.min(...mainNums) : 0;
+        if (ds.length && first > ds.length && new Set(ds.map((x) => x.d)).size === ds.length) {
+            ds.forEach((x, j) => { const k = keys[x.i]; k.prefix = ""; k.unit = "화"; k.num = first - ds.length + j; k.fixed = true; });
+        }
+    }
     // 앞부분이 다른 앞부분으로 끝나면 같은 시리즈, 번외·외전끼리만 따로
     const prefixes = [...new Set(keys.map((k) => k.prefix))].filter((p) => p !== PRO && p.length >= 2)
         .sort((a, b) => a.length - b.length);
