@@ -3,14 +3,14 @@ const mangayomiSources = [
         "id": 1543270643,
         "name": "토끼 소설",
         "lang": "ko",
-        "baseUrl": "https://sbxh9.com",
+        "baseUrl": "https://toki36.com",
         "apiUrl": "",
         "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
         "typeSource": "single",
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": true,
-        "version": "0.1.1",
+        "version": "0.1.2",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -27,7 +27,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
 // 사이트가 안 열리면(연결 실패·5xx·451·응답이 사이트가 아님) 주소 목록(domains.json) → 지금 주소가 넘겨 준 주소 → 안내 페이지의 주소 → 같은 이름 번호 +1~+3 중
 // 첫 화면 200 + "뉴토끼" 글자가 확인된 주소로 바꾸고 다시 받음. 검색창에 주소를 붙여 넣으면 확인 후 그 주소로(작품 주소면 그 작품).
 (function (P) {
-    const DEF = "https://sbxh9.com";
+    const DEF = "https://toki36.com"; // 2026-11-12 sbxh9 끊김(인증서 안 맞음), toki36 열림(사용자 확인)
     const LIST = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
     const GUIDE = "https://xn--vg1b79zgsf1sj.com/"; // 뉴토주소.com
     const HOST = /^https:\/\/(?:toki|sbxh|newtoki)\d+\.(?:com|org|net)$/;
@@ -72,7 +72,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     Object.defineProperty(P, "cdn", { configurable: true, get() { return false; } });
     P.getSourcePreferences = function () {
         return [
-            { key: "toki_domain", editTextPreference: { title: "사이트 주소", summary: "비워 두면 자동으로 찾은 주소(기본 sbxh9.com). toki·sbxh·newtoki 는 같은 뉴토끼라 어느 주소든 됨. 더 새 주소가 확인되면 자동으로 바뀜", value: "", dialogTitle: "사이트 주소", dialogMessage: "예: https://toki36.com (https:// 없어도 됨)" } },
+            { key: "toki_domain", editTextPreference: { title: "사이트 주소", summary: "비워 두면 자동으로 찾은 주소(기본 toki36.com). toki·sbxh·newtoki 는 같은 뉴토끼라 어느 주소든 됨. 더 새 주소가 확인되면 자동으로 바뀜", value: "", dialogTitle: "사이트 주소", dialogMessage: "예: https://toki36.com (https:// 없어도 됨)" } },
             { key: "toki_auto_on", switchPreferenceCompat: { title: "주소 자동 찾기", summary: "사이트가 안 열리면 주소 목록·안내 페이지(뉴토주소.com)·번호 주소 중 뉴토끼 화면이 확인된 주소로 바꿈. 기본 켬", value: true } },
         ];
     };
