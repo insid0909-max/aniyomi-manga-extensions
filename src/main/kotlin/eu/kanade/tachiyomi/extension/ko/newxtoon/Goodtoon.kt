@@ -447,7 +447,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
         private val HOST_REGEX = Regex("^(www\\.)?goodtoon\\d+\\.com$")
-        private const val DEFAULT = "https://www.goodtoon010.com"
+        private const val DEFAULT = "https://www.goodtoon011.com"
 
         /** 최신 주소로 넘겨 주는 안내 주소 */
         // 최신 주소 안내: goodtoon.top·goodtoon1.top(최신 주소로 넘겨 줌), 텔레그램 채널 공개 화면(사용자가 알려 줌, 2026-10-31)
