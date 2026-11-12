@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.73",
+    "version": "0.1.74",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -1044,7 +1044,9 @@ class DefaultExtension extends MProvider {
             const title = (new Document(html).selectFirst("title")?.text || "").trim().substring(0, 40);
             throw new Error(`이미지를 찾을 수 없습니다 (제목: ${title || "없음"})`);
         }
-        return urls.map((u) => ({ url: u, headers: { "Referer": this.base + "/", "User-Agent": MOBILE_UA } }));
+        // 2026-11-12: 그림은 고정 브라우저 이름(Chrome 124)을 붙이면 그림 서버가 일부를 "없음"(404)으로 줌(시간이 머문 집 2화 — 사이트·애니요미는 휴대폰 실제 이름이라 보임)
+        // → User-Agent 는 넣지 않고 앱이 넣는 휴대폰 웹뷰 이름을 씀, Referer 만
+        return urls.map((u) => ({ url: u, headers: { "Referer": this.base + "/" } }));
     }
 
     baseFilterList() {
