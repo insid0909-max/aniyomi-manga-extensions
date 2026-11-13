@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": true,
-        "version": "0.1.3",
+        "version": "0.1.4",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -79,7 +79,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     async function probe(u) {
         try {
             const c = new Client({ useDartHttpClient: true, followRedirects: false, timeout: 6, connectTimeout: 4 });
-            const r = await c.get(u + "/", { "User-Agent": USER_AGENT, Referer: u + "/" });
+            const r = await c.get(u + "/", { "User-Agent": webUa() || USER_AGENT, Referer: u + "/" });
             const code = Number(r.statusCode);
             const body = String(r.body || "");
             if (code === 200 && /뉴토끼|newtoki/i.test(body) && /\/novel|\/webtoon|\/comic/.test(body)) return { ok: u };
@@ -133,10 +133,29 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     // 0.1.3 (2026-11-13, 사용자 "애니요미 목록 잘뜸 망가요미 인증 실패"): Cloudflare 통과 쿠키는 웹뷰 User-Agent 에 묶임 →
     // 고정 UA(Chrome/126) 로 보내면 웹뷰에서 인증해도 계속 확인 화면. UA 는 앱(웹뷰 UA)에 맡기고, 그래도 확인 화면이면 숨은 웹뷰로 통과(최대 15초).
     const CF = /cf-chl-|cf-turnstile|<title>Just a moment/i;
+    // 0.1.4: 휴대폰 웹뷰의 진짜 User-Agent 를 저장해 목록·본문·표지·주소 확인 모두 같은 값으로 (서로 다른 값이면 통과 쿠키가 왔다 갔다 → 됐다 안 됐다)
+    const webUa = () => pref("toki_web_ua");
+    const uaHdr = () => (webUa() ? { "User-Agent": webUa() } : {});
+    let NO_UA = false;
+    P.getHeaders = function (e) {
+        const t = (e || this.baseUrl).replace(/\/+$/, "");
+        const h = { Referer: t + "/" };
+        if (!NO_UA || webUa()) h["User-Agent"] = webUa() || USER_AGENT;
+        return h;
+    };
+    const G = P.getHtmlContent;
+    P.getHtmlContent = async function (a, b) {
+        NO_UA = true; // 본문 웹뷰에 고정 UA 를 넣지 않음 (웹뷰 자기 값 그대로)
+        try {
+            return await G.call(this, a, b);
+        } finally {
+            NO_UA = false;
+        }
+    };
     const good = (t, json) => !!t && !CF.test(t) && (json ? /^\s*[\[{]/.test(t) : /\/novel/.test(t));
     async function viaWeb(url, json, wait) {
         const mark = json ? "J" : "H";
-        const script = "(function(){var done=false,J='" + mark + "'==='J';function send(h){if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',h);}" +
+        const script = "(function(){var done=false,J='" + mark + "'==='J';function send(h){if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',navigator.userAgent+'\\n'+h);}" +
             "function ok(t){return !!t&&!/cf-chl-|cf-turnstile|<title>Just a moment/i.test(t)&&(J?/^\\s*[\\[{]/.test(t):t.indexOf('/novel')>=0);}" +
             "function f(){var t=J&&document.body?document.body.innerText:document.documentElement.outerHTML;if(ok(t)){send(t);return true;}return false;}" +
             "if(f())return;var n=0;var tm=setInterval(function(){if(done||f()){clearInterval(tm);return;}n++;" +
@@ -146,7 +165,12 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
                 ? evaluateJavascriptViaWebview(url, {}, [script])
                 : sendMessage("evaluateJavascriptViaWebview", JSON.stringify([url, {}, [script], Math.ceil(wait / 1000)]));
             const r = await Promise.race([call, new Promise((res) => setTimeout(() => res("__TO__"), wait))]);
-            return r && r !== "__TO__" ? String(r) : "";
+            if (!r || r === "__TO__") return "";
+            const v = String(r);
+            const i = v.indexOf("\n");
+            const ua = i > 0 ? v.slice(0, i).trim() : "";
+            if (/^Mozilla\//.test(ua)) save("toki_web_ua", ua);
+            return i > 0 ? v.slice(i + 1) : v;
         } catch (_) {
             return "";
         }
@@ -154,14 +178,14 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     const diag = (stage, code, url, body) => ` [${stage} · HTTP ${code} · ${String(url).replace(/^https?:\/\//, "").split("?")[0].slice(0, 40)} · ${String(body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 50)}]`;
     const F = async function (path, json) {
         const url = this.baseUrl + path;
-        const h = { Referer: this.baseUrl + "/" };
+        const h = Object.assign({ Referer: this.baseUrl + "/" }, uaHdr());
         if (json) h.Accept = "application/json";
         let r;
         try {
             r = await this.client.get(url, h);
         } catch (e) {
             // 변형 앱(UA 를 안 넣어 주는 앱)은 연결이 끊길 수 있음 → 고정 UA 로 한 번 더
-            r = await this.client.get(url, Object.assign({ "User-Agent": USER_AGENT }, h));
+            r = await this.client.get(url, Object.assign({ "User-Agent": webUa() || USER_AGENT }, h));
         }
         let code = Number(r.statusCode);
         let body = String(r.body || "");
