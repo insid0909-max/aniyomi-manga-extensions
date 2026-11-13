@@ -6,7 +6,7 @@
    "domainSince": "2026-11-04T03:16:50.106Z",
    "ok": false,
    "msg": "주소가 바뀐 것 같아요. 브라우저에서 사이트가 열리면 그 주소를 검색창에 붙여 넣어 주세요. 브라우저에서는 열리는데 앱에서만 안 되면: 잠시 뒤 다시 · 앱 완전히 껐다 켜기 · 유니콘 등 DNS 앱을 쓰면 DNS 를 Google 로. [사이트가 접속을 막았어요 (HTTP 403). 오른쪽 위 웹뷰로 한 번 열어 본 뒤 다시 시도해 주세요.]",
-   "checkedAt": "2026-11-12T04:14:49.168Z"
+   "checkedAt": "2026-11-13T03:35:43.053Z"
   },
   "goodtoon": {
    "origin": "https://www.goodtoon011.com",
@@ -14,47 +14,47 @@
    "domainSince": "2026-11-12T04:14:43.324Z",
    "ok": true,
    "msg": "목록 63개, 회차 346개, 이미지 168장, 연재",
-   "checkedAt": "2026-11-12T04:14:52.452Z"
+   "checkedAt": "2026-11-13T03:35:45.029Z"
   },
   "blacktoon": {
-   "origin": "https://blacktoon427.com",
+   "origin": "https://blacktoon428.com",
    "domain": "alive",
-   "domainSince": "2026-11-07T03:12:29.911Z",
+   "domainSince": "2026-11-13T03:35:35.413Z",
    "ok": true,
    "msg": "목록 24개, 회차 221개, 이미지 16장, 완결",
-   "checkedAt": "2026-11-12T04:14:55.556Z"
+   "checkedAt": "2026-11-13T03:35:46.349Z"
   },
   "wolftoon": {
-   "origin": "https://wfwf534.com",
+   "origin": "https://wfwf537.com",
    "domain": "alive",
-   "domainSince": "2026-11-10T04:47:21.707Z",
+   "domainSince": "2026-11-13T03:35:36.746Z",
    "ok": true,
    "msg": "목록 36개, 회차 128개, 이미지 62장, 연재",
-   "checkedAt": "2026-11-12T04:15:00.583Z"
+   "checkedAt": "2026-11-13T03:35:50.721Z"
   },
   "bookkor": {
-   "origin": "https://012.bookkor.com",
+   "origin": "https://013.bookkor.com",
    "domain": "alive",
-   "domainSince": "2026-11-11T03:00:01.482Z",
+   "domainSince": "2026-11-13T03:35:37.747Z",
    "ok": true,
    "msg": "목록 10개, 회차 1989개, 본문 5320자, 연재",
-   "checkedAt": "2026-11-12T04:15:02.644Z"
+   "checkedAt": "2026-11-13T03:35:52.902Z"
   },
   "toonkor": {
-   "origin": "https://005.toonkor.net",
+   "origin": "https://006.toonkor.net",
    "domain": "alive",
-   "domainSince": "2026-11-11T03:00:01.914Z",
+   "domainSince": "2026-11-13T03:35:38.418Z",
    "ok": true,
-   "msg": "목록 30개, 회차 331개, 이미지 71장, 연재",
-   "checkedAt": "2026-11-12T04:15:04.153Z"
+   "msg": "목록 30개, 회차 237개, 이미지 141장, 연재",
+   "checkedAt": "2026-11-13T03:35:54.293Z"
   },
   "goraetoon": {
-   "origin": "https://003.grtoon.com",
+   "origin": "https://004.grtoon.com",
    "domain": "alive",
-   "domainSince": "2026-11-07T03:12:31.649Z",
+   "domainSince": "2026-11-13T03:35:38.749Z",
    "ok": true,
    "msg": "목록 30개, 회차 252개, 이미지 23장, 연재",
-   "checkedAt": "2026-11-12T04:15:08.206Z"
+   "checkedAt": "2026-11-13T03:35:57.552Z"
   },
   "mtoon": {
    "origin": "https://mtoon167.asia",
@@ -64,12 +64,12 @@
   "toon11": {
    "ok": true,
    "msg": "목록 101개, 회차 317개, 이미지 17장, 상태 미확인",
-   "checkedAt": "2026-11-12T04:14:58.710Z"
+   "checkedAt": "2026-11-13T03:35:49.445Z"
   },
   "wolftoon_comic": {
    "ok": true,
    "msg": "목록 36개, 회차 1145개, 이미지 17장, 상태 미확인",
-   "checkedAt": "2026-11-12T04:15:05.945Z"
+   "checkedAt": "2026-11-13T03:35:55.574Z"
   }
  }
 }
