@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": true,
-        "version": "0.1.2",
+        "version": "0.1.3",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -130,7 +130,64 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         return await Promise.race([work, new Promise((r) => setTimeout(() => r(""), 9000))]);
     }
     const NET = /HTTP (?:5\d\d|451)|응답을 읽지 못했|Connection|Socket|Failed host|host lookup|timed out|Timeout|handshake|Network|refused|reset|연결/i;
-    const F = P.fetch;
+    // 0.1.3 (2026-11-13, 사용자 "애니요미 목록 잘뜸 망가요미 인증 실패"): Cloudflare 통과 쿠키는 웹뷰 User-Agent 에 묶임 →
+    // 고정 UA(Chrome/126) 로 보내면 웹뷰에서 인증해도 계속 확인 화면. UA 는 앱(웹뷰 UA)에 맡기고, 그래도 확인 화면이면 숨은 웹뷰로 통과(최대 15초).
+    const CF = /cf-chl-|cf-turnstile|<title>Just a moment/i;
+    const good = (t, json) => !!t && !CF.test(t) && (json ? /^\s*[\[{]/.test(t) : /\/novel/.test(t));
+    async function viaWeb(url, json, wait) {
+        const mark = json ? "J" : "H";
+        const script = "(function(){var done=false,J='" + mark + "'==='J';function send(h){if(done)return;done=true;window.flutter_inappwebview.callHandler('setResponse',h);}" +
+            "function ok(t){return !!t&&!/cf-chl-|cf-turnstile|<title>Just a moment/i.test(t)&&(J?/^\\s*[\\[{]/.test(t):t.indexOf('/novel')>=0);}" +
+            "function f(){var t=J&&document.body?document.body.innerText:document.documentElement.outerHTML;if(ok(t)){send(t);return true;}return false;}" +
+            "if(f())return;var n=0;var tm=setInterval(function(){if(done||f()){clearInterval(tm);return;}n++;" +
+            "if(n%5===0&&window.fetch){fetch(location.href,{credentials:'include'}).then(function(r){return r.text();}).then(function(t){if(ok(t)){clearInterval(tm);send(t);}}).catch(function(){});}},300);})();";
+        try {
+            const call = typeof evaluateJavascriptViaWebview === "function"
+                ? evaluateJavascriptViaWebview(url, {}, [script])
+                : sendMessage("evaluateJavascriptViaWebview", JSON.stringify([url, {}, [script], Math.ceil(wait / 1000)]));
+            const r = await Promise.race([call, new Promise((res) => setTimeout(() => res("__TO__"), wait))]);
+            return r && r !== "__TO__" ? String(r) : "";
+        } catch (_) {
+            return "";
+        }
+    }
+    const diag = (stage, code, url, body) => ` [${stage} · HTTP ${code} · ${String(url).replace(/^https?:\/\//, "").split("?")[0].slice(0, 40)} · ${String(body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 50)}]`;
+    const F = async function (path, json) {
+        const url = this.baseUrl + path;
+        const h = { Referer: this.baseUrl + "/" };
+        if (json) h.Accept = "application/json";
+        let r;
+        try {
+            r = await this.client.get(url, h);
+        } catch (e) {
+            // 변형 앱(UA 를 안 넣어 주는 앱)은 연결이 끊길 수 있음 → 고정 UA 로 한 번 더
+            r = await this.client.get(url, Object.assign({ "User-Agent": USER_AGENT }, h));
+        }
+        let code = Number(r.statusCode);
+        let body = String(r.body || "");
+        if (CF.test(body) || ((code === 403 || code === 503) && !good(body, json))) {
+            const start = Date.now();
+            const web = await viaWeb(url, json, 15000);
+            if (good(web, json)) body = web;
+            else {
+                // 그 사이 통과 쿠키가 저장됐을 수 있음 → 한 번 더
+                if (Date.now() - start < 25000) {
+                    const again = await this.client.get(url, h);
+                    code = Number(again.statusCode);
+                    body = String(again.body || "");
+                }
+                if (!good(body, json)) throw new Error("사이트 보안 확인(Cloudflare)을 통과하지 못했어요. 오른쪽 위 지구본(웹뷰)으로 사이트를 열어 확인을 마친 뒤 닫고 다시 불러와 주세요." + diag(json ? "목록·회차" : "작품 화면", code, url, body));
+            }
+            code = 200;
+        }
+        if (code < 200 || code >= 300) throw new Error(`사이트 요청에 실패했어요 (HTTP ${code}).` + diag(json ? "목록·회차" : "작품 화면", code, url, body));
+        if (!json) return body;
+        try {
+            return JSON.parse(body);
+        } catch (e) {
+            throw new Error("사이트 응답을 읽지 못했어요." + diag("목록·회차", code, url, body));
+        }
+    };
     // 옛 주소는 오류 없이 텔레그램 안내 글(t.me/s/toki1234)로 넘겨 줌 → 받은 화면에 소설 링크가 없으면 사이트가 아님
     const notSite = (v) => typeof v === "string" && !/\/novel/.test(v);
     P.fetch = async function (path, json) {
