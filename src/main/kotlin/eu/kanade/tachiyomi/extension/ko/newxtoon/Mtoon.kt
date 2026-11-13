@@ -66,7 +66,10 @@ class Mtoon : HttpSource(), ConfigurableSource {
         }
 
     override val baseUrl: String
-        get() = DomainGuard.pick(runCatching { sp }.getOrNull(), KEY_DOMAIN, DEFAULT, autoDomain(), { Regex("^https?://[^\\s/]+$").matches(it) })
+        get() = DomainGuard.pick(runCatching { sp }.getOrNull(), KEY_DOMAIN, DEFAULT, autoDomain(), { Regex("^https?://[^\\s/]+$").matches(it) }).also { cur ->
+            // 6시간마다 저장소 주소 목록(감시 작업이 매일 고침)에 더 큰 번호가 있고 진짜 사이트면 그 주소로 (뒤에서)
+            DomainList.followLater("mtoon", runCatching { sp }.getOrNull(), KEY_DOMAIN, cur, autoDomain()) { h -> HOST_REGEX.matches(h) && DomainList.realSite(h, userAgent, MARK, "list.php?i=") }
+        }
 
     private fun autoDomain(): Boolean = try {
         sp.getBoolean(KEY_AUTO, true)
