@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": false,
-        "version": "0.1.8",
+        "version": "0.1.9",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -28,6 +28,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
 // 첫 화면 200 + "뉴토끼" 글자가 확인된 주소로 바꾸고 다시 받음. 검색창에 주소를 붙여 넣으면 확인 후 그 주소로(작품 주소면 그 작품).
 (function (P) {
     const DEF = "https://sbxh9.com"; // 2026-11-13 사용자: sbxh9·newtoki1.org 는 목록 바로 뜨고 toki36 은 됐다 안 됐다 (11-12 엔 sbxh9 인증서 문제로 toki36 이었음)
+    const CDN = "https://sbxh9.b-cdn.net";
     const BACKUP = ["https://sbxh9.com", "https://newtoki1.org", "https://toki36.com"]; // 한 주소가 안 되면 바로 다음 주소로
     const LIST = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
     const GUIDE = "https://xn--vg1b79zgsf1sj.com/"; // 뉴토주소.com
@@ -140,6 +141,20 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     const F = async function (path, json) {
         if (TRY) return await F0.call(this, path, json);
         const cur = this.baseUrl;
+        // 0.1.9 (사용자 "진행", 2026-11-13): 목록·작품·회차 목록은 먼저 CDN 중계(sbxh9.b-cdn.net — 통신사 DNS 막힘·보안 확인을 덜 탐, 다른 저장소 Toki 소설 기본값)로.
+        // 본문은 지금처럼 사이트를 웹뷰로. CDN 이 안 되면 6시간 건너뜀.
+        if (Date.now() > (Number(pref("toki_cdn_fail_until")) || 0)) {
+            TRY = CDN;
+            try {
+                const v = await F0.call(this, path, json, true);
+                if (typeof v !== "string" || /\/novel/.test(v)) return v;
+            } catch (_) {
+                // 아래에서 사이트 주소로
+            } finally {
+                TRY = "";
+            }
+            save("toki_cdn_fail_until", Date.now() + 6 * 3600000);
+        }
         try {
             return await F0.call(this, path, json, true);
         } catch (_) {
