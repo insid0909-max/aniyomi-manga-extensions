@@ -3,14 +3,14 @@ const mangayomiSources = [
         "id": 1543270643,
         "name": "토끼 소설",
         "lang": "ko",
-        "baseUrl": "https://toki36.com",
+        "baseUrl": "https://sbxh9.com",
         "apiUrl": "",
         "iconUrl": "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png",
         "typeSource": "single",
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": false,
-        "version": "0.1.7",
+        "version": "0.1.8",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -27,7 +27,8 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
 // 사이트가 안 열리면(연결 실패·5xx·451·응답이 사이트가 아님) 주소 목록(domains.json) → 지금 주소가 넘겨 준 주소 → 안내 페이지의 주소 → 같은 이름 번호 +1~+3 중
 // 첫 화면 200 + "뉴토끼" 글자가 확인된 주소로 바꾸고 다시 받음. 검색창에 주소를 붙여 넣으면 확인 후 그 주소로(작품 주소면 그 작품).
 (function (P) {
-    const DEF = "https://toki36.com"; // 2026-11-12 sbxh9 끊김(인증서 안 맞음), toki36 열림(사용자 확인)
+    const DEF = "https://sbxh9.com"; // 2026-11-13 사용자: sbxh9·newtoki1.org 는 목록 바로 뜨고 toki36 은 됐다 안 됐다 (11-12 엔 sbxh9 인증서 문제로 toki36 이었음)
+    const BACKUP = ["https://sbxh9.com", "https://newtoki1.org", "https://toki36.com"]; // 한 주소가 안 되면 바로 다음 주소로
     const LIST = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
     const GUIDE = "https://xn--vg1b79zgsf1sj.com/"; // 뉴토주소.com
     const HOST = /^https:\/\/(?:toki|sbxh|newtoki)\d+\.(?:com|org|net)$/;
@@ -59,10 +60,16 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         configurable: true,
         get() {
             if (TRY) return TRY;
+            if (pref("toki_def_v") !== "2") {
+                // 0.1.8: 예전 기본 toki36 으로 저장된 자동 주소를 한 번 지워 새 기본 주소부터
+                if (fam(norm(pref("toki_auto_domain"))) === "toki") save("toki_auto_domain", "");
+                save("toki_def_v", "2");
+            }
             const m = manual();
             const a = norm(pref("toki_auto_domain"));
             if (m) {
-                if (autoOn() && a && newer(a, m)) { save("toki_domain", a); return a; }
+                // 직접 넣은 주소는 같은 이름의 더 큰 번호일 때만 바꿈 (이름이 다른 주소로 덮어쓰지 않음)
+                if (autoOn() && a && fam(a) === fam(m) && num(a) > num(m)) { save("toki_domain", a); return a; }
                 return m;
             }
             return autoOn() && a ? a : DEF;
@@ -72,7 +79,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
     Object.defineProperty(P, "cdn", { configurable: true, get() { return false; } });
     P.getSourcePreferences = function () {
         return [
-            { key: "toki_domain", editTextPreference: { title: "사이트 주소", summary: "비워 두면 자동으로 찾은 주소(기본 toki36.com). toki·sbxh·newtoki 는 같은 뉴토끼라 어느 주소든 됨. 더 새 주소가 확인되면 자동으로 바뀜", value: "", dialogTitle: "사이트 주소", dialogMessage: "예: https://toki36.com (https:// 없어도 됨)" } },
+            { key: "toki_domain", editTextPreference: { title: "사이트 주소", summary: "비워 두면 자동으로 찾은 주소(기본 sbxh9.com). toki·sbxh·newtoki 는 같은 뉴토끼라 어느 주소든 됨. 더 새 주소가 확인되면 자동으로 바뀜", value: "", dialogTitle: "사이트 주소", dialogMessage: "예: https://toki36.com (https:// 없어도 됨)" } },
             { key: "toki_auto_on", switchPreferenceCompat: { title: "주소 자동 찾기", summary: "사이트가 안 열리면 주소 목록·안내 페이지(뉴토주소.com)·번호 주소 중 뉴토끼 화면이 확인된 주소로 바꿈. 기본 켬", value: true } },
         ];
     };
@@ -129,6 +136,32 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         })();
         return await Promise.race([work, new Promise((r) => setTimeout(() => r(""), 9000))]);
     }
+    // 0.1.8: 지금 주소가 안 되면(연결 실패·DNS·보안 확인·5xx) 웹뷰보다 먼저 다른 주소(sbxh9 → newtoki1.org → toki36)를 바로 시도
+    const F = async function (path, json) {
+        if (TRY) return await F0.call(this, path, json);
+        const cur = this.baseUrl;
+        try {
+            return await F0.call(this, path, json, true);
+        } catch (_) {
+            // 다른 주소로
+        }
+        for (const b of BACKUP) {
+            if (b === cur) continue;
+            TRY = b;
+            try {
+                const v = await F0.call(this, path, json, true);
+                if (typeof v === "string" && !/\/novel/.test(v)) continue;
+                save("toki_auto_domain", b);
+                if (manual()) save("toki_domain", b);
+                return v;
+            } catch (_) {
+                // 다음 주소
+            } finally {
+                TRY = "";
+            }
+        }
+        return await F0.call(this, path, json); // 마지막으로 지금 주소를 숨은 웹뷰로
+    };
     const NET = /HTTP (?:5\d\d|451)|응답을 읽지 못했|Connection|Socket|Failed host|host lookup|timed out|Timeout|handshake|Network|refused|reset|연결/i;
     // 0.1.3 (2026-11-13, 사용자 "애니요미 목록 잘뜸 망가요미 인증 실패"): Cloudflare 통과 쿠키는 웹뷰 User-Agent 에 묶임 →
     // 고정 UA(Chrome/126) 로 보내면 웹뷰에서 인증해도 계속 확인 화면. UA 는 앱(웹뷰 UA)에 맡기고, 그래도 확인 화면이면 숨은 웹뷰로 통과(최대 15초).
@@ -176,7 +209,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         }
     }
     const diag = (stage, code, url, body) => ` [${stage} · HTTP ${code} · ${String(url).replace(/^https?:\/\//, "").split("?")[0].slice(0, 40)} · ${String(body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 50)}]`;
-    const F = async function (path, json) {
+    const F0 = async function (path, json, noWeb) {
         const url = this.baseUrl + path;
         const h = Object.assign({ Referer: this.baseUrl + "/" }, uaHdr());
         if (json) h.Accept = "application/json";
@@ -189,7 +222,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
                 r = await this.client.get(url, Object.assign({ "User-Agent": webUa() || USER_AGENT }, h));
             } catch (e2) {
                 // 0.1.7: 통신사 DNS 가 주소를 막으면(Failed host lookup) 앱 통신은 안 되지만 웹뷰는 열림 → 숨은 웹뷰로 받기
-                const web = await viaWeb(url, json, 15000);
+                const web = noWeb ? "" : await viaWeb(url, json, 15000);
                 if (!good(web, json)) throw e2;
                 if (!json) return web;
                 try {
@@ -203,7 +236,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         let body = String(r.body || "");
         if (CF.test(body) || ((code === 403 || code === 503) && !good(body, json))) {
             const start = Date.now();
-            const web = await viaWeb(url, json, 15000);
+            const web = noWeb ? "" : await viaWeb(url, json, 15000);
             if (good(web, json)) body = web;
             else {
                 // 그 사이 통과 쿠키가 저장됐을 수 있음 → 한 번 더
