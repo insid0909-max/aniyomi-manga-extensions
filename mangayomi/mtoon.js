@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon167.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.39","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.40","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -57,7 +57,7 @@ class DefaultExtension extends MProvider{
     getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')},select('rule','탭 조건 저장',MT_RULES11)];}
     async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),result=await mtPaged08(page,q,options);if(!q&&Number(page==null?1:page)===1)mtApplyRule11(filters,options);return result;}
     async getDetail(url){return await mtDetail10(url);}
-    getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon167.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon167.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
+    getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon168.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon168.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
     async getPageList(url){return await mtRead07(url,'pages');}
 }
 
@@ -305,7 +305,7 @@ async function mtDetail10(url){
 const MT_RULES11=[['저장하지 않음','0'],['현재 조건을 인기 탭에 저장','1'],['현재 조건을 최신 탭에 저장','2'],['인기 탭 기본값 복원','3'],['최신 탭 기본값 복원','4'],['두 탭 기본값 복원','5']];
 let MT_ORIGIN11='';
 // 0.1.34: 주소 규칙(다른 확장과 같게) — 직접 넣은 주소(mt_domain)는 바로 씀, 자동으로 찾은 주소(mt_origin11)가 번호가 더 크면 그 주소로 바꾸고 칸도 고침, 자동 찾기 끄면 직접 넣은 주소·기본 주소만
-const MT_DEFAULT='https://mtoon167.asia',MT_ORIGIN_RE=/^https:\/\/(?:www\.)?mtoon\d+\.asia$/;
+const MT_DEFAULT='https://mtoon168.asia',MT_ORIGIN_RE=/^https:\/\/(?:www\.)?mtoon\d+\.asia$/;
 function mtNum(o){return Number((/mtoon(\d+)\./.exec(String(o||''))||[])[1]||0);}
 function mtPref(k){try{const v=new SharedPreferences().get(k);return v==null?'':String(v);}catch(_){return '';}}
 function mtAutoOn(){const v=mtPref('mt_auto_on');return !(v==='false');}
@@ -504,6 +504,26 @@ async function mtProbe(origin) {
     }
     return {};
 }
+// 0.1.40 (2026-11-13): 6시간마다 주소 목록 파일(감시 작업이 매일 고침)에 지금보다 큰 번호가 있고 머니툰 화면으로 열리면 그 주소로 (잘 열리는 동안에도)
+async function mtFollow() {
+    try {
+        if (!mtAutoOn()) return;
+        const p = new SharedPreferences();
+        if (Date.now() - (Number(p.getString("mt_listed_at", "0")) || 0) < 6 * 3600000) return;
+        p.setString("mt_listed_at", String(Date.now()));
+        await Promise.race([(async () => {
+            const l = await mtListed();
+            const cur = mtBase11();
+            if (!l || l === cur || mtNum(l) <= mtNum(cur)) return;
+            const r = await mtProbe(l);
+            if (!r.ok) return;
+            if (mtManual()) try { p.setString("mt_domain", r.ok); } catch (_) {}
+            mtRemember11(r.ok);
+        })(), new Promise((r) => setTimeout(r, 6000))]);
+    } catch (e) {
+        // 다음 기회에
+    }
+}
 async function mtDiscover() {
     if (Date.now() - MT_DISC_AT < 60000) return "";
     MT_DISC_AT = Date.now();
@@ -542,6 +562,7 @@ async function mtTryOrigin(origin, run) {
     const P = DefaultExtension.prototype;
     // 목록: 사이트가 안 열리면 주소 목록 파일의 주소로 한 번 더 (망가요미는 목록을 40초까지만 기다려서 첫 시도가 15초 안에 실패했을 때만)
     const guard = (base) => async function () {
+        await mtFollow();
         const t0 = Date.now();
         try {
             return await base.apply(this, arguments);

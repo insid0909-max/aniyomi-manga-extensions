@@ -578,7 +578,7 @@ class Mtoon : HttpSource(), ConfigurableSource {
         private const val KEY_UA = "pref_user_agent"
         private const val PAGE_SIZE = 30
         private const val MARK = "money_toon.png"
-        private const val DEFAULT = "https://mtoon165.asia"
+        private const val DEFAULT = "https://mtoon168.asia"
         private const val FALLBACK_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         private val HOST_REGEX = Regex("^(www\\.)?mtoon\\d+\\.asia$")
         private val CF_PAGE = Regex("Just a moment|cf-chl|challenge-platform|cf_chl_opt", RegexOption.IGNORE_CASE)
