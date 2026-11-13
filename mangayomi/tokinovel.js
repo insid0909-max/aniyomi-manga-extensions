@@ -9,8 +9,8 @@ const mangayomiSources = [
         "typeSource": "single",
         "itemType": 2,
         "isNsfw": false,
-        "hasCloudflare": true,
-        "version": "0.1.5",
+        "hasCloudflare": false,
+        "version": "0.1.6",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
