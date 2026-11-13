@@ -73,6 +73,7 @@
 - 직접 넣은 주소·자동 찾은 주소 따로 저장, 번호 큰 진짜 사이트 확인되면 교체(+설정 칸 고침), 주소 찾기는 맨 먼저 저장소 domains.json → 안내 페이지(텔레그래프·tvchak.org 등) → 번호 짐작 → 비상 주소(출처: 후후티비·티비착·고고티비).
 - 검색창에 사이트 주소 붙여 넣기(https:// 없어도) → 확인 후 적용, 작품 주소면 바로 그 작품.
 - 사이트가 넘겨 준 주소는 200 + 표시 글자 확인 뒤에만 저장(뉴엑스툰).
+- **안내 페이지·주소 목록 따라가기**(사용자 "2번 진행", 2026-11-13, 코티비씨가 옛 주소가 아직 열려 새 주소로 안 옮겨 간 일 후속): 감시 작업이 domains.json 을 매일 고치면(애니 저장소는 config `guides` 로 안내 페이지도 읽음) 확장이 6시간마다(목록 첫 쪽 때) 목록 주소를 보고, 숫자 뺀 이름이 같고 번호가 더 크며(숫자들을 앞에서부터 비교) 휴대폰에서 진짜 사이트로 열리면 자동 주소로 저장(직접 넣은 주소도 번호 비교로 고침). 망가요미 JS 공통 addrNewer·addrFollow(addrGuard 첫 쪽, 블랙툰 0.3.80·북코 0.1.54·굿툰 0.3.73·고래툰 0.1.38·뉴엑스툰 0.3.73·11툰 0.3.71·툰코 0.1.77·늑대 0.1.79·늑대 만화 0.1.72), 애니요미 `DomainList.followLater`(baseUrl getter, 뒤에서 Thread)·`newer`·`realSite`(10개 소스). 새 소스도 같이 넣을 것.
 - 망가요미도 넘겨 준 주소를 읽을 수 있음(2026-11-08): `new Client({useDartHttpClient:true, followRedirects:false})` 면 301·302 와 location 머리글을 그대로 줌(순정 m_client.dart). 웹툰 JS 10개 공통 movedOrigin·movedTarget·movedSelf — 주소 찾기는 저장소 목록 다음에 지금 주소·안내 주소(블랙툰 blacktoon.cc·굿툰 goodtoon.top·툰코 toonkor.site)가 넘겨 주는 주소, 정상으로 열릴 때는 앱을 켤 때 주소마다 한 번 HEAD 로 확인. 둘 다 AUTO_HOST 모양 + 첫 화면 200 + 표시 글자일 때만 저장. 새 JS 소스도 넣기. 시험 런타임(monitor/runtime.js)도 followRedirects:false·head 흉내.
 - 주소 찾기는 5xx·연결 실패·목록 0개+표시 글자 없음일 때만. Cloudflare 보안 확인(403 "Just a moment")·재생 API 403·차단 응답 없음은 주소 바뀜 아님(티비착·애니라이프·머니툰).
 - 못 찾으면 할 일 안내(잠시 뒤·앱 재시작·DNS·새 주소 붙여 넣기), UnknownHost 는 쉬운 말로.
