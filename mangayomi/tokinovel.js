@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": false,
-        "version": "0.1.6",
+        "version": "0.1.7",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -184,8 +184,20 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         try {
             r = await this.client.get(url, h);
         } catch (e) {
-            // 변형 앱(UA 를 안 넣어 주는 앱)은 연결이 끊길 수 있음 → 고정 UA 로 한 번 더
-            r = await this.client.get(url, Object.assign({ "User-Agent": webUa() || USER_AGENT }, h));
+            try {
+                // 변형 앱(UA 를 안 넣어 주는 앱)은 연결이 끊길 수 있음 → 고정 UA 로 한 번 더
+                r = await this.client.get(url, Object.assign({ "User-Agent": webUa() || USER_AGENT }, h));
+            } catch (e2) {
+                // 0.1.7: 통신사 DNS 가 주소를 막으면(Failed host lookup) 앱 통신은 안 되지만 웹뷰는 열림 → 숨은 웹뷰로 받기
+                const web = await viaWeb(url, json, 15000);
+                if (!good(web, json)) throw e2;
+                if (!json) return web;
+                try {
+                    return JSON.parse(web);
+                } catch (_) {
+                    throw e2;
+                }
+            }
         }
         let code = Number(r.statusCode);
         let body = String(r.body || "");
@@ -224,6 +236,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
             if (TRY || !autoOn() || !NET.test(m)) throw e;
             const cur = this.baseUrl;
             const found = await discover(cur);
+            if (!found && /host lookup|No address associated/i.test(m)) throw new Error(`휴대폰이 ${String(cur).replace(/^https?:\/\//, "")} 주소를 찾지 못했어요(통신사 DNS 가 막은 듯). 휴대폰 설정 → 연결 → 기타 연결 설정 → 개인 DNS 를 "dns.google" 로 바꾸면 대부분 해결돼요. 주소가 정말 바뀌었으면 뉴토주소.com 에서 확인해 검색창에 붙여 넣어 주세요. [목록 · DNS 실패]`);
             if (!found) throw new Error(`${m} — 주소가 바뀐 것 같아요. 뉴토주소.com 에서 지금 주소를 확인해 검색창에 붙여 넣거나 설정의 사이트 주소에 넣어 주세요.`);
             save("toki_auto_domain", found);
             if (manual()) save("toki_domain", found); // 직접 넣은 주소가 안 열려서 찾은 주소(뉴토끼 화면 확인됨)로 칸도 고침
