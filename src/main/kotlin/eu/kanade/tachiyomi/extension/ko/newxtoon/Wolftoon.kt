@@ -510,7 +510,7 @@ class Wolftoon(private val comic: Boolean = false) : HttpSource(), ConfigurableS
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://wfwf534.com"
+        private const val DEFAULT = "https://wfwf537.com"
 
         // 늑대닷컴 공식 텔레그램 채널 공개 화면 ("늑대닷컴 주소 https://wfwfNNN.com", 사용자가 알려 줌, 2026-10-31)
         private const val GUIDE_URL = "https://t.me/s/wfwf_999"

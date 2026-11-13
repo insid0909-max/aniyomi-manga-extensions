@@ -724,7 +724,7 @@ class Blacktoon : HttpSource(), ConfigurableSource {
         private const val KEY_DOMAIN = "pref_domain_key"
         private const val KEY_AUTO = "pref_auto_domain"
         private const val KEY_UA = "pref_user_agent"
-        private const val DEFAULT = "https://blacktoon427.com"
+        private const val DEFAULT = "https://blacktoon428.com"
 
         // 공식 주소 안내: 공지 페이지(사용자가 알려 줌, 2026-10-31, "현재 도메인"·바로가기 링크), 블랙툰URL(blacktoonurl.net → blacktoongo.com)
         private val GUIDE_URLS = listOf("https://notice.blacktoongo.com/", "https://blacktoongo.com/", "https://blacktoonurl.net/")
