@@ -120,6 +120,7 @@ internal object ExtStatus {
         refresh()
         val host = baseUrl.substringAfter("://").trimEnd('/')
         val out = mutableListOf("📡 주소: $host · 자동 찾기 ${if (autoDomain) "켜짐" else "꺼짐"}")
+        DomainList.note(key)?.let { out.add("🔎 주소 목록 확인: $it") }
         val item = data()?.optJSONObject("items")?.optJSONObject(key)
         if (item == null || !item.has("ok")) {
             out.add("🩺 점검: 정보 없음 (잠시 후 필터를 다시 열면 표시)")

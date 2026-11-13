@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.80",
+    "version": "0.3.81",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "blacktoon.js"
@@ -602,6 +602,25 @@ function addrNewer(a, b) {
     return x.length > y.length;
 }
 
+// 2026-11-13: 마지막 주소 확인 결과를 필터 📡 줄 끝 🔎 에 (같음·새 주소로 바꿈·넘김·아직 안 열림·목록 못 받음)
+function addrNoteSave(msg) {
+    try {
+        const d = new Date(Date.now() + 9 * 3600000);
+        const z = (n) => String(n).padStart(2, "0");
+        new SharedPreferences().setString("listed_note", `${z(d.getUTCMonth() + 1)}.${z(d.getUTCDate())} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())} ${msg}`);
+    } catch (e) {
+        // 그대로
+    }
+}
+function addrNoteText() {
+    try {
+        const v = String(new SharedPreferences().getString("listed_note", "") || "");
+        return v ? ` · 🔎 ${v}` : "";
+    } catch (e) {
+        return "";
+    }
+}
+
 async function addrFollow(ext) {
     try {
         if (!ext.autoOn()) return;
@@ -614,8 +633,13 @@ async function addrFollow(ext) {
         const work = async () => {
             const listed = await listedDomain(ext.client, "blacktoon");
             const h = host(listed);
-            if (!h || !(ADDR_HOST.test(h) || ADDR_HOST.test(plain(h))) || !addrNewer(plain(h), plain(addrCurrent(ext)))) return;
-            if (await addrIsSite(ext, "https://" + h)) p.setString("auto_domain", "https://" + h);
+            if (!h) return addrNoteSave("목록 못 받음");
+            if (!(ADDR_HOST.test(h) || ADDR_HOST.test(plain(h))) || !addrNewer(plain(h), plain(addrCurrent(ext)))) return addrNoteSave(`같음 (${plain(h)})`);
+            if (await addrIsSite(ext, "https://" + h)) {
+                p.setString("auto_domain", "https://" + h);
+                return addrNoteSave(`새 주소 ${plain(h)} 로 바꿈`);
+            }
+            addrNoteSave(`${plain(h)} 가 아직 안 열려 그대로`);
         };
         await Promise.race([work(), new Promise((r) => setTimeout(r, 6000))]);
     } catch (e) {
@@ -708,7 +732,9 @@ async function movedTarget(ext, froms, current, marker, head) {
 async function movedSelf(ext, base, marker) {
     if (MOVED_SEEN[base]) return null;
     MOVED_SEEN[base] = 1;
-    return movedTarget(ext, [base + "/"], base, marker, true);
+    const to = await movedTarget(ext, [base + "/"], base, marker, true);
+    if (to) addrNoteSave(`넘김 → ${to.replace(/^https?:\/\//, "")} 로 바꿈`);
+    return to;
 }
 
 async function listedDomain(client, key) {
@@ -1582,7 +1608,7 @@ async function statusRefresh(client) {
 
 function statusFilters(key, base, autoOn) {
     const host = String(base || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    const lines = [`📡 주소: ${host}` + (autoOn === null || autoOn === undefined ? "" : ` · 자동 찾기 ${autoOn ? "켜짐" : "꺼짐"}`)];
+    const lines = [`📡 주소: ${host}` + (autoOn === null || autoOn === undefined ? "" : ` · 자동 찾기 ${autoOn ? "켜짐" : "꺼짐"}`) + addrNoteText()];
     let item = null;
     try {
         item = (JSON.parse(new SharedPreferences().getString("status_json", "") || "{}").items || {})[key] || null;
