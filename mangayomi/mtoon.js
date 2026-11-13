@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.40","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.41","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -505,6 +505,23 @@ async function mtProbe(origin) {
     return {};
 }
 // 0.1.40 (2026-11-13): 6시간마다 주소 목록 파일(감시 작업이 매일 고침)에 지금보다 큰 번호가 있고 머니툰 화면으로 열리면 그 주소로 (잘 열리는 동안에도)
+function mtNoteSave(msg) {
+    try {
+        const d = new Date(Date.now() + 9 * 3600000);
+        const z = (n) => String(n).padStart(2, "0");
+        new SharedPreferences().setString("mt_listed_note", `${z(d.getUTCMonth() + 1)}.${z(d.getUTCDate())} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())} ${msg}`);
+    } catch (e) {
+        // 그대로
+    }
+}
+function mtNoteText() {
+    try {
+        const v = String(new SharedPreferences().getString("mt_listed_note", "") || "");
+        return v ? ` · 📡 ${mtBase11().replace(/^https?:\/\//, "")} · 🔎 ${v}` : "";
+    } catch (e) {
+        return "";
+    }
+}
 async function mtFollow() {
     try {
         if (!mtAutoOn()) return;
@@ -514,11 +531,14 @@ async function mtFollow() {
         await Promise.race([(async () => {
             const l = await mtListed();
             const cur = mtBase11();
-            if (!l || l === cur || mtNum(l) <= mtNum(cur)) return;
+            const h = (u) => String(u).replace(/^https?:\/\//, "");
+            if (!l) return mtNoteSave("목록 못 받음");
+            if (l === cur || mtNum(l) <= mtNum(cur)) return mtNoteSave(`같음 (${h(l)})`);
             const r = await mtProbe(l);
-            if (!r.ok) return;
+            if (!r.ok) return mtNoteSave(`${h(l)} 가 아직 안 열려 그대로`);
             if (mtManual()) try { p.setString("mt_domain", r.ok); } catch (_) {}
             mtRemember11(r.ok);
+            mtNoteSave(`새 주소 ${h(r.ok)} 로 바꿈`);
         })(), new Promise((r) => setTimeout(r, 6000))]);
     } catch (e) {
         // 다음 기회에
@@ -693,7 +713,7 @@ function notesFilters(key) {
     } catch (e) {
         list = [];
     }
-    return [verLine(key, list.filter((n) => n && n.t)[0])];
+    return [verLine(key, list.filter((n) => n && n.t)[0]) + (key === "mtoon" ? mtNoteText() : "")];
 }
 
 // 필터 맨 위 📝 줄 (설치 버전 NEW/OLD + 마지막 업데이트 내역)
