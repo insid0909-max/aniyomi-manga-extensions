@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": true,
-        "version": "0.1.4",
+        "version": "0.1.5",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -249,5 +249,67 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
             return { list: [{ name: d.name || `작품 열기 (${id})`, imageUrl: d.imageUrl || "", link: `/novel/${id}` }], hasNextPage: false };
         }
         return await this.getPopular(page || 1);
+    };
+})(DefaultExtension.prototype);
+
+// ---------- 0.1.5: 필터 맨 위 📝 버전 줄 · 📡 지금 주소, 맨 끝 빈 줄 (2026-11-13, 다른 웹툰 확장과 같게 — 업데이트가 됐는지 화면에서 확인) ----------
+(function (P) {
+    const NOTES_URL = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/changelog.json";
+    const VER_URLS = ["https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/mangayomi/novel_index.json"];
+    const sp = () => { try { return new SharedPreferences(); } catch (_) { return null; } };
+    const get = (k) => { const p = sp(); try { const v = p && p.get(k); return v == null ? "" : String(v); } catch (_) { return ""; } };
+    const set = (k, v) => { const p = sp(); try { p && p.setString(k, String(v)); } catch (_) {} };
+    const cmp = (a, b) => {
+        const x = String(a || "").split(".").map((n) => parseInt(n, 10) || 0);
+        const y = String(b || "").split(".").map((n) => parseInt(n, 10) || 0);
+        for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+        return 0;
+    };
+    async function refresh() {
+        if (Date.now() - (Number(get("toki_notes_at")) || 0) < 60 * 60000) return;
+        set("toki_notes_at", Date.now());
+        const c = new Client({ timeout: 6, connectTimeout: 4 });
+        const file = String(mangayomiSources[0].pkgPath || "").split("/").pop();
+        await Promise.all([
+            (async () => {
+                try {
+                    const r = await c.get(NOTES_URL + "?t=" + Math.floor(Date.now() / 600000), {});
+                    const b = String(r.body || "");
+                    if (Number(r.statusCode) === 200 && b.trim().startsWith("{")) set("toki_notes", JSON.stringify((JSON.parse(b).items || {}).tokinovel || []));
+                } catch (_) {}
+            })(),
+            (async () => {
+                for (const u of VER_URLS) {
+                    try {
+                        const arr = JSON.parse(String((await c.get(u + "?t=" + Math.floor(Date.now() / 600000), {})).body || "[]"));
+                        const hit = (Array.isArray(arr) ? arr : []).find((x) => x && String(x.sourceCodeUrl || "").endsWith("/" + file));
+                        if (hit && hit.version) return set("toki_ver_latest", hit.version);
+                    } catch (_) {}
+                }
+            })(),
+        ]);
+    }
+    for (const name of ["getPopular", "getLatestUpdates"]) {
+        const f = P[name];
+        P[name] = async function (page) {
+            if (Number(page) === 1) await Promise.race([refresh(), new Promise((r) => setTimeout(r, 4000))]);
+            return await f.apply(this, arguments);
+        };
+    }
+    const GF = P.getFilterList;
+    P.getFilterList = function () {
+        const mine = String(mangayomiSources[0].version || "");
+        const latest = get("toki_ver_latest");
+        let note = null;
+        try { note = (JSON.parse(get("toki_notes") || "[]") || [])[0]; } catch (_) {}
+        const last = note && note.t ? ` · ${String(note.d || "").substring(5).replace("-", ".")} ${String(note.t).replace(/^망가요미:\s*/, "")}` : "";
+        let ver = `📝 ${mine}${last}`;
+        if (latest && cmp(latest, mine) > 0) ver = `📝 ⚠️ OLD ${mine} → 새 버전 ${latest} 있음, 확장 화면에서 업데이트`;
+        else if (latest) ver = `📝 🆕 NEW ${mine}${last}`;
+        let addr = "";
+        try { addr = String(this.baseUrl || "").replace(/^https?:\/\//, ""); } catch (_) {}
+        const head = [{ type_name: "HeaderFilter", name: ver }];
+        if (addr) head.push({ type_name: "HeaderFilter", name: `📡 지금 주소 ${addr}` });
+        return head.concat(GF.apply(this, arguments) || [], [1, 2, 3].map(() => ({ type_name: "HeaderFilter", name: "　" })));
     };
 })(DefaultExtension.prototype);
