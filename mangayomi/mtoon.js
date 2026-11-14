@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.47","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.48","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -929,14 +929,25 @@ function hyphenChain(names) {
 }
 function hyphenBundle(name, chain) {
     const s = String(name || "").trim();
-    return chain && chain.has(s) ? s.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : String(name || "");
+    // "81화~85화" (앞 번호에도 "화") 도 "81~85화" 묶음으로 (머니툰 손맛)
+    const u = s.replace(/(\d{1,5})\s*화\s*[~～]\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a ? a + "~" + b + h : x));
+    return chain && chain.has(s) ? u.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : u;
 }
 function missingNote(chapters, title) {
     const t = String(title || "").trim().toLowerCase();
     const nums = new Set();
+    const hyChain = hyphenChain((chapters || []).map((c) => c && c.name));
+    const bundled = (chapters || []).some((c) => { const r = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(hyphenBundle(c && c.name, hyChain)); return r && +r[2] > +r[1]; });
     for (const c of chapters || []) {
-        let name = String((c && c.name) || "").toLowerCase();
+        let name = hyphenBundle(c && c.name, hyChain).toLowerCase();
         if (t) name = name.split(t).join(" ");
+        // 2026-11-14: 묶음 회차("81~85화")는 그 범위를 모두 있는 것으로 — 묶음 작품은 이름 앞 차례 번호("12. ")를 빼고 진짜 화수로 셈
+        const r = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(name);
+        if (r && +r[2] > +r[1] && +r[2] - +r[1] <= 50) {
+            for (let k = +r[1]; k <= +r[2]; k++) nums.add(k);
+            continue;
+        }
+        if (bundled) name = name.replace(/^\s*\d+(?:\.\d+)?\.\s+/, "");
         const m = /(\d+)(?:\.\d+)?/.exec(name);
         if (m) nums.add(Number(m[1]));
     }

@@ -328,7 +328,8 @@ class Mtoon : HttpSource(), ConfigurableSource {
         super.fetchMangaDetails(manga).map { MissingNote.apply(it) { fetchChapterList(manga).toBlocking().first() } }
 
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> =
-        super.fetchChapterList(manga).map { if (ChapterPosition.enabled(sp)) ChapterPosition.label(it, manga.title) else it }
+        super.fetchChapterList(manga).map { ChapterOrder.bundleSequence(it) }
+            .map { if (ChapterPosition.enabled(sp)) ChapterPosition.label(it, manga.title) else it }
 
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Seoul") }
 

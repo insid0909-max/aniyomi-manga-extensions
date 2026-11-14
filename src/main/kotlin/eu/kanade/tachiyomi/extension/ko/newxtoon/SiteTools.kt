@@ -82,10 +82,17 @@ internal object ChapterOrder {
     private val BUNDLE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
     private val real = java.util.Collections.synchronizedMap(java.util.WeakHashMap<SChapter, Float>())
 
+    private val UNIT_BUNDLE = Regex("""(\d{1,5})\s*화\s*[~～]\s*(\d{1,5})(\s*화)""")
+
+    /** "81화~85화" (앞 번호에도 "화") → "81~85화" (머니툰 손맛) */
+    private fun unitBundle(name: String): String = UNIT_BUNDLE.replace(name) { m ->
+        if (m.groupValues[2].toInt() > m.groupValues[1].toInt()) "${m.groupValues[1]}~${m.groupValues[2]}${m.groupValues[3]}" else m.value
+    }
+
     private val COMMA_BUNDLE = Regex("""(\d{1,5})\s*,\s*(\d{1,5})(\s*화)""")
 
     /** 2026-11-14: "2, 3화" 처럼 이어진 번호(뒤가 1~3 큼)를 쉼표로 묶은 회차는 "2~3화" 와 같게 (11toon 식량인류) */
-    fun commaBundle(name: String): String = COMMA_BUNDLE.replace(name) { m ->
+    fun commaBundle(name: String): String = COMMA_BUNDLE.replace(unitBundle(name)) { m ->
         val a = m.groupValues[1].toInt()
         val b = m.groupValues[2].toInt()
         if (b > a && b - a <= 3) "$a~$b${m.groupValues[3]}" else m.value
@@ -334,6 +341,11 @@ internal object ChapterOrder {
         val out = sorted.reversed().map { list[it] }
         // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "Missing 4" 로 셈(나의 히어로 아카데미아 Missing 36)
         // → 그 작품만 회차 번호를 올라온 순서(오래된 것부터 1, 2, 3 …)로. 진짜 화수는 realNumber 로 남겨 "⚠️ 빠진 회차" 줄에 씀
+        return bundleSequence(out, hy)
+    }
+
+    /** 묶음 회차가 있으면 회차 번호를 올라온 순서로 (목록은 최신 → 과거). 머니툰처럼 sort 를 안 쓰는 확장도 부름 */
+    fun bundleSequence(out: List<SChapter>, hy: Set<String> = hyphenChain(out.map { it.name })): List<SChapter> {
         if (out.any { isBundle(hyphenBundle(it.name, hy)) }) {
             out.forEachIndexed { i, c ->
                 real[c] = c.chapter_number
