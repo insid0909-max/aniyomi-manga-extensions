@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.74",
+    "version": "0.3.75",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -106,8 +106,8 @@ function orderChapters(list, title, keepOldest) {
             if (dot && noUnit(body.substring(dot[0].length))) name = `${dot[1]}화 ${body.substring(dot[0].length)}`;
             else if (seq && /^\d+\.\s/.test(seq[0]) && !dot && noUnit(name) && /\p{L}/u.test(name)) name = `${parseInt(seq[1], 10)}화 ${name}`;
         }
-        // 2026-11-11: "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 ("Chapter N" 은 영어 원판 번호라 한국판 회차와 셈이 달라 뺌 — 비밀수업 RAW Chapter 74) "N화" 와 같은 묶음으로 (검은머리 기사왕: LESSON·"6화" 가 섞여 따로 줄 섰음)
-        name = name.replace(/(?:^|[\s\-–:])(?:lesson|episode|ep)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)/i, (s, n) => ` ${n}화 `).trim();
+        // 2026-11-11: "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 (2026-11-14 "Chapter N"·"Ch N" 도 — 블랙툰 "… RAW Chapter 57" 이 57화 자리. 앞부분이 달라 본편 빈 번호일 때만 본편으로 합쳐지고, 겹치면 뒤로) "N화" 와 같은 묶음으로 (검은머리 기사왕: LESSON·"6화" 가 섞여 따로 줄 섰음)
+        name = name.replace(/(?:^|[\s\-–:])(?:lesson|episode|chapter|ep|ch)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)/i, (s, n) => ` ${n}화 `).trim();
         const index = arr.length - 1 - i;
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호

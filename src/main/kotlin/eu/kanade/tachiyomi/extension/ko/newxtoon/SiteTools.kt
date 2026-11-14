@@ -393,8 +393,8 @@ internal object ChapterOrder {
         }
     }
 
-    // "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 ("Chapter N" 은 영어 원판 번호라 한국판 회차와 셈이 달라 뺌 — 비밀수업 RAW Chapter 74) "N화" 와 같은 묶음으로 (검은머리 기사왕, 망가요미와 같음)
-    private val EN_EP = Regex("""(?:^|[\s\-–:])(?:lesson|episode|ep)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)""", RegexOption.IGNORE_CASE)
+    // "LESSON 41. 인간의 왕"·"EP 12"·"Episode 3" 의 번호도 (2026-11-14 "Chapter N"·"Ch N" 도 — 블랙툰 "… RAW Chapter 57" 이 57화 자리. 앞부분이 달라 본편 빈 번호일 때만 본편으로 합쳐지고, 겹치면 뒤로) "N화" 와 같은 묶음으로 (검은머리 기사왕, 망가요미와 같음)
+    private val EN_EP = Regex("""(?:^|[\s\-–:])(?:lesson|episode|chapter|ep|ch)\.?\s*(\d+(?:[.-]\d+)?)(?:\s*화)?\.?(?=\s|$)""", RegexOption.IGNORE_CASE)
 
     // 2026-11-11: 맨 앞 "2-15화"·"3-204화" 가 부 표시인 작품(블랙툰 덴마: 1부 "N화" · 2부 "2-N화" · 3부 "3-N화") — 같은 한 자리 앞 숫자로
     // 10개 넘게, 번호가 20 넘게도 있으면 "2부 15화" 로 봄 (나눈 회차 "41-1화"·"5-2화" 는 그대로)
