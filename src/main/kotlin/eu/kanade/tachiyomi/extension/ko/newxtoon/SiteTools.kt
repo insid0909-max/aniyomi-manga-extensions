@@ -82,8 +82,17 @@ internal object ChapterOrder {
     private val BUNDLE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
     private val real = java.util.Collections.synchronizedMap(java.util.WeakHashMap<SChapter, Float>())
 
+    private val COMMA_BUNDLE = Regex("""(\d{1,5})\s*,\s*(\d{1,5})(\s*화)""")
+
+    /** 2026-11-14: "2, 3화" 처럼 이어진 번호(뒤가 1~3 큼)를 쉼표로 묶은 회차는 "2~3화" 와 같게 (11toon 식량인류) */
+    fun commaBundle(name: String): String = COMMA_BUNDLE.replace(name) { m ->
+        val a = m.groupValues[1].toInt()
+        val b = m.groupValues[2].toInt()
+        if (b > a && b - a <= 3) "$a~$b${m.groupValues[3]}" else m.value
+    }
+
     private fun isBundle(name: String): Boolean =
-        BUNDLE.find(name)?.let { it.groupValues[2].toInt() > it.groupValues[1].toInt() } ?: false
+        BUNDLE.find(commaBundle(name))?.let { it.groupValues[2].toInt() > it.groupValues[1].toInt() } ?: false
 
     /** 순서 번호로 바꾼 작품의 원래 화수 (안 바꿨으면 chapter_number) */
     fun realNumber(c: SChapter): Float = real[c] ?: c.chapter_number
@@ -429,7 +438,7 @@ internal object ChapterOrder {
     }
 
     private fun keyOf(rawName: String, index: Int, titleWords: List<String>, title: String = "", parts: Set<String> = emptySet()): Key {
-        var name = EN_EP.replaceFirst(dotNumber(rawName, title), " $1화 ").trim()
+        var name = EN_EP.replaceFirst(dotNumber(commaBundle(rawName), title), " $1화 ").trim()
         if (parts.isNotEmpty()) name = PART_RE.replace(name) { x -> if (x.groupValues[1] in parts) "${x.groupValues[1]}부 ${x.groupValues[2]}화" else x.value }
         // "2부 172화" 의 "2부" 는 부 표시 (뒤에 다른 단위 번호가 있으면 그것이 회차)
         val units = UNIT_NUM.findAll(name).toList()
@@ -936,7 +945,7 @@ internal object MissingNote {
         val nums = chapters.map { ChapterOrder.realNumber(it) }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
         // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
         chapters.forEach { c ->
-            RANGE.find(c.name)?.let { r ->
+            RANGE.find(ChapterOrder.commaBundle(c.name))?.let { r ->
                 val a = r.groupValues[1].toInt()
                 val b = r.groupValues[2].toInt()
                 if (a == ChapterOrder.realNumber(c).toInt() && b > a && b - a <= 50) nums.addAll(a..b)
