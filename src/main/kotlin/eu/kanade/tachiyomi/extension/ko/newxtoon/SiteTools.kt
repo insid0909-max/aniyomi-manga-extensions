@@ -79,6 +79,15 @@ internal object UrlOpen {
  * - "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → 시즌3 …, 본편은 시즌1 안에서 고름
  */
 internal object ChapterOrder {
+    private val BUNDLE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
+    private val real = java.util.Collections.synchronizedMap(java.util.WeakHashMap<SChapter, Float>())
+
+    private fun isBundle(name: String): Boolean =
+        BUNDLE.find(name)?.let { it.groupValues[2].toInt() > it.groupValues[1].toInt() } ?: false
+
+    /** 순서 번호로 바꾼 작품의 원래 화수 (안 바꿨으면 chapter_number) */
+    fun realNumber(c: SChapter): Float = real[c] ?: c.chapter_number
+
     // "1~5화" 처럼 여러 화를 묶은 회차는 첫 화 번호
     private val UNIT_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?(?:\s*[~～]\s*\d+)?\s*(화|권|호|부|話)""")
     private val ANY_NUM = Regex("""(\d+)(?:\s*([-.])\s*(\d+))?""")
@@ -289,7 +298,16 @@ internal object ChapterOrder {
                 else -> base + (++extra) * 0.001
             }.toFloat()
         }
-        return sorted.reversed().map { list[it] }
+        val out = sorted.reversed().map { list[it] }
+        // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "Missing 4" 로 셈(나의 히어로 아카데미아 Missing 36)
+        // → 그 작품만 회차 번호를 올라온 순서(오래된 것부터 1, 2, 3 …)로. 진짜 화수는 realNumber 로 남겨 "⚠️ 빠진 회차" 줄에 씀
+        if (out.any { isBundle(it.name) }) {
+            out.forEachIndexed { i, c ->
+                real[c] = c.chapter_number
+                c.chapter_number = (out.size - i).toFloat()
+            }
+        }
+        return out
     }
 
     /**
@@ -915,13 +933,13 @@ internal object MissingNote {
     private val RANGE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
 
     fun text(chapters: List<SChapter>): String {
-        val nums = chapters.map { it.chapter_number }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
+        val nums = chapters.map { ChapterOrder.realNumber(it) }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
         // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
         chapters.forEach { c ->
             RANGE.find(c.name)?.let { r ->
                 val a = r.groupValues[1].toInt()
                 val b = r.groupValues[2].toInt()
-                if (a == c.chapter_number.toInt() && b > a && b - a <= 50) nums.addAll(a..b)
+                if (a == ChapterOrder.realNumber(c).toInt() && b > a && b - a <= 50) nums.addAll(a..b)
             }
         }
         if (nums.size < 2) return ""
