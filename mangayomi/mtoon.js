@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.48","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.49","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -341,6 +341,9 @@ function mtApplyRule11(filters,options){const f=(Array.isArray(filters)?filters:
 function chapterName(name, title) {
     let n = String(name || "").replace(/\s+/g, " ").trim();
     if (/외전|번외|특별/.test(n)) return n;
+    // 2026-11-14: 묶음 회차 "손맛(카카오) 136화~140화" → "136화~140화" (전엔 "136화 : ~140화" 가 되어 묶음으로 못 알아봄)
+    const bd = /(\d{1,5})\s*화?\s*[~～]\s*(\d{1,5})\s*화\s*(.*)$/.exec(n);
+    if (bd && +bd[2] > +bd[1]) return `${bd[1]}화~${bd[2]}화${bd[3] ? " : " + bd[3] : ""}`;
     // 0.1.36: "제53화 세실의…"·"이세계 밀프 헌터 제132화" 처럼 번호 앞 "제" 도 번호의 일부로 (전엔 번호 없는 회차로 봐서 55.5 같은 번호가 붙음)
     const m = /(?:제\s*)?(\d+(?:\.\d+)?)\s*화\s*[:：\-–.]?\s*(.*)$/.exec(n);
     if (!m) return n;
