@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 2,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.1.56",
+    "version": "0.1.57",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "bookkor.js"
@@ -1255,7 +1255,7 @@ function missingNote(chapters) {
     let min = Infinity;
     for (const c of chapters || []) {
         // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
-        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?(?:\s*[~～]\s*(\d{1,5}))?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim());
+        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?(?:\s*[~～]\s*(\d{1,5}))?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim().replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x)));
         if (!m) continue;
         const n = Number(m[1]);
         if (!(n > 0) || n > 20000) continue;
@@ -1390,7 +1390,7 @@ function missingNote(chapters) {
         const title = String(d.name || "");
         // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "4화 누락"으로 셈(11toon 나의 히어로 아카데미아 "36화 누락됨")
         // → 그 작품만 오래된 회차부터 차례 번호 "N. " (진짜 빠진 회차는 설명 맨 위 ⚠️ 줄, 애니요미판과 같음)
-        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(String(x.name || "")); return m && +m[2] > +m[1]; })) {
+        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(String(x.name || "").replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x))); return m && +m[2] > +m[1]; })) {
             for (let i = list.length - 1, n = 1; i >= 0; i--, n++) {
                 const plain = String(list[i].name || "").replace(/^\s*\d+(?:\.\d+)?\.\s+/, "").replace(/^\s*\d+(?:\.\d+)? · /, "");
                 list[i].name = `${n}. ${plain}`;
