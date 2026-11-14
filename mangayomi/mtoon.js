@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.51","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.52","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -54,7 +54,7 @@ class DefaultExtension extends MProvider{
     getBaseUrl(){return mtBase11();}
     async getPopular(page){return await mtPaged08(page,'',mtRule11('popular'));}
     async getLatestUpdates(page){return await mtPaged08(page,'',mtRule11('latest'));}
-    getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')+(mtPref('mt_rule_note')?' · 🔖 '+mtPref('mt_rule_note'):'')},select('rule','탭 조건 저장',MT_RULES11)];}
+    getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')+(mtKv('mt_rule_note')?' · 🔖 '+mtKv('mt_rule_note'):'')},select('rule','탭 조건 저장',MT_RULES11)];}
     async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),first=!q&&Number(page==null?1:page)===1;let result;try{result=await mtPaged08(page,q,options);}catch(e){if(first)mtRuleNote(filters,'저장 안 함 (목록 실패: '+String((e&&e.message)||e).slice(0,40)+')');throw e;}if(first){try{mtApplyRule11(filters,options);mtRuleNote(filters,'');}catch(e){mtRuleNote(filters,'저장 실패: '+String((e&&e.message)||e).slice(0,40));}}return result;}
     async getDetail(url){return await mtDetail10(url);}
     getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon168.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon168.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 켬',value:true}}];}
@@ -111,7 +111,7 @@ async function mtPaged08(page,query,options){options=mtOptions11(options);const 
 // 목록은 다음 쪽도 같이 받아 두고, 받은 목록은 5분 동안 기억
 const MT_LIGHT_PATH = '/robots.txt';
 const MT_LIST_CACHE = {};
-function mtLightOff(){try{return Number(new SharedPreferences().get('mt_light_off_until')||0)>Date.now();}catch(_){return false;}}
+function mtLightOff(){try{return Number(new SharedPreferences().getString('mt_light_off_until','0')||0)>Date.now();}catch(_){return false;}}
 function mtLightFailed(){try{new SharedPreferences().setString('mt_light_off_until',String(Date.now()+10*60000));}catch(_){}}
 function mtListPath(page,query,o){const offset=(page-1)*30;o=o||{state:'연재중',day:'8',genre:''};return query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent(o.state)+(o.genre?'&cate='+encodeURIComponent(o.genre):'&w='+encodeURIComponent(o.day))+'&c='+offset;}
 function mtLightScript(job){return '('+function(job){
@@ -245,7 +245,7 @@ const MT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTM
 // 0.1.42 (2026-11-14, 사용자 "규칙 때문에 역효과" 검토): 기준 앱은 순정(바로 받기가 되던 앱) → 기본 켬, 직접 끈 사람만 끔.
 // 실패 뒤 건너뛰기도 6시간 → 10분 (한 번 실패로 몇 시간 동안 느린 길만 쓰지 않게)
 function mtDirectOn(){try{const v=new SharedPreferences().get('mt_direct_on');return !(v===false||v==='false');}catch(_){return true;}}
-function mtDirectOff(){if(!mtDirectOn())return true;try{return Number(new SharedPreferences().get('mt_direct_off_until')||0)>Date.now();}catch(_){return false;}}
+function mtDirectOff(){if(!mtDirectOn())return true;try{return Number(new SharedPreferences().getString('mt_direct_off_until','0')||0)>Date.now();}catch(_){return false;}}
 function mtDirectFailed(){try{new SharedPreferences().setString('mt_direct_off_until',String(Date.now()+10*60000));}catch(_){}}
 function mtUnesc(t){return String(t||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0*39;/g,"'").replace(/&nbsp;/g,' ').replace(/&amp;/g,'&');}
 async function mtDirectGet(path,ms,xhr){
@@ -305,7 +305,7 @@ function mtFilter09(filters){
 
 async function mtDetail10(url){
     const detail=await mtRead07(url,'detail'),id=(/[?&]i=(\d+)/.exec(String(url))||[])[1];let saved=MT_COVERS[id];
-    if(!saved){try{saved=JSON.parse(new SharedPreferences().get('mt_meta10_'+id)||'null');}catch(_){}}
+    if(!saved){try{saved=JSON.parse(new SharedPreferences().getString('mt_meta10_'+id,'')||'null');}catch(_){}}
     const m=saved&&saved.meta;if(!m)return detail;
     if(m.author)detail.author=String(m.author);
     if(m.genre)detail.genre=String(m.genre).split(/[,|/]+/).map(x=>x.trim()).filter(Boolean);
@@ -319,16 +319,18 @@ let MT_ORIGIN11='';
 // 0.1.34: 주소 규칙(다른 확장과 같게) — 직접 넣은 주소(mt_domain)는 바로 씀, 자동으로 찾은 주소(mt_origin11)가 번호가 더 크면 그 주소로 바꾸고 칸도 고침, 자동 찾기 끄면 직접 넣은 주소·기본 주소만
 const MT_DEFAULT='https://mtoon168.asia',MT_ORIGIN_RE=/^https:\/\/(?:www\.)?mtoon\d+\.asia$/;
 function mtNum(o){return Number((/mtoon(\d+)\./.exec(String(o||''))||[])[1]||0);}
+// 2026-11-15: 확장이 setString 으로 직접 저장한 값은 getString 으로 읽어야 함 — get 은 설정 화면 값(mt_domain 등)만 읽어 휴대폰에선 늘 빈 값(탭 조건 저장이 안 되던 원인, 시험 런타임은 둘이 같아 안 보였음)
+function mtKv(k){try{const v=new SharedPreferences().getString(k,'');return v==null?'':String(v);}catch(_){return '';}}
 function mtPref(k){try{const v=new SharedPreferences().get(k);return v==null?'':String(v);}catch(_){return '';}}
 function mtAutoOn(){const v=mtPref('mt_auto_on');return !(v==='false');}
 function mtManual(){let v=mtPref('mt_domain').trim().replace(/\/+$/,'').toLowerCase();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/^http:/,'https:');return MT_ORIGIN_RE.test(v)?v:'';}
 let MT_TRY='';
-function mtBase11(){if(MT_TRY)return MT_TRY;const manual=mtManual(),on=mtAutoOn();let auto=MT_ORIGIN11||mtPref('mt_origin11');if(!MT_ORIGIN_RE.test(auto))auto='';
+function mtBase11(){if(MT_TRY)return MT_TRY;const manual=mtManual(),on=mtAutoOn();let auto=MT_ORIGIN11||mtKv('mt_origin11');if(!MT_ORIGIN_RE.test(auto))auto='';
     if(manual){if(on&&auto&&mtNum(auto)>mtNum(manual)){try{new SharedPreferences().setString('mt_domain',auto);}catch(_){}return auto;}return manual;}
     return on&&auto?auto:MT_DEFAULT;}
 function mtRemember11(origin){const s=String(origin||'').toLowerCase();if(!MT_ORIGIN_RE.test(s))return;const manual=mtManual();if(manual&&mtNum(s)<mtNum(manual))return;MT_ORIGIN11=s;try{new SharedPreferences().setString('mt_origin11',s);}catch(_){}}
 function mtValidRule11(o){return o&&MT_STATES09.some(x=>x[1]===o.state)&&MT_DAYS09.some(x=>x[1]===o.day)&&MT_GENRES09.some(x=>x[1]===o.genre);}
-function mtRule11(tab){try{const o=JSON.parse(new SharedPreferences().get('mt_rule11_'+tab)||'null');return mtValidRule11(o)?o:null;}catch(_){return null;}}
+function mtRule11(tab){try{const o=JSON.parse(new SharedPreferences().getString('mt_rule11_'+tab,'')||'null');return mtValidRule11(o)?o:null;}catch(_){return null;}}
 function mtOptions11(o){if(!mtValidRule11(o))return null;return {state:o.state,day:o.day==='today'?String(new Date(Date.now()+32400000).getUTCDay()):o.day,genre:o.genre};}
 function mtRawRule11(filters){const o=mtFilter09(filters),f=(Array.isArray(filters)?filters:[]).find(x=>x&&(x.type==='day'||x.param==='day'||x.name==='요일'));if(f&&Number(f.state)===MT_DAYS09.findIndex(x=>x[1]==='today'))o.day='today';return o;}
 // 2026-11-15: 탭 조건 저장이 휴대폰에서 안 됨(사용자, 껐다 켜도 그대로, 시험 런타임에선 저장됨) → 마지막 저장 시도 결과를 필터 "인기 · 최신" 줄 끝 🔖 에 남김
