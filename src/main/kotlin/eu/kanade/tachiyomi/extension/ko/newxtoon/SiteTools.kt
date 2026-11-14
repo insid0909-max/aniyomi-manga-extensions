@@ -115,7 +115,9 @@ internal object ChapterOrder {
         }
         val starts = items.map { it.second }.toHashSet()
         val ends = items.map { it.third }.toHashSet()
-        return items.filter { (_, a, b) -> (b + 1) in starts || (a - 1) in ends }.map { it.first }.toHashSet()
+        // 2026-11-14: 하나만 있는 "25-27화"·"11-12화" 도 묶음 — 같은 앞 번호의 다른 하이픈 회차("11-1화"·"11-2화" = 나눠 올린 회차, 덴마 "2-N화")가 없을 때만 (머니툰 손맛 시즌1)
+        val sameA = names.mapNotNull { HYPHEN.find(it)?.groupValues?.get(1)?.toInt() }.groupingBy { it }.eachCount()
+        return items.filter { (_, a, b) -> (b + 1) in starts || (a - 1) in ends || sameA[a] == 1 }.map { it.first }.toHashSet()
     }
 
     fun hyphenBundle(name: String, chain: Set<String>): String =
