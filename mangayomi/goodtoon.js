@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.77",
+    "version": "0.3.78",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -70,6 +70,24 @@ async function openByUrl(ext, query, toLink) {
 // 망가요미는 이름 맨 앞 숫자로 회차 번호를 정하므로, 본편이 아닌 회차는 이름 앞에 본편 마지막 번호 다음 순번을 붙임
 // ("1195 · 원피스 매거진 1호") → "화 번호별" 정렬도 본편 1화 ~ 끝 → 나머지 순서
 // "시즌2 1화" 처럼 시즌 표시가 있으면 시즌 순서가 먼저: 표시 없는 회차(시즌1) → 시즌2 → …, 본편은 시즌1 안에서 고름
+// 2026-11-14: 하이픈 묶음 회차 — "1-6화"·"7-12화" 처럼 범위가 서로 맞닿아 이어질 때만 "1~6화" 묶음으로 (늑대닷컴 건방진 그 녀석).
+// 이어지지 않는 "2-15화"(덴마 2부)·"6-1화"(나눠 올린 회차)는 그대로
+function hyphenChain(names) {
+    const re = /(\d{1,5})\s*-\s*(\d{1,5})\s*화/;
+    const items = [];
+    for (const n of names || []) {
+        const s = String(n || "").trim();
+        const m = re.exec(s);
+        if (m && +m[2] > +m[1]) items.push({ s, a: +m[1], b: +m[2] });
+    }
+    const starts = new Set(items.map((x) => x.a));
+    const ends = new Set(items.map((x) => x.b));
+    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1)).map((x) => x.s));
+}
+function hyphenBundle(name, chain) {
+    const s = String(name || "").trim();
+    return chain && chain.has(s) ? s.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : String(name || "");
+}
 function orderChapters(list, title, keepOldest) {
     if (!list || list.length < 2) return list;
     const PRO = "\u0000prologue";
@@ -90,9 +108,10 @@ function orderChapters(list, title, keepOldest) {
         }
         return new Set(Object.keys(m).filter((k) => m[k].size >= 10 && Math.max(...m[k]) >= 20));
     })();
+    const hyChain = hyphenChain(list.map((c) => c.name));
     const keyOf = (c, i, arr) => {
         // 이름 맨 앞 사이트 순번 ("0001 - 별을 품은 소드마스터 1화") 은 비교에서 뺌
-        let name = String(c.name || "").trim();
+        let name = hyphenBundle(c.name, hyChain).trim();
         const seq = /^(\d{2,})(?:\s+[-–.:)\]]|[-–.:)\]]\s)\s*/.exec(name);
         if (seq) name = name.substring(seq[0].length);
         if (partNums.size) name = name.replace(partRe, (s, p, n) => (partNums.has(p) ? `${p}부 ${n}화` : s));
@@ -1531,12 +1550,13 @@ function notesFilters(key) {
 // ---------- 빠진 회차 번호 (2026-11-04) ----------
 // 망가요미는 "N화 누락됨" 개수만 보여 줌 → 작품 설명 맨 위에 빠진 회차 번호를 적음 (회차 이름 맨 앞 번호 기준)
 function missingNote(chapters) {
+    const hyChain = hyphenChain((chapters || []).map((c) => c && c.name));
     const nums = {};
     let max = 0;
     let min = Infinity;
     for (const c of chapters || []) {
         // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
-        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?(?:\s*[~～]\s*(\d{1,5}))?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(String((c && c.name) || "").trim().replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x)));
+        const m = /^\D{0,6}?(\d{1,5})(?:\.\d+)?(?:\s*[~～]\s*(\d{1,5}))?\s*(?:화|회|부|권|장|편|$|\s|\D)/.exec(hyphenBundle(c && c.name, hyChain).trim().replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x)));
         if (!m) continue;
         const n = Number(m[1]);
         if (!(n > 0) || n > 20000) continue;
@@ -1671,7 +1691,8 @@ function missingNote(chapters) {
         const title = String(d.name || "");
         // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "4화 누락"으로 셈(11toon 나의 히어로 아카데미아 "36화 누락됨")
         // → 그 작품만 오래된 회차부터 차례 번호 "N. " (진짜 빠진 회차는 설명 맨 위 ⚠️ 줄, 애니요미판과 같음)
-        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(String(x.name || "").replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x))); return m && +m[2] > +m[1]; })) {
+        const hyChain = hyphenChain(list.map((x) => x.name));
+        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(hyphenBundle(x.name, hyChain).replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x))); return m && +m[2] > +m[1]; })) {
             for (let i = list.length - 1, n = 1; i >= 0; i--, n++) {
                 const plain = String(list[i].name || "").replace(/^\s*\d+(?:\.\d+)?\.\s+/, "").replace(/^\s*\d+(?:\.\d+)? · /, "");
                 list[i].name = `${n}. ${plain}`;
