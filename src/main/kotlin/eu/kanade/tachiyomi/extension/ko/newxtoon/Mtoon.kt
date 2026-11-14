@@ -360,6 +360,12 @@ class Mtoon : HttpSource(), ConfigurableSource {
     private fun chapterName(raw: String, title: String): String {
         val n = raw.replace(Regex("\\s+"), " ").trim()
         if (EXTRA.containsMatchIn(n)) return n
+        // 2026-11-14: 묶음 회차 "손맛(카카오) 136화~140화" → "136화~140화" (전엔 "136화 : ~140화" 가 되어 묶음으로 못 알아봄)
+        Regex("""(\d{1,5})\s*화?\s*[~～]\s*(\d{1,5})\s*화\s*(.*)$""").find(n)?.let { b ->
+            if (b.groupValues[2].toInt() > b.groupValues[1].toInt()) {
+                return "${b.groupValues[1]}화~${b.groupValues[2]}화" + if (b.groupValues[3].isNotEmpty()) " : ${b.groupValues[3]}" else ""
+            }
+        }
         val m = Regex("(\\d+(?:\\.\\d+)?)\\s*화\\s*[:：\\-–.]?\\s*(.*)$").find(n) ?: return n
         val sub = m.groupValues[2].trim()
         val same = sub.replace(" ", "") == title.replace(" ", "")
