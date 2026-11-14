@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.46","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.47","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -881,7 +881,8 @@ function notesFilters(key) {
         const title = String(d.name || "");
         // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "4화 누락"으로 셈(11toon 나의 히어로 아카데미아 "36화 누락됨")
         // → 그 작품만 오래된 회차부터 차례 번호 "N. " (진짜 빠진 회차는 설명 맨 위 ⚠️ 줄, 애니요미판과 같음)
-        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(String(x.name || "").replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x))); return m && +m[2] > +m[1]; })) {
+        const hyChain = hyphenChain(list.map((x) => x.name));
+        if (list.some((x) => { const m = /(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화/.exec(hyphenBundle(x.name, hyChain).replace(/(\d{1,5})\s*,\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a && +b - +a <= 3 ? a + "~" + b + h : x))); return m && +m[2] > +m[1]; })) {
             for (let i = list.length - 1, n = 1; i >= 0; i--, n++) {
                 const plain = String(list[i].name || "").replace(/^\s*\d+(?:\.\d+)?\.\s+/, "").replace(/^\s*\d+(?:\.\d+)? · /, "");
                 list[i].name = `${n}. ${plain}`;
@@ -912,6 +913,24 @@ function notesFilters(key) {
 // ---------- 빠진 회차 번호 (0.1.33: 앱의 "N화 누락됨" 과 같은 방식) ----------
 // 앱(lib/utils/extensions/manga_extensions.dart missingChapterCount): 회차 이름에서 읽은 번호(작품 제목 빼고 첫 숫자, 소수는 버림)의
 // 가장 작은 번호 ~ 가장 큰 번호 사이 빈 번호 수. 확장도 회차 이름을 다 고친 뒤(맨 바깥에서) 같은 방식으로 세어 설명 맨 위에 적음
+// 2026-11-14: 하이픈 묶음 회차 — "1-6화"·"7-12화" 처럼 범위가 서로 맞닿아 이어질 때만 "1~6화" 묶음으로 (늑대닷컴 건방진 그 녀석).
+// 이어지지 않는 "2-15화"(덴마 2부)·"6-1화"(나눠 올린 회차)는 그대로
+function hyphenChain(names) {
+    const re = /(\d{1,5})\s*-\s*(\d{1,5})\s*화/;
+    const items = [];
+    for (const n of names || []) {
+        const s = String(n || "").trim();
+        const m = re.exec(s);
+        if (m && +m[2] > +m[1]) items.push({ s, a: +m[1], b: +m[2] });
+    }
+    const starts = new Set(items.map((x) => x.a));
+    const ends = new Set(items.map((x) => x.b));
+    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1)).map((x) => x.s));
+}
+function hyphenBundle(name, chain) {
+    const s = String(name || "").trim();
+    return chain && chain.has(s) ? s.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : String(name || "");
+}
 function missingNote(chapters, title) {
     const t = String(title || "").trim().toLowerCase();
     const nums = new Set();
