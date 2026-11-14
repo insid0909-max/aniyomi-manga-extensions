@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.79",
+    "version": "0.3.80",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -82,7 +82,13 @@ function hyphenChain(names) {
     }
     const starts = new Set(items.map((x) => x.a));
     const ends = new Set(items.map((x) => x.b));
-    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1)).map((x) => x.s));
+    // 2026-11-14: 하나만 있는 "25-27화"·"11-12화" 도 묶음 — 같은 앞 번호의 다른 하이픈 회차("11-1화"·"11-2화" = 나눠 올린 회차, 덴마 "2-N화")가 없을 때만 (머니툰 손맛 시즌1)
+    const sameA = {};
+    for (const n of names || []) {
+        const m = /(\d{1,5})\s*-\s*(\d{1,5})\s*화/.exec(String(n || ""));
+        if (m) sameA[m[1]] = (sameA[m[1]] || 0) + 1;
+    }
+    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1) || sameA[String(x.a)] === 1).map((x) => x.s));
 }
 function hyphenBundle(name, chain) {
     const s = String(name || "").trim();
