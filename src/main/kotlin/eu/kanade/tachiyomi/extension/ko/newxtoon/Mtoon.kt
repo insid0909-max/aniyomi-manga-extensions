@@ -361,9 +361,11 @@ class Mtoon : HttpSource(), ConfigurableSource {
         val n = raw.replace(Regex("\\s+"), " ").trim()
         if (EXTRA.containsMatchIn(n)) return n
         // 2026-11-14: 묶음 회차 "손맛(카카오) 136화~140화" → "136화~140화" (전엔 "136화 : ~140화" 가 되어 묶음으로 못 알아봄)
-        Regex("""(\d{1,5})\s*화?\s*[~～]\s*(\d{1,5})\s*화\s*(.*)$""").find(n)?.let { b ->
-            if (b.groupValues[2].toInt() > b.groupValues[1].toInt()) {
-                return "${b.groupValues[1]}화~${b.groupValues[2]}화" + if (b.groupValues[3].isNotEmpty()) " : ${b.groupValues[3]}" else ""
+        // "손맛 25-27화" 처럼 하이픈 묶음은 "25-27화" 로 (묶음인지는 뒤에서 같은 앞 번호의 다른 회차가 있는지로 판단)
+        Regex("""(\d{1,5})\s*화?\s*([~～-])\s*(\d{1,5})\s*화\s*(.*)$""").find(n)?.let { b ->
+            if (b.groupValues[3].toInt() > b.groupValues[1].toInt()) {
+                val head = if (b.groupValues[2] == "-") "${b.groupValues[1]}-${b.groupValues[3]}화" else "${b.groupValues[1]}화~${b.groupValues[3]}화"
+                return head + if (b.groupValues[4].isNotEmpty()) " : ${b.groupValues[4]}" else ""
             }
         }
         val m = Regex("(\\d+(?:\\.\\d+)?)\\s*화\\s*[:：\\-–.]?\\s*(.*)$").find(n) ?: return n
@@ -385,7 +387,7 @@ class Mtoon : HttpSource(), ConfigurableSource {
         }
         messyOrder(raw, title)?.let { return it }
         fun numOf(name: String): Float? =
-            if (EXTRA.containsMatchIn(name)) null else Regex("^(\\d+(?:\\.\\d+)?)화").find(name)?.groupValues?.get(1)?.toFloatOrNull()
+            if (EXTRA.containsMatchIn(name)) null else Regex("^(\\d+(?:\\.\\d+)?)(?:-\\d+)?화").find(name)?.groupValues?.get(1)?.toFloatOrNull()
         // 같은 번호가 또 올라왔으면 최근 것(위쪽) 하나만 — 번호가 겹치면 앱이 하나로 합침
         val kept = HashSet<Float>()
         val list = raw.map { (u, name, date) -> Triple(u, chapterName(name, title), date) }
@@ -435,7 +437,7 @@ class Mtoon : HttpSource(), ConfigurableSource {
         }
         val extra = Regex("외전|번외|특별|후기|에필로그|프롤로그|공지|휴재")
         fun numIn(v: String): Float? =
-            if (extra.containsMatchIn(v)) null else Regex("(\\d+(?:\\.\\d+)?)\\s*화").find(v)?.groupValues?.get(1)?.toFloatOrNull()
+            if (extra.containsMatchIn(v)) null else Regex("(\\d+(?:\\.\\d+)?)(?:\\s*[-~～]\\s*\\d+)?\\s*화").find(v)?.groupValues?.get(1)?.toFloatOrNull()
         var unnumbered = 0
         var backwards = false
         var maxSeen = -1f

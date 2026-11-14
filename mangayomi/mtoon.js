@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.49","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version": "0.1.50","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -342,8 +342,9 @@ function chapterName(name, title) {
     let n = String(name || "").replace(/\s+/g, " ").trim();
     if (/외전|번외|특별/.test(n)) return n;
     // 2026-11-14: 묶음 회차 "손맛(카카오) 136화~140화" → "136화~140화" (전엔 "136화 : ~140화" 가 되어 묶음으로 못 알아봄)
-    const bd = /(\d{1,5})\s*화?\s*[~～]\s*(\d{1,5})\s*화\s*(.*)$/.exec(n);
-    if (bd && +bd[2] > +bd[1]) return `${bd[1]}화~${bd[2]}화${bd[3] ? " : " + bd[3] : ""}`;
+    // "손맛 25-27화" 처럼 하이픈 묶음은 "25-27화" 로 (묶음인지는 뒤에서 같은 앞 번호의 다른 회차가 있는지로 판단)
+    const bd = /(\d{1,5})\s*화?\s*([~～-])\s*(\d{1,5})\s*화\s*(.*)$/.exec(n);
+    if (bd && +bd[3] > +bd[1]) return (bd[2] === "-" ? `${bd[1]}-${bd[3]}화` : `${bd[1]}화~${bd[3]}화`) + (bd[4] ? " : " + bd[4] : "");
     // 0.1.36: "제53화 세실의…"·"이세계 밀프 헌터 제132화" 처럼 번호 앞 "제" 도 번호의 일부로 (전엔 번호 없는 회차로 봐서 55.5 같은 번호가 붙음)
     const m = /(?:제\s*)?(\d+(?:\.\d+)?)\s*화\s*[:：\-–.]?\s*(.*)$/.exec(n);
     if (!m) return n;
@@ -353,7 +354,8 @@ function chapterName(name, title) {
     // 남은 글자가 영어·숫자뿐이어도("취향폴더.ZIP 16화" — 제목은 "취향폴더") 번호로, 제목 없이 한글이 남으면("남은 98화") 그대로
     const plain = (v) => String(v || "").replace(/[^\p{L}\p{N}]/gu, "");
     const pt = plain(title), pb = plain(n.substring(0, m.index));
-    const before = pt && pb.includes(pt) ? "" : pb.split(pt || "\u0000").join("");
+    // 2026-11-14: 번호 앞이 제목의 앞부분이면("손맛 30화" — 제목 "손맛 시즌1") 제목으로 봄 (전엔 번호를 못 읽어 "1.48. 1.3 · 손맛 30화")
+    const before = pt && (pb.includes(pt) || (pb && pt.startsWith(pb))) ? "" : pb.split(pt || "\u0000").join("");
     if (tt && before && /\p{Script=Hangul}/u.test(before)) return n;
     const sub = m[2].trim();
     return `${m[1]}화` + (sub && sub.replace(/\s+/g, "") !== tt ? ` : ${sub}` : "");
@@ -368,7 +370,7 @@ function mtOrderChapters(chapters, title) {
         return x;
     };
     const extra = /외전|번외|특별|후기|에필로그|프롤로그|공지|휴재/;
-    const numIn = (v) => { const m = /(\d+(?:\.\d+)?)\s*화/.exec(v); return m && !extra.test(v) ? parseFloat(m[1]) : null; };
+    const numIn = (v) => { const m = /(\d+(?:\.\d+)?)(?:\s*[-~～]\s*\d+)?\s*화/.exec(v); return m && !extra.test(v) ? parseFloat(m[1]) : null; };
     const oldFirst = chapters.slice().reverse();
     let unnumbered = 0;
     let backwards = false;
@@ -402,7 +404,7 @@ function mtOrderChapters(chapters, title) {
 
 function mtSiteOrder(chapters, title) {
     const clean = (list) => list.map((c) => { const o = Object.assign({}, c); delete o.seq; delete o._main; return o; });
-    const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)화/.exec(c.name); return x && (c._main || !/외전|번외|특별/.test(c.name)) ? x[1] : null; };
+    const numOf = (c) => { const x = /^(\d+(?:\.\d+)?)(?:-\d+)?화/.exec(c.name); return x && (c._main || !/외전|번외|특별/.test(c.name)) ? x[1] : null; };
     // 0.1.33 (환골탈태 "환골탈태 248화_외전"·"환골탈태 외전 286화"): 외전 표시가 있어도 그 번호를 본편이 안 쓰면 본편 번호로 ("248화 : 외전")
     {
         const t = String(title || "").replace(/\s+/g, "");
@@ -928,7 +930,13 @@ function hyphenChain(names) {
     }
     const starts = new Set(items.map((x) => x.a));
     const ends = new Set(items.map((x) => x.b));
-    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1)).map((x) => x.s));
+    // 2026-11-14: 하나만 있는 "25-27화"·"11-12화" 도 묶음 — 같은 앞 번호의 다른 하이픈 회차("11-1화"·"11-2화" = 나눠 올린 회차, 덴마 "2-N화")가 없을 때만 (머니툰 손맛 시즌1)
+    const sameA = {};
+    for (const n of names || []) {
+        const m = /(\d{1,5})\s*-\s*(\d{1,5})\s*화/.exec(String(n || ""));
+        if (m) sameA[m[1]] = (sameA[m[1]] || 0) + 1;
+    }
+    return new Set(items.filter((x) => starts.has(x.b + 1) || ends.has(x.a - 1) || sameA[String(x.a)] === 1).map((x) => x.s));
 }
 function hyphenBundle(name, chain) {
     const s = String(name || "").trim();
