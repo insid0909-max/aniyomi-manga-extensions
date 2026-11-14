@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.30",
+    "version": "0.1.31",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "naverwebtoon.js"
@@ -728,7 +728,9 @@ function hyphenChain(names) {
 }
 function hyphenBundle(name, chain) {
     const s = String(name || "").trim();
-    return chain && chain.has(s) ? s.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : String(name || "");
+    // "81화~85화" (앞 번호에도 "화") 도 "81~85화" 묶음으로 (머니툰 손맛)
+    const u = s.replace(/(\d{1,5})\s*화\s*[~～]\s*(\d{1,5})(\s*화)/g, (x, a, b, h) => (+b > +a ? a + "~" + b + h : x));
+    return chain && chain.has(s) ? u.replace(/(\d{1,5})\s*-\s*(\d{1,5})(\s*화)/, "$1~$2$3") : u;
 }
 function missingNote(chapters) {
     const hyChain = hyphenChain((chapters || []).map((c) => c && c.name));
