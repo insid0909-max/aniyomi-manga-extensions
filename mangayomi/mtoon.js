@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.43","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.44","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -728,7 +728,12 @@ function notesFilters(key) {
     }
     // 0.1.43: 0.1.41 에서 줄(객체)에 글자를 그대로 더해 "[object Object]…" 글자가 돼 망가요미가 필터를 숨겼음 → 줄 이름에 붙임
     const line = verLine(key, list.filter((n) => n && n.t)[0]);
-    if (key === "mtoon") line.name += mtNoteText();
+    // 0.1.44: 업데이트 내역 글이 길어 끝이 잘림 → 🚀·🔎 를 버전 바로 뒤로 (줄 하나 그대로, 필터 순서 그대로)
+    if (key === "mtoon") {
+        const extra = mtNoteText();
+        const m = /^(📝 (?:🆕 NEW |⚠️ OLD )?\S+)/.exec(line.name);
+        line.name = m ? m[1] + extra + line.name.slice(m[1].length) : line.name + extra;
+    }
     return [line];
 }
 
