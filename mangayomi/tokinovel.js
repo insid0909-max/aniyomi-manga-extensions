@@ -10,7 +10,7 @@ const mangayomiSources = [
         "itemType": 2,
         "isNsfw": false,
         "hasCloudflare": false,
-        "version": "0.1.9",
+        "version": "0.1.10",
         "dateFormat": "",
         "dateFormatLocale": "",
         "pkgPath": "tokinovel.js"
@@ -29,6 +29,10 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
 (function (P) {
     const DEF = "https://sbxh9.com"; // 2026-11-13 사용자: sbxh9·newtoki1.org 는 목록 바로 뜨고 toki36 은 됐다 안 됐다 (11-12 엔 sbxh9 인증서 문제로 toki36 이었음)
     const CDN = "https://sbxh9.b-cdn.net";
+    // 0.1.10: 마지막 목록을 어디서 받았는지 기록 → 필터 📡 줄 (추정으로 넣은 CDN·웹뷰 길이 실제로 쓰이는지 확인용)
+    let WEB_USED = false;
+    const host = (u) => String(u || "").replace(/^https?:\/\//, "");
+    const mark = (label, v) => { save("toki_last_src", label + "|" + Date.now()); return v; };
     const BACKUP = ["https://sbxh9.com", "https://newtoki1.org", "https://toki36.com"]; // 한 주소가 안 되면 바로 다음 주소로
     const LIST = "https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/main/domains.json";
     const GUIDE = "https://xn--vg1b79zgsf1sj.com/"; // 뉴토주소.com
@@ -147,7 +151,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
             TRY = CDN;
             try {
                 const v = await F0.call(this, path, json, true);
-                if (typeof v !== "string" || /\/novel/.test(v)) return v;
+                if (typeof v !== "string" || /\/novel/.test(v)) return mark("CDN", v);
             } catch (_) {
                 // 아래에서 사이트 주소로
             } finally {
@@ -156,7 +160,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
             save("toki_cdn_fail_until", Date.now() + 6 * 3600000);
         }
         try {
-            return await F0.call(this, path, json, true);
+            return mark(host(cur), await F0.call(this, path, json, true));
         } catch (_) {
             // 다른 주소로
         }
@@ -166,6 +170,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
             try {
                 const v = await F0.call(this, path, json, true);
                 if (typeof v === "string" && !/\/novel/.test(v)) continue;
+                mark(host(b) + " (예비 주소)", v);
                 save("toki_auto_domain", b);
                 if (manual()) save("toki_domain", b);
                 return v;
@@ -175,7 +180,9 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
                 TRY = "";
             }
         }
-        return await F0.call(this, path, json); // 마지막으로 지금 주소를 숨은 웹뷰로
+        WEB_USED = false;
+        const last = await F0.call(this, path, json); // 마지막으로 지금 주소를 숨은 웹뷰로
+        return mark(WEB_USED ? `숨은 웹뷰 (${host(cur)})` : host(cur), last);
     };
     const NET = /HTTP (?:5\d\d|451)|응답을 읽지 못했|Connection|Socket|Failed host|host lookup|timed out|Timeout|handshake|Network|refused|reset|연결/i;
     // 0.1.3 (2026-11-13, 사용자 "애니요미 목록 잘뜸 망가요미 인증 실패"): Cloudflare 통과 쿠키는 웹뷰 User-Agent 에 묶임 →
@@ -239,6 +246,7 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
                 // 0.1.7: 통신사 DNS 가 주소를 막으면(Failed host lookup) 앱 통신은 안 되지만 웹뷰는 열림 → 숨은 웹뷰로 받기
                 const web = noWeb ? "" : await viaWeb(url, json, 15000);
                 if (!good(web, json)) throw e2;
+                WEB_USED = true;
                 if (!json) return web;
                 try {
                     return JSON.parse(web);
@@ -252,7 +260,10 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         if (CF.test(body) || ((code === 403 || code === 503) && !good(body, json))) {
             const start = Date.now();
             const web = noWeb ? "" : await viaWeb(url, json, 15000);
-            if (good(web, json)) body = web;
+            if (good(web, json)) {
+                body = web;
+                WEB_USED = true;
+            }
             else {
                 // 그 사이 통과 쿠키가 저장됐을 수 있음 → 한 번 더
                 if (Date.now() - start < 25000) {
@@ -370,7 +381,14 @@ const USER_AGENT="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, lik
         let addr = "";
         try { addr = String(this.baseUrl || "").replace(/^https?:\/\//, ""); } catch (_) {}
         const head = [{ type_name: "HeaderFilter", name: ver }];
-        if (addr) head.push({ type_name: "HeaderFilter", name: `📡 지금 주소 ${addr}` });
+        let src = "";
+        const ls = get("toki_last_src").split("|");
+        if (ls[0] && Number(ls[1])) {
+            const d = new Date(Number(ls[1]) + 9 * 3600000);
+            const z = (n) => String(n).padStart(2, "0");
+            src = ` · 마지막 목록: ${ls[0]} (${z(d.getUTCMonth() + 1)}.${z(d.getUTCDate())} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())})`;
+        }
+        if (addr) head.push({ type_name: "HeaderFilter", name: `📡 지금 주소 ${addr}${src}` });
         return head.concat(GF.apply(this, arguments) || [], [1, 2, 3].map(() => ({ type_name: "HeaderFilter", name: "　" })));
     };
 })(DefaultExtension.prototype);
