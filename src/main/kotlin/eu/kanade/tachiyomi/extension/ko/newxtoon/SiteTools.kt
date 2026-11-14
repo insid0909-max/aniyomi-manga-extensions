@@ -91,6 +91,29 @@ internal object ChapterOrder {
         if (b > a && b - a <= 3) "$a~$b${m.groupValues[3]}" else m.value
     }
 
+    private val HYPHEN = Regex("""(\d{1,5})\s*-\s*(\d{1,5})(\s*화)""")
+
+    /**
+     * 2026-11-14: 하이픈 묶음 회차 — "1-6화"·"7-12화" 처럼 범위가 서로 맞닿아 이어질 때만 묶음으로 (늑대닷컴 건방진 그 녀석).
+     * 이어지지 않는 "2-15화"(덴마 2부)·"6-1화"(나눠 올린 회차)는 그대로
+     */
+    fun hyphenChain(names: List<String>): Set<String> {
+        val items = names.mapNotNull { n ->
+            val t = n.trim()
+            HYPHEN.find(t)?.let { m ->
+                val a = m.groupValues[1].toInt()
+                val b = m.groupValues[2].toInt()
+                if (b > a) Triple(t, a, b) else null
+            }
+        }
+        val starts = items.map { it.second }.toHashSet()
+        val ends = items.map { it.third }.toHashSet()
+        return items.filter { (_, a, b) -> (b + 1) in starts || (a - 1) in ends }.map { it.first }.toHashSet()
+    }
+
+    fun hyphenBundle(name: String, chain: Set<String>): String =
+        if (chain.isNotEmpty() && name.trim() in chain) HYPHEN.replaceFirst(name.trim(), "$1~$2$3") else name
+
     private fun isBundle(name: String): Boolean =
         BUNDLE.find(commaBundle(name))?.let { it.groupValues[2].toInt() > it.groupValues[1].toInt() } ?: false
 
@@ -208,12 +231,13 @@ internal object ChapterOrder {
             .filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }
         // 잘못 적힌 번호를 먼저 찾아 두고(중복 정리에서 지워지지 않게), 이름이 똑같은 회차를 정리
         val parts = partNumbers(input)
-        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(c.name, input.size - 1 - i, titleWords, title, parts) })
+        val hy = hyphenChain(input.map { it.name })
+        val fixed = misplaced(input.mapIndexed { i, c -> keyOf(hyphenBundle(c.name, hy), input.size - 1 - i, titleWords, title, parts) })
         val fixedNum = java.util.IdentityHashMap<SChapter, Double>().apply { fixed.forEach { (i, n) -> put(input[i], n) } }
         val list = dedupe(input, fixed.keys, title, keepOldest)
         if (list.size < 2) return list
         // 사이트 목록은 보통 최신 → 과거라서, 뒤에서부터가 올라온 순서
-        val keys = list.mapIndexed { i, c -> keyOf(c.name, list.size - 1 - i, titleWords, title, parts).also { k -> fixedNum[c]?.let { k.num = it } } }
+        val keys = list.mapIndexed { i, c -> keyOf(hyphenBundle(c.name, hy), list.size - 1 - i, titleWords, title, parts).also { k -> fixedNum[c]?.let { k.num = it } } }
         countdownFirst(list, keys, title)
         mergePrefixes(keys)
         fillUnnumbered(keys)
@@ -310,7 +334,7 @@ internal object ChapterOrder {
         val out = sorted.reversed().map { list[it] }
         // 2026-11-14: 여러 화를 묶은 회차("1~5화")가 있으면 앱이 묶음마다 "Missing 4" 로 셈(나의 히어로 아카데미아 Missing 36)
         // → 그 작품만 회차 번호를 올라온 순서(오래된 것부터 1, 2, 3 …)로. 진짜 화수는 realNumber 로 남겨 "⚠️ 빠진 회차" 줄에 씀
-        if (out.any { isBundle(it.name) }) {
+        if (out.any { isBundle(hyphenBundle(it.name, hy)) }) {
             out.forEachIndexed { i, c ->
                 real[c] = c.chapter_number
                 c.chapter_number = (out.size - i).toFloat()
@@ -942,10 +966,11 @@ internal object MissingNote {
     private val RANGE = Regex("""(\d{1,5})\s*[~～]\s*(\d{1,5})\s*화""")
 
     fun text(chapters: List<SChapter>): String {
+        val hy = ChapterOrder.hyphenChain(chapters.map { it.name })
         val nums = chapters.map { ChapterOrder.realNumber(it) }.filter { it >= 1f && it < 20_000f }.map { it.toInt() }.toHashSet()
         // 여러 화를 묶은 회차("14~18화")는 그 범위를 모두 있는 것으로 (2026-11-11, 나 혼자 소설 속 망나니)
         chapters.forEach { c ->
-            RANGE.find(ChapterOrder.commaBundle(c.name))?.let { r ->
+            RANGE.find(ChapterOrder.commaBundle(ChapterOrder.hyphenBundle(c.name, hy)))?.let { r ->
                 val a = r.groupValues[1].toInt()
                 val b = r.groupValues[2].toInt()
                 if (a == ChapterOrder.realNumber(c).toInt() && b > a && b - a <= 50) nums.addAll(a..b)
