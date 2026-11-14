@@ -1,4 +1,4 @@
-const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.41","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
+const mangayomiSources = [{"id":870214019,"name":"머니툰 웹툰","lang":"ko","baseUrl":"https://mtoon168.asia","apiUrl":"","iconUrl":"https://raw.githubusercontent.com/insid0909-max/aniyomi-manga-extensions/gh-pages/icon/eu.kanade.tachiyomi.extension.ko.newxtoon.png","typeSource":"single","itemType":0,"isNsfw":true,"hasCloudflare":false,"version":"0.1.42","dateFormat":"","dateFormatLocale":"","pkgPath":"mtoon.js"}];
 const MT_WV_PENDING = {};
 const MT_COVERS = {};
 function mtListScript(page,query,options){return '('+function(page,query,options){
@@ -57,7 +57,7 @@ class DefaultExtension extends MProvider{
     getFilterList(){const select=(type,name,rows)=>({type_name:'SelectFilter',type:type,param:type,name:name,state:0,values:rows.map(x=>({type_name:'SelectOption',name:x[0],value:x[1]}))});return [{type_name:'HeaderFilter',name:'제목 입력 시 검색 우선 · 장르 선택 시 요일 대신 장르 적용'},select('state','연재 상태',MT_STATES09),select('day','요일',MT_DAYS09),select('genre','장르',MT_GENRES09),{type_name:'HeaderFilter',name:'현재 주소: '+mtBase11()},{type_name:'HeaderFilter',name:'인기: '+mtRuleLabel11('popular')+' · 최신: '+mtRuleLabel11('latest')},select('rule','탭 조건 저장',MT_RULES11)];}
     async search(query,page,filters){const q=String(query||'').trim(),options=mtRawRule11(filters),result=await mtPaged08(page,q,options);if(!q&&Number(page==null?1:page)===1)mtApplyRule11(filters,options);return result;}
     async getDetail(url){return await mtDetail10(url);}
-    getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon168.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon168.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 끔',value:false}}];}
+    getSourcePreferences(){return [{key:'mt_domain',editTextPreference:{title:'사이트 주소',summary:'비워 두면 자동으로 찾은 주소(기본 mtoon168.asia). 직접 넣으면 그 주소를 바로 쓰고, 더 새 번호 주소가 확인되면 자동으로 바뀜',value:'',dialogTitle:'사이트 주소',dialogMessage:'예: https://mtoon168.asia (https:// 없어도 됨)'}},{key:'mt_auto_on',switchPreferenceCompat:{title:'주소 자동 찾기',summary:'사이트가 안 열리면 주소 목록·넘겨 준 주소·번호 주소(mtoonN.asia) 중 머니툰 화면이 확인된 주소로 바꿈. 기본 켬',value:true}},{key:'mt_direct_on',switchPreferenceCompat:{title:'바로 받기 (웹뷰 없이)',summary:'켜면 목록·회차 그림을 웹뷰 없이 바로 받아 봄(되면 더 빠름). 글리치는 설정의 SNI 파편화를 켜야 될 수 있음. 안 되면 4초 뒤 웹뷰로 넘어감. 기본 켬',value:true}}];}
     async getPageList(url){return await mtRead07(url,'pages');}
 }
 
@@ -112,7 +112,7 @@ async function mtPaged08(page,query,options){options=mtOptions11(options);const 
 const MT_LIGHT_PATH = '/robots.txt';
 const MT_LIST_CACHE = {};
 function mtLightOff(){try{return Number(new SharedPreferences().get('mt_light_off_until')||0)>Date.now();}catch(_){return false;}}
-function mtLightFailed(){try{new SharedPreferences().setString('mt_light_off_until',String(Date.now()+6*3600000));}catch(_){}}
+function mtLightFailed(){try{new SharedPreferences().setString('mt_light_off_until',String(Date.now()+10*60000));}catch(_){}}
 function mtListPath(page,query,o){const offset=(page-1)*30;o=o||{state:'연재중',day:'8',genre:''};return query?'/more.php?search='+encodeURIComponent(query)+'&c='+offset:'/more.php?wt_fin='+encodeURIComponent(o.state)+(o.genre?'&cate='+encodeURIComponent(o.genre):'&w='+encodeURIComponent(o.day))+'&c='+offset;}
 function mtLightScript(job){return '('+function(job){
     if(window.__mtLight)return;window.__mtLight=true;
@@ -169,9 +169,16 @@ function mtListOut(origin,pg){
     pg.rows.forEach(x=>{if(!x||!/^\d+$/.test(String(x.id)))return;const c={meta:x.meta||null,name:String(x.name||''),image:String(x.imageUrl||'')};MT_COVERS[String(x.id)]=c;try{new SharedPreferences().setString('mt_meta10_'+x.id,JSON.stringify(c));}catch(_){}});
     return {list:list,hasNextPage:Number(pg.count)>=30};
 }
+// 0.1.42: 마지막 목록을 받은 길과 시간 (필터 📡 줄 끝 "🚀") — 바로 받기·가벼운 웹뷰·웹뷰 중 실제로 쓰이는 길 확인용
+let MT_PATH='';
+function mtPathNote(t0){try{new SharedPreferences().setString('mt_last_path',((Date.now()-t0)/1000).toFixed(1)+'초 ('+MT_PATH+')');}catch(_){}}
 async function mtFirstList(page,query,options){
+    const t0=Date.now();MT_PATH='웹뷰';
+    try{return await mtFirstListInner(page,query,options);}finally{mtPathNote(t0);}
+}
+async function mtFirstListInner(page,query,options){
     const key=mtBase11()+'|'+JSON.stringify([page,query,options||null]),hit=MT_LIST_CACHE[key];
-    if(hit&&Date.now()-hit.at<5*60000)return hit.value;
+    if(hit&&Date.now()-hit.at<5*60000){MT_PATH='기억';return hit.value;}
     if(!mtDirectOff()){
         try{
             const v=await mtDirectList(page,query,options);
@@ -179,8 +186,9 @@ async function mtFirstList(page,query,options){
             if(!out.list.length&&v.pages[0].count>0)throw new Error('목록 해석 실패');
             MT_LIST_CACHE[key]={at:Date.now(),value:out};
             if(v.pages[1]&&out.hasNextPage)MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page+1,query,options||null])]={at:Date.now(),value:mtListOut(v.origin,v.pages[1])};
+            MT_PATH='바로';
             return out;
-        }catch(e){var directBad=true;}
+        }catch(e){var directBad=true;MT_PATH='바로 실패 → ';}
     }
     const viaWebview=await mtFirstListWv(page,query,options,key);
     if(directBad)mtDirectFailed();
@@ -196,10 +204,12 @@ async function mtFirstListWv(page,query,options,key){
             const out=mtListOut(origin,v.pages[0]);
             MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page,query,options||null])]={at:Date.now(),value:out};
             if(v.pages[1]&&out.hasNextPage)MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page+1,query,options||null])]={at:Date.now(),value:mtListOut(origin,v.pages[1])};
+            MT_PATH=(MT_PATH==='웹뷰'?'':MT_PATH)+'가벼운 웹뷰';
             return out;
         }catch(e){var lightBad=true;}
     }
     const out=await mtFirstListSlow(page,query,options);
+    MT_PATH=(MT_PATH==='웹뷰'?'':MT_PATH)+'웹뷰';
     if(lightBad)mtLightFailed();
     MT_LIST_CACHE[mtBase11()+'|'+JSON.stringify([page,query,options||null])]={at:Date.now(),value:out};
     return out;
@@ -232,9 +242,11 @@ async function mtRead07Wv(url,mode,m){
 // 순정은 원래 바로 받기가 됐음(0.1.25). → 웹뷰보다 먼저 바로 받기 4초, 안 되면 웹뷰 길, 6시간 동안 바로 받기 건너뜀
 const MT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 // 0.1.30: 글리치 SNI 파편화를 안 켜면 바로 받기가 매번 실패해 오히려 느려짐(사용자 5초) → 설정 스위치로 켤 때만 (기본 끔)
-function mtDirectOn(){try{const v=new SharedPreferences().get('mt_direct_on');return v===true||v==='true';}catch(_){return false;}}
+// 0.1.42 (2026-11-14, 사용자 "규칙 때문에 역효과" 검토): 기준 앱은 순정(바로 받기가 되던 앱) → 기본 켬, 직접 끈 사람만 끔.
+// 실패 뒤 건너뛰기도 6시간 → 10분 (한 번 실패로 몇 시간 동안 느린 길만 쓰지 않게)
+function mtDirectOn(){try{const v=new SharedPreferences().get('mt_direct_on');return !(v===false||v==='false');}catch(_){return true;}}
 function mtDirectOff(){if(!mtDirectOn())return true;try{return Number(new SharedPreferences().get('mt_direct_off_until')||0)>Date.now();}catch(_){return false;}}
-function mtDirectFailed(){try{new SharedPreferences().setString('mt_direct_off_until',String(Date.now()+6*3600000));}catch(_){}}
+function mtDirectFailed(){try{new SharedPreferences().setString('mt_direct_off_until',String(Date.now()+10*60000));}catch(_){}}
 function mtUnesc(t){return String(t||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0*39;/g,"'").replace(/&nbsp;/g,' ').replace(/&amp;/g,'&');}
 async function mtDirectGet(path,ms,xhr){
     const base=mtBase11(),h={'User-Agent':MT_UA,'Referer':base+'/'};if(xhr)h['X-Requested-With']='XMLHttpRequest';
@@ -517,7 +529,8 @@ function mtNoteSave(msg) {
 function mtNoteText() {
     try {
         const v = String(new SharedPreferences().getString("mt_listed_note", "") || "");
-        return v ? ` · 📡 ${mtBase11().replace(/^https?:\/\//, "")} · 🔎 ${v}` : "";
+        const lp = String(new SharedPreferences().getString("mt_last_path", "") || "");
+        return (v ? ` · 📡 ${mtBase11().replace(/^https?:\/\//, "")} · 🔎 ${v}` : "") + (lp ? ` · 🚀 마지막 목록 ${lp}` : "");
     } catch (e) {
         return "";
     }
