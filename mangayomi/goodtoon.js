@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": true,
-    "version": "0.3.80",
+    "version": "0.3.81",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "goodtoon.js"
@@ -1005,6 +1005,8 @@ class DefaultExtension extends MProvider {
         const parts = [];
         if (q) parts.push(`q=${encodeURIComponent(q)}`);
         for (const k in extra || {}) if (extra[k]) parts.push(`${k}=${encodeURIComponent(extra[k])}`);
+        // 첫 화면(/)은 mcat 없이 쪽 번호(pg)를 무시함 → 1·2·3쪽이 모두 같은 작품 (2026-11-16 사용자 화면) → 전체 분류(mcat=all)를 붙임
+        if (path === "/" && !q && !(extra && extra.mcat)) parts.push("mcat=all");
         if (page > 1) parts.push(`pg=${page}`);
         return this.base + path + (parts.length ? "?" + parts.join("&") : "");
     }
@@ -1159,7 +1161,7 @@ class DefaultExtension extends MProvider {
         return [
             { type_name: "HeaderFilter", name: "검색어가 없을 때만 적용" },
             sel("목록", "list", [["전체(최신)", "/"], ["인기순", "/recommend/"], ["연재중", "/ongoing/"], ["완결", "/end/"]]),
-            sel("분류", "mcat", [["기본 (일반웹툰)", ""], ["일반웹툰", "webtoon"], ["BL/GL", "bl-gl"], ["성인웹툰", "adult"]]),
+            sel("분류", "mcat", [["전체 (기본)", ""], ["일반웹툰", "webtoon"], ["BL/GL", "bl-gl"], ["성인웹툰", "adult"]]),
             sel("요일", "mday", [["전체", ""], ["월", "mon"], ["화", "tue"], ["수", "wed"], ["목", "thu"], ["금", "fri"], ["토", "sat"], ["일", "sun"], ["기타", "etc"]]),
             sel("장르", "genre", [["전체", ""], ["학원", "school"], ["액션", "action"], ["SF", "sci-fi"], ["스토리", "story"], ["판타지", "fantasy"], ["BL", "bl"], ["개그", "gag"], ["연애", "romance-drama"], ["드라마", "drama"], ["로맨스", "romance"], ["시대극", "period"], ["스포츠", "sports"], ["일상", "slice-of-life"], ["추리", "mystery"], ["공포", "horror"], ["성인", "adult"], ["무협", "martial-arts"], ["하렘", "harem"], ["백합", "yuri"]]),
             sel("플랫폼", "plat", [["전체", ""], ["네이버", "naver"], ["다음", "daum"], ["카카오", "kakao"], ["레진", "rejin"], ["투믹스", "tomics"], ["탑툰", "toptoon"], ["리디", "ridi"], ["봄툰", "bom"], ["기타", "etc"]])
