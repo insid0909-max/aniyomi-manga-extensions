@@ -240,6 +240,8 @@ class Goodtoon : HttpSource(), ConfigurableSource {
         val b = (baseUrl + path).toHttpUrl().newBuilder()
         if (!q.isNullOrBlank()) b.addQueryParameter("q", q)
         extra.forEach { (k, v) -> if (v.isNotEmpty()) b.addQueryParameter(k, v) }
+        // 첫 화면(/)은 mcat 없이 쪽 번호(pg)를 무시함 → 1·2·3쪽이 모두 같은 작품 (2026-11-16 사용자 화면) → 전체 분류(mcat=all)를 붙임
+        if (path == "/" && q.isNullOrBlank() && extra["mcat"].isNullOrEmpty()) b.addQueryParameter("mcat", "all")
         if (page > 1) b.addQueryParameter("pg", page.toString())
         return GET(b.build(), headers)
     }
@@ -464,7 +466,7 @@ class Goodtoon : HttpSource(), ConfigurableSource {
             "연재중" to "/ongoing/",
             "완결" to "/end/",
         )
-        private val CATS = listOf("기본 (일반웹툰)" to "", "일반웹툰" to "webtoon", "BL/GL" to "bl-gl", "성인웹툰" to "adult")
+        private val CATS = listOf("전체 (기본)" to "", "일반웹툰" to "webtoon", "BL/GL" to "bl-gl", "성인웹툰" to "adult")
         private val DAYS = listOf(
             "전체" to "", "월" to "mon", "화" to "tue", "수" to "wed", "목" to "thu",
             "금" to "fri", "토" to "sat", "일" to "sun", "기타" to "etc",
