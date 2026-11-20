@@ -1,22 +1,5 @@
 {
- "changedFiles": [
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
-  "mangayomi/goraetoon.js",
-  "changelog.json",
-  "업데이트내역.md"
- ],
- "domainChanges": [
-  {
-   "name": "고래툰",
-   "from": "https://004.grtoon.com",
-   "to": "https://005.grtoon.com",
-   "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goraetoon.kt",
-    "mangayomi/goraetoon.js",
-    "changelog.json",
-    "업데이트내역.md"
-   ]
-  }
- ],
+ "changedFiles": [],
+ "domainChanges": [],
  "notes": []
 }
