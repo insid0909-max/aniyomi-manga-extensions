@@ -1,22 +1,5 @@
 {
- "changedFiles": [
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
-  "mangayomi/newxtoon.js",
-  "changelog.json",
-  "업데이트내역.md"
- ],
- "domainChanges": [
-  {
-   "name": "newxtoon",
-   "from": "https://newxtoon4.com",
-   "to": "https://newxtoon5.com",
-   "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/NewXtoon.kt",
-    "mangayomi/newxtoon.js",
-    "changelog.json",
-    "업데이트내역.md"
-   ]
-  }
- ],
+ "changedFiles": [],
+ "domainChanges": [],
  "notes": []
 }
