@@ -2,7 +2,6 @@
  "changedFiles": [
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
   "mangayomi/bookkor.js",
-  "domains.json",
   "changelog.json",
   "업데이트내역.md",
   "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
@@ -16,7 +15,6 @@
    "files": [
     "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Bookkor.kt",
     "mangayomi/bookkor.js",
-    "domains.json",
     "changelog.json",
     "업데이트내역.md"
    ]
@@ -28,7 +26,6 @@
    "files": [
     "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Toonkor.kt",
     "mangayomi/toonkor.js",
-    "domains.json",
     "changelog.json",
     "업데이트내역.md"
    ]
