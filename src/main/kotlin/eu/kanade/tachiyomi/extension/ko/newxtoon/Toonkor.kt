@@ -298,6 +298,9 @@ class Toonkor : HttpSource(), ConfigurableSource {
     override fun latestUpdatesParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     /** 목록·검색 공통 카드 (.section-item-inner) */
+    /** 미리보기 그림 주소(…/thumb-이름_120x120.jpg) → 원본(…/이름.jpg) */
+    private fun fullCover(u: String): String = u.replace(Regex("""/thumb-([^/]+?)_\d+x\d+(\.\w+)(\?.*)?$"""), "/$1$2")
+
     /** 그림 주소: 늦게 불러오는 카드는 src 가 빈 그림(data:)이고 진짜 주소는 data-src 에 있음 */
     private fun imgUrl(img: org.jsoup.nodes.Element): String? =
         listOf("data-src", "data-original", "src").map { img.absUrl(it) }
@@ -312,7 +315,8 @@ class Toonkor : HttpSource(), ConfigurableSource {
             SManga.create().apply {
                 url = path
                 title = a.selectFirst("h3")?.text()?.trim()?.ifEmpty { null } ?: item.attr("alt").trim()
-                thumbnail_url = item.selectFirst(".section-item-photo img")?.let(::imgUrl)
+                // 목록 카드는 120×120 작은 미리보기(thumb-…_120x120) → 같은 이름의 원본으로 (2026-11-25 카드 화질 점검)
+            thumbnail_url = item.selectFirst(".section-item-photo img")?.let(::imgUrl)?.let(::fullCover)
                 description = item.selectFirst(".toon-summary")?.text()?.trim()?.ifEmpty { null }
                 genre = item.selectFirst(".toon_gen")?.text()?.trim()?.replace("/", ", ")?.ifEmpty { null }
             }
