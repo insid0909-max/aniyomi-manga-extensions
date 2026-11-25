@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": false,
     "hasCloudflare": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "mangadex.js"
@@ -168,7 +168,7 @@ function titleOf(a) {
 
 function coverOf(m) {
     const c = (m.relationships || []).find((r) => r && r.type === "cover_art" && r.attributes && r.attributes.fileName);
-    return c ? `${COVERS}/${m.id}/${c.attributes.fileName}.256.jpg` : "";
+    return c ? `${COVERS}/${m.id}/${c.attributes.fileName}.512.jpg` : "";
 }
 
 class DefaultExtension extends MProvider {

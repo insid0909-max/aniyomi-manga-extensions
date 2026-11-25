@@ -9,7 +9,7 @@ const mangayomiSources = [{
     "itemType": 0,
     "isNsfw": true,
     "hasCloudflare": false,
-    "version": "0.1.87",
+    "version": "0.1.88",
     "dateFormat": "",
     "dateFormatLocale": "",
     "pkgPath": "toonkor.js"
@@ -1001,7 +1001,8 @@ class DefaultExtension extends MProvider {
             const name = (a.selectFirst("h3")?.text || item.attr("alt") || "").trim();
             if (!name) continue;
             const img = item.selectFirst(".section-item-photo img");
-            list.push({ name, imageUrl: this.imgUrl(img), link });
+            // 목록 카드는 120×120 작은 미리보기(thumb-…_120x120) → 같은 이름의 원본으로 (2026-11-25 카드 화질 점검)
+            list.push({ name, imageUrl: this.imgUrl(img).replace(/\/thumb-([^/]+?)_\d+x\d+(\.\w+)(\?.*)?$/, "/$1$2"), link });
         }
         return { list, hasNextPage: false };
     }
