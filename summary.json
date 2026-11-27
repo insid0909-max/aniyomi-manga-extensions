@@ -1,22 +1,5 @@
 {
- "changedFiles": [
-  "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-  "mangayomi/goodtoon.js",
-  "changelog.json",
-  "업데이트내역.md"
- ],
- "domainChanges": [
-  {
-   "name": "굿툰",
-   "from": "https://www.goodtoon012.com",
-   "to": "https://www.goodtoon013.com",
-   "files": [
-    "src/main/kotlin/eu/kanade/tachiyomi/extension/ko/newxtoon/Goodtoon.kt",
-    "mangayomi/goodtoon.js",
-    "changelog.json",
-    "업데이트내역.md"
-   ]
-  }
- ],
+ "changedFiles": [],
+ "domainChanges": [],
  "notes": []
 }
